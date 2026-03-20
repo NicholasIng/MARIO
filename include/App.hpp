@@ -1,29 +1,26 @@
 #ifndef APP_HPP
 #define APP_HPP
 
-#include "pch.hpp" // IWYU pragma: export
+#include "pch.hpp" 
+#include "Mario.hpp"
+#include "MapManager.hpp"
+#include <memory>
 
 class App {
 public:
-    enum class State {
-        START,
-        UPDATE,
-        END,
-    };
-
+    enum class State { START, UPDATE, END };
     State GetCurrentState() const { return m_CurrentState; }
 
     void Start();
-
     void Update();
-
-    void End(); // NOLINT(readability-convert-member-functions-to-static)
-
-private:
-    void ValidTask();
+    void End();
 
 private:
     State m_CurrentState = State::START;
+
+    // Define as unique_ptr to prevent leaks and allow '->' usage
+    std::unique_ptr<Mario> m_Mario;
+    std::unique_ptr<MapManager> m_MapManager;
 };
 
 #endif
