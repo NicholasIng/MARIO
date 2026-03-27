@@ -35,7 +35,7 @@ add_executable(${PROJECT_NAME}
     ${SRC_DIR}/main.cpp
     ${SRC_FILES}
     ${HEADER_FILES}
- "src/Mario.cpp")
+ "src/Mario.cpp" "src/ConvertSketch.cpp" "src/Enemy.cpp" )
 
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /W4)

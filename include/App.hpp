@@ -1,7 +1,7 @@
 #ifndef APP_HPP
 #define APP_HPP
 
-#include "pch.hpp" 
+#include "pch.hpp"
 #include "Mario.hpp"
 #include "MapManager.hpp"
 #include <memory>
@@ -18,9 +18,10 @@ public:
 private:
     State m_CurrentState = State::START;
 
-    // Define as unique_ptr to prevent leaks and allow '->' usage
     std::unique_ptr<Mario> m_Mario;
-    std::unique_ptr<MapManager> m_MapManager;
+
+    // camera/view like the youtuber's view_x
+    float m_ViewX = 0.0f;
 };
 
 #endif

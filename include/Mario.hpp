@@ -2,6 +2,7 @@
 #define MARIO_HPP
 
 #include "Util/GameObject.hpp"
+#include "Util/Image.hpp"
 #include "Animation.hpp"
 #include <memory>
 #include <map>
@@ -22,6 +23,8 @@ private:
 
     AnimState m_AnimState = AnimState::IDLE;
     std::map<AnimState, std::unique_ptr<Animation>> m_Animations;
+
+    std::unique_ptr<Util::Image> m_Image;
 
     void HandleAnimation(float dt);
 };
