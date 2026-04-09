@@ -128,6 +128,23 @@ static bool IsFlagColor(Uint8 r, Uint8 g, Uint8 b) {
     return PackRGB(r, g, b) == PackRGB(109, 255, 85);
 }
 
+static glm::vec2 ComputeGroundedSpawnPosition(const MapManager& map,
+                                              int gridX,
+                                              int entityGridY,
+                                              float halfHeight) {
+    const float tileSize = map.GetTileSize();
+    const float worldX = map.GetWorldLeft() + gridX * tileSize + tileSize / 2.0f;
+    for (int y = std::max(0, entityGridY); y < map.GetHeight(); ++y) {
+        if (MapManager::IsSolidCell(map.GetCell(gridX, y))) {
+            const float tileTop = (map.GetHeight() * tileSize) / 2.0f - y * tileSize;
+            return { worldX, tileTop + halfHeight };
+        }
+    }
+
+    const float fallbackY = (map.GetHeight() * tileSize) / 2.0f - entityGridY * tileSize + tileSize / 2.0f;
+    return { worldX, fallbackY };
+}
+
 bool convert_sketch(
     const std::string& path,
     MapManager& map,
@@ -194,7 +211,7 @@ bool convert_sketch(
     std::string pipeResolved = MapManager::ResolveTilePath(Cell::Pipe, "Pipe.png");
     std::string mountainResolved = MapManager::ResolveBackgroundPath("mountains.png");
     std::string bushResolved = MapManager::ResolveBackgroundPath("Bush.png");
-    std::string cloudResolved = MapManager::ResolveBackgroundPath("Clouds.png");
+    std::string cloudResolved = MapManager::ResolveBackgroundPath("Clouds_2.png");
     std::vector<std::vector<char>> pipeMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> mountainMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> bushMask(width, std::vector<char>(layerHeight, 0));
@@ -250,10 +267,9 @@ bool convert_sketch(
             if (!GetPixelRGBA(surface, x, y + layerHeight, r, g, b, a)) continue;
             if (a > 0) {
                 if (r == 255 && g == 0 && b == 0) {
-                    float tileSize = map.GetTileSize();
-                    float worldX = map.GetWorldLeft() + x * tileSize + tileSize / 2.0f;
-                    float worldY = (layerHeight * tileSize) / 2.0f - y * tileSize + tileSize / 2.0f;
-                    mario.m_Transform.translation = { worldX, worldY };
+                    mario.m_Transform.translation = ComputeGroundedSpawnPosition(
+                        map, x, y, mario.GetHalfExtents().y
+                    );
                     spawnFound = true;
                 } else if (r == 182 && g == 73 && b == 0) {
                     goombaMask[x][y] = 1;
@@ -396,7 +412,6 @@ bool convert_sketch(
 
     if (enemy_spawns != nullptr) {
         std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
-        float tileSize = map.GetTileSize();
         for (int sx = 0; sx < width; ++sx) {
             for (int sy = 0; sy < layerHeight; ++sy) {
                 if (!goombaMask[sx][sy] || visited[sx][sy]) continue;
@@ -429,9 +444,10 @@ bool convert_sketch(
                     }
                 }
 
-                float worldX = map.GetWorldLeft() + minX * tileSize + ((maxX - minX + 1) * tileSize) / 2.0f;
-                float worldY = (layerHeight * tileSize) / 2.0f - minY * tileSize - ((maxY - minY + 1) * tileSize) / 2.0f;
-                enemy_spawns->push_back({ worldX, worldY });
+                const int centerX = (minX + maxX) / 2;
+                enemy_spawns->push_back(
+                    ComputeGroundedSpawnPosition(map, centerX, maxY, 20.0f)
+                );
             }
         }
     }

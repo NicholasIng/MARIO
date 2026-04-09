@@ -19,5 +19,7 @@ private:
     std::shared_ptr<Util::Image> m_Image;
     LootType m_Type;
     bool m_Collected = false;
-    float m_RiseRemaining = 24.0f;
+    float m_RiseRemaining = 48.0f;
+    float m_HorizontalDirection = 1.0f;
+    float m_VelocityY = 0.0f;
 };

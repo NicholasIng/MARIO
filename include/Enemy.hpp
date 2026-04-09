@@ -19,6 +19,7 @@ private:
     float m_StartX = 0.0f;
     float m_Direction = -1.0f;
     float m_Speed = 40.0f;
+    float m_VelocityY = 0.0f;
     float m_DeathTimer = 0.0f;
     bool m_Alive = true;
     std::string m_LeftPath;

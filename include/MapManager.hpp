@@ -60,6 +60,13 @@ private:
 public:
     MapManager() = default;
 
+    static bool IsSolidCell(Cell cell) {
+        return cell == Cell::Wall ||
+               cell == Cell::Brick ||
+               cell == Cell::QuestionBlock ||
+               cell == Cell::Pipe;
+    }
+
     // helper: resource root via compile-time define or fallback
     static std::filesystem::path ResourceRoot() {
 #ifdef RESOURCE_DIR
@@ -340,17 +347,21 @@ public:
         float xPos = -(m_Width * TILE_SIZE) / 2.0f + (gridX * TILE_SIZE) + (tileSpanX * TILE_SIZE) / 2.0f;
         float yPos = (m_Height * TILE_SIZE) / 2.0f - (gridY * TILE_SIZE) - (tileSpanY * TILE_SIZE) / 2.0f;
 
-        obj->m_Transform.translation = { xPos, yPos };
-
         glm::vec2 imgSize = img->GetSize();
-        float scale = 1.0f;
         if (imgSize.x > 0.0f && imgSize.y > 0.0f) {
-            obj->m_Transform.scale = {
-                (tileSpanX * TILE_SIZE) / imgSize.x,
-                (tileSpanY * TILE_SIZE) / imgSize.y
+            const float targetWidth = tileSpanX * TILE_SIZE;
+            const float targetHeight = tileSpanY * TILE_SIZE;
+            const float uniformScale = std::min(targetWidth / imgSize.x, targetHeight / imgSize.y);
+            const float actualWidth = imgSize.x * uniformScale;
+            const float actualHeight = imgSize.y * uniformScale;
+            obj->m_Transform.scale = { uniformScale, uniformScale };
+            obj->m_Transform.translation = {
+                xPos,
+                yPos - (targetHeight - actualHeight) / 2.0f
             };
         } else {
-            obj->m_Transform.scale = { scale, scale };
+            obj->m_Transform.scale = { 1.0f, 1.0f };
+            obj->m_Transform.translation = { xPos, yPos };
         }
 
         obj->SetZIndex(-10.0f);
@@ -375,6 +386,35 @@ public:
         return Cell::Empty;
     }
 
+    bool IsSolidAt(int x, int y) const {
+        return IsSolidCell(GetCell(x, y));
+    }
+
+    bool ClearTile(int x, int y) {
+        if (x < 0 || x >= m_Width || y < 0 || y >= m_Height) return false;
+        if (m_Map[x][y] == Cell::Empty) return false;
+
+        auto obj = m_TileObjects[x][y];
+        if (obj != nullptr) {
+            m_Objects.erase(std::remove(m_Objects.begin(), m_Objects.end(), obj), m_Objects.end());
+            m_AnimatedTiles.erase(
+                std::remove_if(m_AnimatedTiles.begin(), m_AnimatedTiles.end(),
+                               [&](const AnimatedTile& tile) { return tile.object == obj; }),
+                m_AnimatedTiles.end()
+            );
+        }
+
+        m_Map[x][y] = Cell::Empty;
+        m_TileObjects[x][y] = nullptr;
+        m_QuestionBlockUsed[x][y] = false;
+        return true;
+    }
+
+    bool CollectCoin(int x, int y) {
+        if (GetCell(x, y) != Cell::Coin) return false;
+        return ClearTile(x, y);
+    }
+
     bool HitQuestionBlock(int x, int y) {
         if (x < 0 || x >= m_Width || y < 0 || y >= m_Height) return false;
         if (m_Map[x][y] != Cell::QuestionBlock || m_QuestionBlockUsed[x][y]) return false;
@@ -383,12 +423,7 @@ public:
 
         const std::string usedPath = ResolveTilePath(Cell::QuestionBlock, "Question4.png");
         if (m_TileObjects[x][y] != nullptr) {
-            auto image = std::dynamic_pointer_cast<Util::Image>(m_TileObjects[x][y]->GetDrawable());
-            if (image != nullptr) {
-                image->SetImage(usedPath);
-            } else {
-                m_TileObjects[x][y]->SetDrawable(std::make_shared<Util::Image>(usedPath));
-            }
+            m_TileObjects[x][y]->SetDrawable(std::make_shared<Util::Image>(usedPath));
         }
 
         m_AnimatedTiles.erase(

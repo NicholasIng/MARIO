@@ -5,6 +5,7 @@
 #include "MapManager.hpp"
 #include "ConvertSketch.hpp"
 #include "Enemy.hpp"
+#include "AssetPaths.hpp"
 #include "config.hpp"
 #include <algorithm>
 #include <cmath>
@@ -23,7 +24,7 @@ void App::Start() {
     Util::Color bg(0, 255, 255, 255);
     std::vector<glm::vec2> enemySpawns;
     bool foundSpawn = convert_sketch(
-        "C:\\Users\\asus\\MARIO\\Resources\\image\\LevelSketch0.png",
+        AssetPaths::Image("LevelSketch0.png"),
         *g_MapManager,
         *m_Mario,
         bg,
@@ -89,8 +90,8 @@ void App::Update() {
             if (stomped) {
                 enemy->Stomp();
                 m_Mario->BounceAfterStomp();
-            } else {
-                m_Mario->Die();
+            } else if (!m_Mario->IsInvulnerable()) {
+                m_Mario->TakeEnemyHit();
                 break;
             }
         }
@@ -102,6 +103,7 @@ void App::Update() {
             const bool overlapX = std::abs(delta.x) <= (marioHalf.x + pickupHalf.x);
             const bool overlapY = std::abs(delta.y) <= (marioHalf.y + pickupHalf.y);
             if (overlapX && overlapY) {
+                m_Mario->PowerUp();
                 pickup->Collect();
             }
         }
