@@ -3,6 +3,7 @@
 #include "Util/Input.hpp"
 #include "Util/Keycode.hpp"
 #include "Util/Logger.hpp"
+#include "Util/Time.hpp"
 #include "MapManager.hpp"
 #include <algorithm>
 #include <cmath>
@@ -53,18 +54,31 @@ Mario::Mario()
     }, 1.0f
     );
 
-    m_Image = std::make_unique<Util::Image>(
+    m_Image = std::make_shared<Util::Image>(
         m_Animations[AnimState::IDLE]->GetCurrentFramePath()
     );
-    SetDrawable(std::move(m_Image));
+    SetDrawable(m_Image);
 
-    m_Transform.translation = { 0.0f, -250.0f };
+    m_Transform.translation = m_SpawnPosition;
     m_Transform.scale = { 3.0f, 3.0f };
     m_ZIndex = 10.0f;
 }
 
 void Mario::Update() {
-    float dt = 0.016f;
+    float dt = std::max(0.001f, Util::Time::GetDeltaTimeMs() / 1000.0f);
+
+    if (m_IsDead) {
+        m_RespawnTimer -= dt;
+        if (m_RespawnTimer <= 0.0f) {
+            m_IsDead = false;
+            m_VelocityX = 0.0f;
+            m_VelocityY = 0.0f;
+            m_OnGround = false;
+            m_JumpTimer = 0.0f;
+            m_Transform.translation = m_SpawnPosition;
+        }
+        return;
+    }
 
     bool moveLeft = Util::Input::IsKeyPressed(Util::Keycode::A);
     bool moveRight = Util::Input::IsKeyPressed(Util::Keycode::D);
@@ -204,6 +218,9 @@ void Mario::Update() {
             gridY = std::max(0, std::min(mapHeight - 1, gridY));
             for (int gx = leftGridX; gx <= rightGridX; ++gx) {
                 if (g_MapManager->GetCell(gx, gridY) != Cell::Empty) {
+                    if (g_MapManager->GetCell(gx, gridY) == Cell::QuestionBlock) {
+                        g_MapManager->HitQuestionBlock(gx, gridY);
+                    }
                     // collide with ceiling of tile at (gx, gridY)
                     float tileBottom = mapTop - (gridY + 1) * tileSize;
                     candidateY = tileBottom - halfHeight - eps;
@@ -239,6 +256,20 @@ void Mario::Update() {
     HandleAnimation(dt);
 }
 
+void Mario::Die() {
+    if (m_IsDead) return;
+    m_IsDead = true;
+    m_RespawnTimer = 1.0f;
+    m_VelocityX = 0.0f;
+    m_VelocityY = 0.0f;
+}
+
+void Mario::BounceAfterStomp() {
+    m_VelocityY = m_JumpForce * 0.6f;
+    m_OnGround = false;
+    m_JumpTimer = 0.0f;
+}
+
 void Mario::HandleAnimation(float dt) {
     AnimState lastState = m_AnimState;
 
@@ -262,8 +293,5 @@ void Mario::HandleAnimation(float dt) {
 
     m_Animations[m_AnimState]->Update(dt);
 
-    // TEMP: keep current drawable stable for now
-    SetDrawable(std::make_unique<Util::Image>(
-        m_Animations[m_AnimState]->GetCurrentFramePath()
-    ));
+    m_Image->SetImage(m_Animations[m_AnimState]->GetCurrentFramePath());
 }

@@ -124,6 +124,10 @@ static bool IsBushColor(Uint8 r, Uint8 g, Uint8 b) {
            key == PackRGB(146, 146, 0);
 }
 
+static bool IsFlagColor(Uint8 r, Uint8 g, Uint8 b) {
+    return PackRGB(r, g, b) == PackRGB(109, 255, 85);
+}
+
 bool convert_sketch(
     const std::string& path,
     MapManager& map,
@@ -158,14 +162,7 @@ bool convert_sketch(
     int layerHeight = totalHeight / 3;
     map.SetMapSize(width, layerHeight);
 
-    // Try to detect a tiny sky-blue marker in the top-right and prefer it as background color.
-    // This lets authors place a single blue pixel to indicate sky/sky-color.
-    Uint8 tr = 0, tg = 0, tb = 0;
-    bool topRightSky = FindTopRightSkyColor(surface, tr, tg, tb);
-    if (topRightSky) {
-        background_color = Util::Color(tr, tg, tb, 255);
-        LOG_INFO("Top-right sky pixel detected: ({},{},{}). Using as background color.", tr, tg, tb);
-    }
+    background_color = Util::Color(0, 219, 255, 255);
 
     // tile mappings: packed RGB -> pair(Cell type, requested filename)
     struct TileEntry { Cell type; std::string requested; };
@@ -185,7 +182,6 @@ bool convert_sketch(
     };
 
     bool spawnFound = false;
-    bool bgColorSet = topRightSky; // if we picked top-right sky, don't overwrite from bottom layer
 
     // pre-resolve stair fallback: if a "Stair.png" exists (under resources) use it for unmatched top-layer tiles
     std::string stairResolved = MapManager::ResolveTilePath(Cell::Brick, "Stair.png");
@@ -196,15 +192,14 @@ bool convert_sketch(
     }
 
     std::string pipeResolved = MapManager::ResolveTilePath(Cell::Pipe, "Pipe.png");
-    std::string hardBlockResolved = MapManager::ResolveTilePath(Cell::Brick, "HardBlock.png");
     std::string mountainResolved = MapManager::ResolveBackgroundPath("mountains.png");
     std::string bushResolved = MapManager::ResolveBackgroundPath("Bush.png");
     std::string cloudResolved = MapManager::ResolveBackgroundPath("Clouds.png");
-    bool haveHardBlockAsset = (!hardBlockResolved.empty() && fs::exists(hardBlockResolved));
     std::vector<std::vector<char>> pipeMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> mountainMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> bushMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> cloudMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> flagMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> goombaMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> isHard(width, std::vector<char>(layerHeight, 0));
 
@@ -257,7 +252,7 @@ bool convert_sketch(
                 if (r == 255 && g == 0 && b == 0) {
                     float tileSize = map.GetTileSize();
                     float worldX = map.GetWorldLeft() + x * tileSize + tileSize / 2.0f;
-                    float worldY = (layerHeight * tileSize) / 2.0f - y * tileSize - tileSize / 2.0f;
+                    float worldY = (layerHeight * tileSize) / 2.0f - y * tileSize + tileSize / 2.0f;
                     mario.m_Transform.translation = { worldX, worldY };
                     spawnFound = true;
                 } else if (r == 182 && g == 73 && b == 0) {
@@ -270,16 +265,8 @@ bool convert_sketch(
             // =========================
             if (!GetPixelRGBA(surface, x, y + 2 * layerHeight, r, g, b, a)) continue;
             if (a > 0) {
-                // set background color from the first non-transparent background pixel (captures sky color)
-                if (!bgColorSet) {
-                    background_color = Util::Color(r, g, b, a);
-                    bgColorSet = true;
-                    LOG_INFO("Background color set to ({},{},{})", r, g, b);
-                }
-
                 // If the pixel is a sky-like blue, prefer using the solid background color rather than tiled background art.
                 if (IsSkyColor(r, g, b)) {
-                    // already captured color, skip adding background tiles for sky pixels
                     continue;
                 }
 
@@ -290,6 +277,11 @@ bool convert_sketch(
 
                 if (IsBushColor(r, g, b)) {
                     bushMask[x][y] = 1;
+                    continue;
+                }
+
+                if (IsFlagColor(r, g, b)) {
+                    flagMask[x][y] = 1;
                     continue;
                 }
 
@@ -362,6 +354,46 @@ bool convert_sketch(
         AddComponentSprites(cloudMask, true, Cell::Empty, cloudResolved);
     }
 
+    std::vector<std::vector<char>> visitedFlag(width, std::vector<char>(layerHeight, 0));
+    for (int sx = 0; sx < width; ++sx) {
+        for (int sy = 0; sy < layerHeight; ++sy) {
+            if (!flagMask[sx][sy] || visitedFlag[sx][sy]) continue;
+
+            int minX = sx, maxX = sx, minY = sy, maxY = sy;
+            std::queue<std::pair<int, int>> q;
+            q.push({sx, sy});
+            visitedFlag[sx][sy] = 1;
+            while (!q.empty()) {
+                auto [cx, cy] = q.front();
+                q.pop();
+                minX = std::min(minX, cx);
+                maxX = std::max(maxX, cx);
+                minY = std::min(minY, cy);
+                maxY = std::max(maxY, cy);
+                const int dx[4] = {1, -1, 0, 0};
+                const int dy[4] = {0, 0, 1, -1};
+                for (int i = 0; i < 4; ++i) {
+                    int nx = cx + dx[i];
+                    int ny = cy + dy[i];
+                    if (nx < 0 || nx >= width || ny < 0 || ny >= layerHeight) continue;
+                    if (visitedFlag[nx][ny] || !flagMask[nx][ny]) continue;
+                    visitedFlag[nx][ny] = 1;
+                    q.push({nx, ny});
+                }
+            }
+
+            map.AddBackgroundSprite(minX, minY, 1, maxY - minY + 1,
+                                    MapManager::ResolveBackgroundPath("flagstick.png"));
+            map.AddBackgroundSprite(minX, minY, 1, 1,
+                                    MapManager::ResolveBackgroundPath("dot.png"));
+            if (minY + 1 <= maxY) {
+                map.AddBackgroundSprite(minX, minY + 1, 1, 2,
+                                        MapManager::ResolveBackgroundPath("flag.png"));
+            }
+            map.SetGoal(map.GetWorldLeft() + minX * map.GetTileSize() + map.GetTileSize() * 0.5f);
+        }
+    }
+
     if (enemy_spawns != nullptr) {
         std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
         float tileSize = map.GetTileSize();
@@ -422,6 +454,8 @@ bool convert_sketch(
     };
 
     std::string brickPath = FindTilePathForType(Cell::Brick);
+    std::string hardBlockPath = MapManager::ResolveTilePath(Cell::Brick, "HardBlock.png");
+    bool haveHardBlockAsset = !hardBlockPath.empty() && fs::exists(hardBlockPath);
     if (haveHardBlockAsset) {
         std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
         for (int sx = 0; sx < width; ++sx) {
@@ -458,6 +492,7 @@ bool convert_sketch(
                     minX = std::min(minX, p.first);
                     maxX = std::max(maxX, p.first);
                 }
+                if (minX < static_cast<int>(width * 0.6f)) continue;
 
                 int cols = maxX - minX + 1;
                 if (cols < 3) continue;
@@ -491,7 +526,7 @@ bool convert_sketch(
                 if (!monotonic) continue;
 
                 for (const auto& p : comp) {
-                    map.AddTile(p.first, p.second, Cell::Brick, hardBlockResolved);
+                    map.AddTile(p.first, p.second, Cell::Brick, hardBlockPath);
                     isHard[p.first][p.second] = 1;
                 }
             }

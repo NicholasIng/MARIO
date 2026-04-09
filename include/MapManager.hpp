@@ -8,14 +8,19 @@
 #include <cctype>
 #include <filesystem>
 #include <set>
+#include <queue>
+#include <random>
 #include <glm/vec2.hpp> // for glm::vec2
 
 #include "Util/GameObject.hpp"
 #include "Util/Image.hpp"
 #include "Util/Logger.hpp"
+#include "Util/Time.hpp"
+#include "Animation.hpp"
 #include "config.hpp"
 
 enum class Cell { Empty, Wall, Brick, QuestionBlock, Pipe, Coin };
+enum class LootType { RedMushroom, GreenMushroom };
 
 class MapManager {
 private:
@@ -28,6 +33,24 @@ private:
 
     // decorative background objects
     std::vector<std::shared_ptr<Util::GameObject>> m_BackgroundObjects;
+
+    struct AnimatedTile {
+        std::shared_ptr<Util::GameObject> object;
+        std::shared_ptr<Util::Image> image;
+        Animation animation;
+        int gridX = 0;
+        int gridY = 0;
+    };
+    std::vector<AnimatedTile> m_AnimatedTiles;
+    std::vector<std::vector<bool>> m_QuestionBlockUsed;
+    struct SpawnEvent {
+        LootType type;
+        glm::vec2 position;
+    };
+    std::queue<SpawnEvent> m_SpawnEvents;
+    bool m_HasGoal = false;
+    float m_GoalX = 0.0f;
+    mutable std::mt19937 m_Rng{std::random_device{}()};
 
     int m_Width = 0;
     int m_Height = 0;
@@ -204,8 +227,14 @@ public:
         m_Map.assign(width, std::vector<Cell>(height, Cell::Empty));
         m_TileObjects.assign(width, std::vector<std::shared_ptr<Util::GameObject>>(height, nullptr));
         m_BackgroundTileObjects.assign(width, std::vector<std::shared_ptr<Util::GameObject>>(height, nullptr));
+        m_QuestionBlockUsed.assign(width, std::vector<bool>(height, false));
         m_Objects.clear();
         m_BackgroundObjects.clear();
+        m_AnimatedTiles.clear();
+        std::queue<SpawnEvent> empty;
+        std::swap(m_SpawnEvents, empty);
+        m_HasGoal = false;
+        m_GoalX = 0.0f;
     }
 
     void AddTileSprite(int gridX, int gridY, int tileSpanX, int tileSpanY,
@@ -257,6 +286,21 @@ public:
             }
         }
         m_Objects.push_back(obj);
+
+        if (type == Cell::QuestionBlock) {
+            m_AnimatedTiles.erase(
+                std::remove_if(m_AnimatedTiles.begin(), m_AnimatedTiles.end(),
+                               [&](const AnimatedTile& tile) { return tile.object == obj; }),
+                m_AnimatedTiles.end()
+            );
+
+            std::vector<std::string> frames = {
+                ResolveTilePath(Cell::QuestionBlock, "Question1.png"),
+                ResolveTilePath(Cell::QuestionBlock, "Question2.png"),
+                ResolveTilePath(Cell::QuestionBlock, "Question3.png")
+            };
+            m_AnimatedTiles.push_back({ obj, img, Animation(frames, 0.12f), gridX, gridY });
+        }
     }
 
     void AddTile(int gridX, int gridY, Cell type, const std::string& texturePath) {
@@ -329,6 +373,61 @@ public:
         }
         // return Empty for out-of-range requests (safer for callers)
         return Cell::Empty;
+    }
+
+    bool HitQuestionBlock(int x, int y) {
+        if (x < 0 || x >= m_Width || y < 0 || y >= m_Height) return false;
+        if (m_Map[x][y] != Cell::QuestionBlock || m_QuestionBlockUsed[x][y]) return false;
+
+        m_QuestionBlockUsed[x][y] = true;
+
+        const std::string usedPath = ResolveTilePath(Cell::QuestionBlock, "Question4.png");
+        if (m_TileObjects[x][y] != nullptr) {
+            auto image = std::dynamic_pointer_cast<Util::Image>(m_TileObjects[x][y]->GetDrawable());
+            if (image != nullptr) {
+                image->SetImage(usedPath);
+            } else {
+                m_TileObjects[x][y]->SetDrawable(std::make_shared<Util::Image>(usedPath));
+            }
+        }
+
+        m_AnimatedTiles.erase(
+            std::remove_if(m_AnimatedTiles.begin(), m_AnimatedTiles.end(),
+                           [&](const AnimatedTile& tile) { return tile.gridX == x && tile.gridY == y; }),
+            m_AnimatedTiles.end()
+        );
+
+        std::uniform_int_distribution<int> dist(0, 1);
+        LootType type = dist(m_Rng) == 0 ? LootType::RedMushroom : LootType::GreenMushroom;
+        float worldX = GetWorldLeft() + x * TILE_SIZE + TILE_SIZE / 2.0f;
+        float worldY = (m_Height * TILE_SIZE) / 2.0f - y * TILE_SIZE + TILE_SIZE / 2.0f;
+        m_SpawnEvents.push({ type, { worldX, worldY } });
+        return true;
+    }
+
+    bool PollSpawnEvent(LootType& type, glm::vec2& position) {
+        if (m_SpawnEvents.empty()) return false;
+        const auto event = m_SpawnEvents.front();
+        m_SpawnEvents.pop();
+        type = event.type;
+        position = event.position;
+        return true;
+    }
+
+    void SetGoal(float x) {
+        m_HasGoal = true;
+        m_GoalX = x;
+    }
+
+    bool HasGoal() const { return m_HasGoal; }
+    float GetGoalX() const { return m_GoalX; }
+
+    void Update() {
+        const float dt = std::max(0.001f, Util::Time::GetDeltaTimeMs() / 1000.0f);
+        for (auto& tile : m_AnimatedTiles) {
+            tile.animation.Update(dt);
+            tile.image->SetImage(tile.animation.GetCurrentFramePath());
+        }
     }
 
     void Draw(float viewX) {
