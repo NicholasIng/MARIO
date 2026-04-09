@@ -1,4 +1,4 @@
-#ifndef MARIO_HPP
+﻿#ifndef MARIO_HPP
 #define MARIO_HPP
 
 #include "Util/GameObject.hpp"

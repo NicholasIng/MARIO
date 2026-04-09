@@ -16,14 +16,23 @@ void App::Start() {
 
     g_MapManager = std::make_unique<MapManager>();
     m_Mario = std::make_unique<Mario>();
+    m_Enemies.clear();
 
-    Util::Color bg;
+    Util::Color bg(0, 255, 255, 255);
+    std::vector<glm::vec2> enemySpawns;
     bool foundSpawn = convert_sketch(
         "C:\\Users\\asus\\MARIO\\Resources\\image\\LevelSketch0.png",
         *g_MapManager,
         *m_Mario,
-        bg
+        bg,
+        &enemySpawns
     );
+
+    glClearColor(bg.r / 255.0f, bg.g / 255.0f, bg.b / 255.0f, 1.0f);
+
+    for (const auto& spawn : enemySpawns) {
+        m_Enemies.push_back(std::make_unique<Enemy>(spawn.x, spawn.y));
+    }
 
     // fallback if red spawn pixel is missing
     if (!foundSpawn) {
@@ -43,6 +52,9 @@ void App::Start() {
 void App::Update() {
     if (m_Mario) {
         m_Mario->Update();
+    }
+    for (auto& enemy : m_Enemies) {
+        enemy->Update();
     }
 
     if (m_Mario && g_MapManager) {
@@ -79,6 +91,12 @@ void App::Update() {
         m_Mario->Draw();
 
         m_Mario->m_Transform.translation = oldPos;
+    }
+    for (auto& enemy : m_Enemies) {
+        auto oldPos = enemy->m_Transform.translation;
+        enemy->m_Transform.translation.x -= m_ViewX;
+        enemy->Draw();
+        enemy->m_Transform.translation = oldPos;
     }
 
     if (Util::Input::IsKeyUp(Util::Keycode::ESCAPE) || Util::Input::IfExit()) {

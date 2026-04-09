@@ -4,7 +4,9 @@
 #include "pch.hpp"
 #include "Mario.hpp"
 #include "MapManager.hpp"
+#include "Enemy.hpp"
 #include <memory>
+#include <vector>
 
 class App {
 public:
@@ -19,6 +21,7 @@ private:
     State m_CurrentState = State::START;
 
     std::unique_ptr<Mario> m_Mario;
+    std::vector<std::unique_ptr<Enemy>> m_Enemies;
 
     // camera/view like the youtuber's view_x
     float m_ViewX = 0.0f;
