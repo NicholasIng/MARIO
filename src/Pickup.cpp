@@ -60,7 +60,7 @@ void Pickup::Update() {
 
     if (m_VelocityY <= 0.0f) {
         float bottomEdge = candidateY - half.y;
-        int gridY = std::clamp(worldToGridY(bottomEdge - eps), 0, std::max(0, mapHeight - 1));
+        int gridY = std::clamp(worldToGridY(bottomEdge + eps), 0, std::max(0, mapHeight - 1));
         for (int gx = leftGridX; gx <= rightGridX; ++gx) {
             if (g_MapManager->IsSolidAt(gx, gridY)) {
                 float tileTop = mapTop - gridY * tileSize;

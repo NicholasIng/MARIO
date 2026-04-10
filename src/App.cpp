@@ -78,14 +78,29 @@ void App::Update() {
             if (!enemy->IsAlive()) continue;
 
             const glm::vec2 enemyHalf = enemy->GetHalfExtents();
-            const glm::vec2 delta = enemy->m_Transform.translation - m_Mario->m_Transform.translation;
-            const bool overlapX = std::abs(delta.x) <= (marioHalf.x + enemyHalf.x);
-            const bool overlapY = std::abs(delta.y) <= (marioHalf.y + enemyHalf.y);
+            const float marioLeft = m_Mario->m_Transform.translation.x - marioHalf.x;
+            const float marioRight = m_Mario->m_Transform.translation.x + marioHalf.x;
+            const float marioBottom = m_Mario->m_Transform.translation.y - marioHalf.y;
+            const float marioTop = m_Mario->m_Transform.translation.y + marioHalf.y;
+
+            const float enemyLeft = enemy->m_Transform.translation.x - enemyHalf.x;
+            const float enemyRight = enemy->m_Transform.translation.x + enemyHalf.x;
+            const float enemyBottom = enemy->m_Transform.translation.y - enemyHalf.y;
+            const float enemyTop = enemy->m_Transform.translation.y + enemyHalf.y;
+
+            const bool overlapX = marioRight > enemyLeft && marioLeft < enemyRight;
+            const bool overlapY = marioTop > enemyBottom && marioBottom < enemyTop;
             if (!overlapX || !overlapY) continue;
 
-            const float marioBottom = m_Mario->m_Transform.translation.y - marioHalf.y;
-            const float enemyTop = enemy->m_Transform.translation.y + enemyHalf.y * 0.5f;
-            const bool stomped = m_Mario->GetVelocityY() < 0.0f && marioBottom >= enemyTop - 18.0f;
+            const float horizontalOverlap =
+                std::min(marioRight, enemyRight) - std::max(marioLeft, enemyLeft);
+            const float verticalOverlap =
+                std::min(marioTop, enemyTop) - std::max(marioBottom, enemyBottom);
+            const bool stomped =
+                m_Mario->GetVelocityY() < 0.0f &&
+                m_Mario->m_Transform.translation.y >= enemy->m_Transform.translation.y &&
+                marioBottom >= enemyTop - 12.0f &&
+                verticalOverlap <= horizontalOverlap;
 
             if (stomped) {
                 enemy->Stomp();
@@ -99,9 +114,16 @@ void App::Update() {
         for (auto& pickup : m_Pickups) {
             if (pickup->IsCollected()) continue;
             const glm::vec2 pickupHalf = pickup->GetHalfExtents();
-            const glm::vec2 delta = pickup->m_Transform.translation - m_Mario->m_Transform.translation;
-            const bool overlapX = std::abs(delta.x) <= (marioHalf.x + pickupHalf.x);
-            const bool overlapY = std::abs(delta.y) <= (marioHalf.y + pickupHalf.y);
+            const float pickupLeft = pickup->m_Transform.translation.x - pickupHalf.x;
+            const float pickupRight = pickup->m_Transform.translation.x + pickupHalf.x;
+            const float pickupBottom = pickup->m_Transform.translation.y - pickupHalf.y;
+            const float pickupTop = pickup->m_Transform.translation.y + pickupHalf.y;
+            const float marioLeft = m_Mario->m_Transform.translation.x - marioHalf.x;
+            const float marioRight = m_Mario->m_Transform.translation.x + marioHalf.x;
+            const float marioBottom = m_Mario->m_Transform.translation.y - marioHalf.y;
+            const float marioTop = m_Mario->m_Transform.translation.y + marioHalf.y;
+            const bool overlapX = marioRight > pickupLeft && marioLeft < pickupRight;
+            const bool overlapY = marioTop > pickupBottom && marioBottom < pickupTop;
             if (overlapX && overlapY) {
                 m_Mario->PowerUp();
                 pickup->Collect();

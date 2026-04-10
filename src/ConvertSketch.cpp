@@ -198,7 +198,9 @@ bool convert_sketch(
         { PackRGB(150,  75,   0), { Cell::Brick,         "Stair.png" } }  // brown-ish stair
     };
 
-    bool spawnFound = false;
+    bool spawnMarkerFound = false;
+    int marioSpawnX = -1;
+    int marioSpawnY = -1;
 
     // pre-resolve stair fallback: if a "Stair.png" exists (under resources) use it for unmatched top-layer tiles
     std::string stairResolved = MapManager::ResolveTilePath(Cell::Brick, "Stair.png");
@@ -267,10 +269,9 @@ bool convert_sketch(
             if (!GetPixelRGBA(surface, x, y + layerHeight, r, g, b, a)) continue;
             if (a > 0) {
                 if (r == 255 && g == 0 && b == 0) {
-                    mario.m_Transform.translation = ComputeGroundedSpawnPosition(
-                        map, x, y, mario.GetHalfExtents().y
-                    );
-                    spawnFound = true;
+                    marioSpawnX = x;
+                    marioSpawnY = y;
+                    spawnMarkerFound = true;
                 } else if (r == 182 && g == 73 && b == 0) {
                     goombaMask[x][y] = 1;
                 }
@@ -446,7 +447,7 @@ bool convert_sketch(
 
                 const int centerX = (minX + maxX) / 2;
                 enemy_spawns->push_back(
-                    ComputeGroundedSpawnPosition(map, centerX, maxY, 20.0f)
+                    ComputeGroundedSpawnPosition(map, centerX, minY, 24.0f)
                 );
             }
         }
@@ -566,6 +567,14 @@ bool convert_sketch(
                 }
             }
         }
+    }
+
+    bool spawnFound = false;
+    if (spawnMarkerFound) {
+        mario.m_Transform.translation = ComputeGroundedSpawnPosition(
+            map, marioSpawnX, marioSpawnY, mario.GetHalfExtents().y
+        );
+        spawnFound = true;
     }
 
     SDL_FreeSurface(surface);

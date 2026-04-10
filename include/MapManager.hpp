@@ -435,7 +435,7 @@ public:
         std::uniform_int_distribution<int> dist(0, 1);
         LootType type = dist(m_Rng) == 0 ? LootType::RedMushroom : LootType::GreenMushroom;
         float worldX = GetWorldLeft() + x * TILE_SIZE + TILE_SIZE / 2.0f;
-        float worldY = (m_Height * TILE_SIZE) / 2.0f - y * TILE_SIZE + TILE_SIZE / 2.0f;
+        float worldY = (m_Height * TILE_SIZE) / 2.0f - y * TILE_SIZE + TILE_SIZE / 2.0f + TILE_SIZE;
         m_SpawnEvents.push({ type, { worldX, worldY } });
         return true;
     }

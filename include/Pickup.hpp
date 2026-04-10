@@ -12,7 +12,7 @@ public:
     void Update();
     bool IsCollected() const { return m_Collected; }
     void Collect() { m_Collected = true; SetVisible(false); }
-    glm::vec2 GetHalfExtents() const { return { 18.0f, 18.0f }; }
+    glm::vec2 GetHalfExtents() const { return { 20.0f, 24.0f }; }
     LootType GetType() const { return m_Type; }
 
 private:

@@ -8,6 +8,55 @@
 
 extern std::unique_ptr<MapManager> g_MapManager;
 
+namespace {
+
+bool IntersectsSolidTile(const glm::vec2& center, const glm::vec2& halfExtents) {
+    if (!g_MapManager) return false;
+
+    const float tileSize = g_MapManager->GetTileSize();
+    const float mapLeft = g_MapManager->GetWorldLeft();
+    const float mapTop = (g_MapManager->GetHeight() * tileSize) / 2.0f;
+    const float eps = 0.001f;
+
+    const int leftGridX = std::clamp(
+        static_cast<int>(std::floor((center.x - halfExtents.x - mapLeft + eps) / tileSize)),
+        0, std::max(0, g_MapManager->GetWidth() - 1)
+    );
+    const int rightGridX = std::clamp(
+        static_cast<int>(std::floor((center.x + halfExtents.x - mapLeft - eps) / tileSize)),
+        0, std::max(0, g_MapManager->GetWidth() - 1)
+    );
+    const int topGridY = std::clamp(
+        static_cast<int>(std::floor((mapTop - (center.y + halfExtents.y - eps)) / tileSize)),
+        0, std::max(0, g_MapManager->GetHeight() - 1)
+    );
+    const int bottomGridY = std::clamp(
+        static_cast<int>(std::floor((mapTop - (center.y - halfExtents.y + eps)) / tileSize)),
+        0, std::max(0, g_MapManager->GetHeight() - 1)
+    );
+
+    for (int gx = leftGridX; gx <= rightGridX; ++gx) {
+        for (int gy = topGridY; gy <= bottomGridY; ++gy) {
+            if (g_MapManager->IsSolidAt(gx, gy)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+void SnapUpOutOfGround(glm::vec2& center, const glm::vec2& halfExtents) {
+    if (!g_MapManager) return;
+
+    const int maxSteps = static_cast<int>(g_MapManager->GetTileSize() * 3.0f);
+    for (int step = 0; step < maxSteps && IntersectsSolidTile(center, halfExtents); ++step) {
+        center.y += 1.0f;
+    }
+}
+
+} // namespace
+
 Enemy::Enemy(float x, float y)
     : m_StartX(x),
       m_LeftPath(AssetPaths::Image("Goomba_l.png")),
@@ -25,6 +74,8 @@ void Enemy::Update() {
         m_DeathTimer -= Util::Time::GetDeltaTimeMs() / 1000.0f;
         return;
     }
+
+    SnapUpOutOfGround(m_Transform.translation, GetHalfExtents());
 
     const float dt = Util::Time::GetDeltaTimeMs() / 1000.0f;
     if (!g_MapManager) {
@@ -58,7 +109,7 @@ void Enemy::Update() {
 
     if (m_VelocityY <= 0.0f) {
         float bottomEdge = candidateY - half.y;
-        int gridY = std::clamp(worldToGridY(bottomEdge - eps), 0, std::max(0, mapHeight - 1));
+        int gridY = std::clamp(worldToGridY(bottomEdge + eps), 0, std::max(0, mapHeight - 1));
         for (int gx = leftGridX; gx <= rightGridX; ++gx) {
             if (g_MapManager->IsSolidAt(gx, gridY)) {
                 float tileTop = mapTop - gridY * tileSize;
