@@ -70,16 +70,17 @@ Enemy::Enemy(float x, float y)
 }
 
 void Enemy::Update() {
+    const float dt = Util::Time::GetDeltaTimeMs() / 1000.0f;
+
     if (!m_Alive) {
-        m_DeathTimer -= Util::Time::GetDeltaTimeMs() / 1000.0f;
+        m_DeathTimer -= dt;
         return;
     }
 
     SnapUpOutOfGround(m_Transform.translation, GetHalfExtents());
-
-    const float dt = Util::Time::GetDeltaTimeMs() / 1000.0f;
     if (!g_MapManager) {
         m_Transform.translation.x += m_Direction * m_Speed * dt;
+        RefreshSprite();
         return;
     }
 
@@ -150,6 +151,7 @@ void Enemy::Update() {
     }
 
     m_Transform.translation.x = candidateX;
+    RefreshSprite();
 }
 
 void Enemy::Stomp() {
@@ -159,6 +161,13 @@ void Enemy::Stomp() {
 }
 
 void Enemy::RefreshSprite() {
-    const std::string& path = (m_Direction < 0.0f) ? m_LeftPath : m_RightPath;
+    constexpr float walkFrameDuration = 0.12f;
+    m_WalkAnimationTimer += Util::Time::GetDeltaTimeMs() / 1000.0f;
+    if (m_WalkAnimationTimer >= walkFrameDuration) {
+        m_WalkAnimationTimer = std::fmod(m_WalkAnimationTimer, walkFrameDuration);
+        m_UseLeftWalkFrame = !m_UseLeftWalkFrame;
+    }
+
+    const std::string& path = m_UseLeftWalkFrame ? m_LeftPath : m_RightPath;
     m_Image->SetImage(path);
 }

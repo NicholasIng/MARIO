@@ -14,6 +14,14 @@
 
 namespace fs = std::filesystem;
 
+namespace {
+
+constexpr Uint8 SKY_BLUE_R = 90;
+constexpr Uint8 SKY_BLUE_G = 147;
+constexpr Uint8 SKY_BLUE_B = 235;
+
+}
+
 static inline uint32_t PackRGB(Uint8 r, Uint8 g, Uint8 b) {
     return (static_cast<uint32_t>(r) << 16) |
            (static_cast<uint32_t>(g) << 8)  |
@@ -179,7 +187,7 @@ bool convert_sketch(
     int layerHeight = totalHeight / 3;
     map.SetMapSize(width, layerHeight);
 
-    background_color = Util::Color(0, 219, 255, 255);
+    background_color = Util::Color(SKY_BLUE_R, SKY_BLUE_G, SKY_BLUE_B, 255);
 
     // tile mappings: packed RGB -> pair(Cell type, requested filename)
     struct TileEntry { Cell type; std::string requested; };
@@ -210,7 +218,10 @@ bool convert_sketch(
         LOG_INFO("Using Stair asset: {}", stairResolved);
     }
 
-    std::string pipeResolved = MapManager::ResolveTilePath(Cell::Pipe, "Pipe.png");
+    const std::string pipeTopLeft = MapManager::ResolveTilePath(Cell::Pipe, "pipetop_left.png");
+    const std::string pipeTopRight = MapManager::ResolveTilePath(Cell::Pipe, "pipetop_right.png");
+    const std::string pipeBottomLeft = MapManager::ResolveTilePath(Cell::Pipe, "pipebottom_left.png");
+    const std::string pipeBottomRight = MapManager::ResolveTilePath(Cell::Pipe, "pipebottom_right.png");
     std::string mountainResolved = MapManager::ResolveBackgroundPath("mountains.png");
     std::string bushResolved = MapManager::ResolveBackgroundPath("Bush.png");
     std::string cloudResolved = MapManager::ResolveBackgroundPath("Clouds_2.png");
@@ -358,8 +369,64 @@ bool convert_sketch(
         }
     };
 
-    if (!pipeResolved.empty() && fs::exists(pipeResolved)) {
-        AddComponentSprites(pipeMask, false, Cell::Pipe, pipeResolved);
+    const bool havePipeSet =
+        !pipeTopLeft.empty() && fs::exists(pipeTopLeft) &&
+        !pipeTopRight.empty() && fs::exists(pipeTopRight) &&
+        !pipeBottomLeft.empty() && fs::exists(pipeBottomLeft) &&
+        !pipeBottomRight.empty() && fs::exists(pipeBottomRight);
+
+    if (havePipeSet) {
+        std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
+        for (int sx = 0; sx < width; ++sx) {
+            for (int sy = 0; sy < layerHeight; ++sy) {
+                if (!pipeMask[sx][sy] || visited[sx][sy]) continue;
+
+                int minX = sx;
+                int maxX = sx;
+                int minY = sy;
+                int maxY = sy;
+                std::queue<std::pair<int, int>> q;
+                q.push({sx, sy});
+                visited[sx][sy] = 1;
+
+                std::vector<std::pair<int, int>> cells;
+                while (!q.empty()) {
+                    auto [cx, cy] = q.front();
+                    q.pop();
+                    cells.push_back({cx, cy});
+                    minX = std::min(minX, cx);
+                    maxX = std::max(maxX, cx);
+                    minY = std::min(minY, cy);
+                    maxY = std::max(maxY, cy);
+
+                    const int dx[4] = {1, -1, 0, 0};
+                    const int dy[4] = {0, 0, 1, -1};
+                    for (int i = 0; i < 4; ++i) {
+                        const int nx = cx + dx[i];
+                        const int ny = cy + dy[i];
+                        if (nx < 0 || nx >= width || ny < 0 || ny >= layerHeight) continue;
+                        if (visited[nx][ny] || !pipeMask[nx][ny]) continue;
+                        visited[nx][ny] = 1;
+                        q.push({nx, ny});
+                    }
+                }
+
+                for (const auto& [cellX, cellY] : cells) {
+                    const bool isTopRow = cellY == minY;
+                    const bool isLeftColumn = cellX == minX;
+                    const std::string& pipePiece =
+                        isTopRow
+                            ? (isLeftColumn ? pipeTopLeft : pipeTopRight)
+                            : (isLeftColumn ? pipeBottomLeft : pipeBottomRight);
+                    map.AddTile(cellX, cellY, Cell::Pipe, pipePiece);
+                }
+            }
+        }
+    } else {
+        std::string pipeResolved = MapManager::ResolveTilePath(Cell::Pipe, "Pipe.png");
+        if (!pipeResolved.empty() && fs::exists(pipeResolved)) {
+            AddComponentSprites(pipeMask, false, Cell::Pipe, pipeResolved);
+        }
     }
     if (!mountainResolved.empty() && fs::exists(mountainResolved)) {
         AddComponentSprites(mountainMask, true, Cell::Empty, mountainResolved);
@@ -399,14 +466,19 @@ bool convert_sketch(
                 }
             }
 
-            map.AddBackgroundSprite(minX, minY, 1, maxY - minY + 1,
-                                    MapManager::ResolveBackgroundPath("flagstick.png"));
-            map.AddBackgroundSprite(minX, minY, 1, 1,
-                                    MapManager::ResolveBackgroundPath("dot.png"));
-            if (minY + 1 <= maxY) {
-                map.AddBackgroundSprite(minX, minY + 1, 1, 2,
-                                        MapManager::ResolveBackgroundPath("flag.png"));
+            const std::string flagstickPath = MapManager::ResolveBackgroundPath("flagstick.png");
+            const std::string dotPath = MapManager::ResolveBackgroundPath("dot.png");
+            const std::string flagPath = MapManager::ResolveBackgroundPath("flag.png");
+
+            for (int poleY = minY + 1; poleY <= maxY; ++poleY) {
+                map.AddBackgroundTile(minX, poleY, flagstickPath);
             }
+            map.AddBackgroundTile(minX, minY, dotPath);
+
+            const int flagX = std::max(0, minX - 1);
+            const int flagY = std::min(maxY, minY + 1);
+            map.AddBackgroundTile(flagX, flagY, flagPath);
+
             map.SetGoal(map.GetWorldLeft() + minX * map.GetTileSize() + map.GetTileSize() * 0.5f);
         }
     }

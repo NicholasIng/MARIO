@@ -20,7 +20,7 @@
 #include "config.hpp"
 
 enum class Cell { Empty, Wall, Brick, QuestionBlock, Pipe, Coin };
-enum class LootType { RedMushroom, GreenMushroom };
+enum class LootType { RedMushroom, FireFlower };
 
 class MapManager {
 private:
@@ -48,6 +48,10 @@ private:
         glm::vec2 position;
     };
     std::queue<SpawnEvent> m_SpawnEvents;
+    struct BrickBreakEvent {
+        glm::vec2 position;
+    };
+    std::queue<BrickBreakEvent> m_BrickBreakEvents;
     bool m_HasGoal = false;
     float m_GoalX = 0.0f;
     mutable std::mt19937 m_Rng{std::random_device{}()};
@@ -86,7 +90,7 @@ public:
         fs::path direct = baseDir / targetName;
         if (fs::exists(direct)) return direct.string();
 
-        for (const auto& subdir : { fs::path("Tiles"), fs::path("Background"), fs::path("character") }) {
+        for (const auto& subdir : { fs::path("Tiles"), fs::path("Background"), fs::path("character"), fs::path("Character"), fs::path("Pipes") }) {
             fs::path candidate = baseDir / subdir / targetName;
             if (fs::exists(candidate)) return candidate.string();
         }
@@ -240,6 +244,8 @@ public:
         m_AnimatedTiles.clear();
         std::queue<SpawnEvent> empty;
         std::swap(m_SpawnEvents, empty);
+        std::queue<BrickBreakEvent> emptyBreaks;
+        std::swap(m_BrickBreakEvents, emptyBreaks);
         m_HasGoal = false;
         m_GoalX = 0.0f;
     }
@@ -294,19 +300,31 @@ public:
         }
         m_Objects.push_back(obj);
 
-        if (type == Cell::QuestionBlock) {
+        if (type == Cell::QuestionBlock || type == Cell::Coin) {
             m_AnimatedTiles.erase(
                 std::remove_if(m_AnimatedTiles.begin(), m_AnimatedTiles.end(),
                                [&](const AnimatedTile& tile) { return tile.object == obj; }),
                 m_AnimatedTiles.end()
             );
 
-            std::vector<std::string> frames = {
-                ResolveTilePath(Cell::QuestionBlock, "Question1.png"),
-                ResolveTilePath(Cell::QuestionBlock, "Question2.png"),
-                ResolveTilePath(Cell::QuestionBlock, "Question3.png")
-            };
-            m_AnimatedTiles.push_back({ obj, img, Animation(frames, 0.12f), gridX, gridY });
+            std::vector<std::string> frames;
+            float frameDuration = 0.12f;
+            if (type == Cell::QuestionBlock) {
+                frames = {
+                    ResolveTilePath(Cell::QuestionBlock, "Question1.png"),
+                    ResolveTilePath(Cell::QuestionBlock, "Question2.png"),
+                    ResolveTilePath(Cell::QuestionBlock, "Question3.png")
+                };
+            } else {
+                frames = {
+                    ResolveTilePath(Cell::Coin, "coin1.png"),
+                    ResolveTilePath(Cell::Coin, "coin2.png"),
+                    ResolveTilePath(Cell::Coin, "coin3.png"),
+                    ResolveTilePath(Cell::Coin, "coin4.png")
+                };
+                frameDuration = 0.09f;
+            }
+            m_AnimatedTiles.push_back({ obj, img, Animation(frames, frameDuration), gridX, gridY });
         }
     }
 
@@ -433,10 +451,22 @@ public:
         );
 
         std::uniform_int_distribution<int> dist(0, 1);
-        LootType type = dist(m_Rng) == 0 ? LootType::RedMushroom : LootType::GreenMushroom;
+        LootType type = dist(m_Rng) == 0 ? LootType::RedMushroom : LootType::FireFlower;
         float worldX = GetWorldLeft() + x * TILE_SIZE + TILE_SIZE / 2.0f;
-        float worldY = (m_Height * TILE_SIZE) / 2.0f - y * TILE_SIZE + TILE_SIZE / 2.0f + TILE_SIZE;
+        float worldY = (m_Height * TILE_SIZE) / 2.0f - y * TILE_SIZE;
         m_SpawnEvents.push({ type, { worldX, worldY } });
+        return true;
+    }
+
+    bool BreakBrick(int x, int y) {
+        if (GetCell(x, y) != Cell::Brick) return false;
+
+        const float worldX = GetWorldLeft() + x * TILE_SIZE + TILE_SIZE / 2.0f;
+        const float worldY = (m_Height * TILE_SIZE) / 2.0f - y * TILE_SIZE - TILE_SIZE / 2.0f;
+
+        if (!ClearTile(x, y)) return false;
+
+        m_BrickBreakEvents.push({ { worldX, worldY } });
         return true;
     }
 
@@ -445,6 +475,14 @@ public:
         const auto event = m_SpawnEvents.front();
         m_SpawnEvents.pop();
         type = event.type;
+        position = event.position;
+        return true;
+    }
+
+    bool PollBrickBreakEvent(glm::vec2& position) {
+        if (m_BrickBreakEvents.empty()) return false;
+        const auto event = m_BrickBreakEvents.front();
+        m_BrickBreakEvents.pop();
         position = event.position;
         return true;
     }

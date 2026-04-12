@@ -58,6 +58,14 @@ void SnapUpOutOfGround(glm::vec2& center, const glm::vec2& halfExtents) {
     }
 }
 
+void ClampGrowthToAvailableHeadroom(glm::vec2& center, float originalY, const glm::vec2& halfExtents) {
+    if (!g_MapManager) return;
+
+    while (center.y > originalY && IntersectsSolidTile(center, halfExtents)) {
+        center.y -= 1.0f;
+    }
+}
+
 } // namespace
 
 Mario::Mario()
@@ -136,6 +144,48 @@ Mario::Mario()
     }, 1.0f
     );
 
+    m_FireAnimations[AnimState::IDLE] = std::make_unique<Animation>(
+        std::vector<std::string>{
+        AssetPaths::Image("character/mario_fire_idle.png")
+    }, 1.0f
+    );
+
+    m_FireAnimations[AnimState::WALK] = std::make_unique<Animation>(
+        std::vector<std::string>{
+        AssetPaths::Image("character/mario_fire_walk1.png"),
+            AssetPaths::Image("character/mario_fire_walk2.png"),
+            AssetPaths::Image("character/mario_fire_walk3.png")
+    }, 0.07f
+    );
+
+    m_FireAnimations[AnimState::JUMP] = std::make_unique<Animation>(
+        std::vector<std::string>{
+        AssetPaths::Image("character/mario_fire_jump.png")
+    }, 1.0f
+    );
+
+    m_FireAnimations[AnimState::BRAKE] = std::make_unique<Animation>(
+        std::vector<std::string>{
+        AssetPaths::Image("character/mario_fire_brake.png")
+    }, 1.0f
+    );
+
+    m_FireAnimations[AnimState::CROUCH] = std::make_unique<Animation>(
+        std::vector<std::string>{
+        AssetPaths::Image("character/mario_fire_crouch.png")
+    }, 1.0f
+    );
+
+    m_SizeTransitionFramePath = AssetPaths::Image("character/mario_transition.png");
+    m_DeathFramePath = AssetPaths::Image("character/mario_die.png");
+    m_TransformAnimation = std::make_unique<Animation>(
+        std::vector<std::string>{
+            AssetPaths::Image("character/mario_transformation1.png"),
+            AssetPaths::Image("character/mario_transformation2.png"),
+            AssetPaths::Image("character/mario_transformation3.png")
+        }, 0.1f
+    );
+
     m_Image = std::make_shared<Util::Image>(
         ActiveAnimations().at(AnimState::IDLE)->GetCurrentFramePath()
     );
@@ -147,17 +197,37 @@ Mario::Mario()
 }
 
 glm::vec2 Mario::GetHalfExtents() const {
-    if (m_PowerState == PowerState::Big) {
+    if (IsBig() || m_TransformType == TransformType::SmallBigTransition) {
         return { BIG_HALF_WIDTH, BIG_HALF_HEIGHT };
     }
     return { SMALL_HALF_WIDTH, SMALL_HALF_HEIGHT };
 }
 
+float Mario::GetRenderOffsetY() const {
+    if (m_TransformType == TransformType::SmallBigTransition) {
+        return m_TransformShowBigFrame ? 5.0f : -16.0f;
+    }
+    if (m_IsCrouching) {
+        if (m_PowerState == PowerState::Fire) return 16.0f;
+        if (m_PowerState == PowerState::Big) return 9.0f;
+    }
+    return IsBig() ? 5.0f : 0.0f;
+}
+
+glm::vec2 Mario::GetFireballSpawnPosition() const {
+    const float direction = GetFacingDirection();
+    const float spawnX = m_Transform.translation.x + direction * 26.0f;
+    const float spawnY = m_Transform.translation.y + (IsBig() ? 2.0f : -2.0f);
+    return { spawnX, spawnY };
+}
+
 std::map<Mario::AnimState, std::unique_ptr<Animation>>& Mario::ActiveAnimations() {
+    if (m_PowerState == PowerState::Fire) return m_FireAnimations;
     return (m_PowerState == PowerState::Big) ? m_BigAnimations : m_SmallAnimations;
 }
 
 const std::map<Mario::AnimState, std::unique_ptr<Animation>>& Mario::ActiveAnimations() const {
+    if (m_PowerState == PowerState::Fire) return m_FireAnimations;
     return (m_PowerState == PowerState::Big) ? m_BigAnimations : m_SmallAnimations;
 }
 
@@ -169,10 +239,41 @@ void Mario::ResetAnimations() {
     }
 }
 
+void Mario::BeginTransformation(PowerState targetState, TransformType transformType) {
+    if (m_IsDead || m_TransformType != TransformType::None) return;
+
+    const float originalY = m_Transform.translation.y;
+    m_TargetPowerState = targetState;
+    m_TransformType = transformType;
+    m_TransformTimer = (transformType == TransformType::SmallBigTransition) ? 0.55f : 0.75f;
+    m_JumpTimer = 0.0f;
+    m_IsCrouching = false;
+    m_TransformShowBigFrame = false;
+    SetVisible(true);
+
+    if (transformType == TransformType::SmallBigTransition) {
+        if (m_PowerState == PowerState::Small && targetState != PowerState::Small) {
+            m_Transform.translation.y += (BIG_HALF_HEIGHT - SMALL_HALF_HEIGHT);
+            ClampGrowthToAvailableHeadroom(
+                m_Transform.translation,
+                originalY,
+                { BIG_HALF_WIDTH, BIG_HALF_HEIGHT }
+            );
+        }
+        m_Image->SetImage(m_SmallAnimations.at(AnimState::IDLE)->GetCurrentFramePath());
+    } else if (m_TransformAnimation) {
+        m_VelocityX = 0.0f;
+        m_VelocityY = 0.0f;
+        m_OnGround = true;
+        m_TransformAnimation->Reset();
+        m_Image->SetImage(m_TransformAnimation->GetCurrentFramePath());
+    }
+}
+
 void Mario::SetPowerState(PowerState newState) {
     if (m_PowerState == newState) return;
 
-    const float oldHalfHeight = (m_IsCrouching && m_PowerState == PowerState::Big) ? SMALL_HALF_HEIGHT : GetHalfExtents().y;
+    const float oldHalfHeight = (m_IsCrouching && IsBig()) ? SMALL_HALF_HEIGHT : GetHalfExtents().y;
     if (newState == PowerState::Small) {
         m_IsCrouching = false;
     }
@@ -185,15 +286,38 @@ void Mario::SetPowerState(PowerState newState) {
     m_Image->SetImage(ActiveAnimations().at(m_AnimState)->GetCurrentFramePath());
 }
 
-void Mario::PowerUp() {
-    SetPowerState(PowerState::Big);
+void Mario::PowerUp(LootType type) {
+    if (type == LootType::FireFlower) {
+        if (m_PowerState != PowerState::Fire) {
+            BeginTransformation(PowerState::Fire, TransformType::FireTransition);
+        }
+        return;
+    }
+
+    if (m_PowerState == PowerState::Small) {
+        BeginTransformation(PowerState::Big, TransformType::SmallBigTransition);
+    }
 }
 
 void Mario::TakeEnemyHit() {
-    if (m_IsDead || IsInvulnerable()) return;
+    if (m_IsDead || IsInvulnerable() || m_PowerDownLockTimer > 0.0f ||
+        m_TransformType != TransformType::None) return;
 
-    if (IsBig()) {
+    if (m_PowerState == PowerState::Fire) {
         SetPowerState(PowerState::Small);
+        m_TransformType = TransformType::None;
+        m_TargetPowerState = PowerState::Small;
+        m_TransformTimer = 0.0f;
+        m_TransformShowBigFrame = false;
+        m_PowerDownLockTimer = 0.35f;
+        m_InvulnerabilityTimer = INVULNERABILITY_DURATION;
+        SetVisible(true);
+        return;
+    }
+
+    if (m_PowerState == PowerState::Big) {
+        BeginTransformation(PowerState::Small, TransformType::SmallBigTransition);
+        m_PowerDownLockTimer = 0.35f;
         m_InvulnerabilityTimer = INVULNERABILITY_DURATION;
         SetVisible(true);
         return;
@@ -206,14 +330,18 @@ void Mario::Update() {
     float dt = std::max(0.001f, Util::Time::GetDeltaTimeMs() / 1000.0f);
 
     if (m_IsDead) {
+        m_VelocityY += m_Gravity * dt;
+        m_Transform.translation.y += m_VelocityY * dt;
         m_RespawnTimer -= dt;
         if (m_RespawnTimer <= 0.0f) {
             m_IsDead = false;
             m_VelocityX = 0.0f;
             m_VelocityY = 0.0f;
             m_OnGround = false;
+            m_IsCrouching = false;
             m_JumpTimer = 0.0f;
             m_InvulnerabilityTimer = 0.0f;
+            m_PowerDownLockTimer = 0.0f;
             m_PowerState = PowerState::Small;
             m_AnimState = AnimState::IDLE;
             ResetAnimations();
@@ -224,11 +352,40 @@ void Mario::Update() {
         return;
     }
 
+    if (m_TransformType == TransformType::FireTransition) {
+        m_TransformTimer = std::max(0.0f, m_TransformTimer - dt);
+        if (m_TransformAnimation) {
+            m_TransformAnimation->Update(dt);
+            m_Image->SetImage(m_TransformAnimation->GetCurrentFramePath());
+        }
+
+        if (m_TransformTimer <= 0.0f) {
+            m_TransformType = TransformType::None;
+            SetPowerState(m_TargetPowerState);
+        }
+        return;
+    }
+
+    if (m_TransformType == TransformType::SmallBigTransition) {
+        m_TransformTimer = std::max(0.0f, m_TransformTimer - dt);
+        const int flashIndex = static_cast<int>(m_TransformTimer / 0.08f);
+        m_TransformShowBigFrame = (flashIndex % 2) == 0;
+        if (m_TransformTimer <= 0.0f) {
+            m_TransformType = TransformType::None;
+            m_TransformShowBigFrame = true;
+            SetPowerState(m_TargetPowerState);
+        }
+    }
+
     glm::vec2 snapHalfExtents = GetHalfExtents();
     if (m_IsCrouching && IsBig()) {
         snapHalfExtents.y = SMALL_HALF_HEIGHT;
     }
     SnapUpOutOfGround(m_Transform.translation, snapHalfExtents);
+
+    if (m_PowerDownLockTimer > 0.0f) {
+        m_PowerDownLockTimer = std::max(0.0f, m_PowerDownLockTimer - dt);
+    }
 
     if (m_InvulnerabilityTimer > 0.0f) {
         m_InvulnerabilityTimer = std::max(0.0f, m_InvulnerabilityTimer - dt);
@@ -242,6 +399,10 @@ void Mario::Update() {
 
     bool moveLeft = Util::Input::IsKeyPressed(Util::Keycode::A);
     bool moveRight = Util::Input::IsKeyPressed(Util::Keycode::D);
+    if (m_TransformType == TransformType::SmallBigTransition) {
+        moveLeft = false;
+        moveRight = false;
+    }
     const bool wasCrouching = m_IsCrouching;
     const bool wantsCrouch = Util::Input::IsKeyPressed(Util::Keycode::S);
     if (wantsCrouch && m_OnGround) {
@@ -298,13 +459,15 @@ void Mario::Update() {
 
     m_VelocityX = std::clamp(m_VelocityX, -m_MaxSpeed, m_MaxSpeed);
 
-    if (!m_IsCrouching && Util::Input::IsKeyDown(Util::Keycode::SPACE) && m_OnGround) {
+    if (m_TransformType == TransformType::None &&
+        !m_IsCrouching && Util::Input::IsKeyDown(Util::Keycode::SPACE) && m_OnGround) {
         m_VelocityY = m_JumpForce;
         m_OnGround = false;
         m_JumpTimer = m_MaxJumpTime;
     }
 
-    if (Util::Input::IsKeyPressed(Util::Keycode::SPACE) && m_JumpTimer > 0.0f) {
+    if (m_TransformType == TransformType::None &&
+        Util::Input::IsKeyPressed(Util::Keycode::SPACE) && m_JumpTimer > 0.0f) {
         m_VelocityY = m_JumpForce;
         m_JumpTimer -= dt;
     }
@@ -419,7 +582,7 @@ void Mario::Update() {
                     if (hitCell == Cell::QuestionBlock) {
                         g_MapManager->HitQuestionBlock(gx, gridY);
                     } else if (hitCell == Cell::Brick && IsBig() && !m_IsCrouching) {
-                        g_MapManager->ClearTile(gx, gridY);
+                        g_MapManager->BreakBrick(gx, gridY);
                     }
                     // collide with ceiling of tile at (gx, gridY)
                     float tileBottom = mapTop - (gridY + 1) * tileSize;
@@ -477,10 +640,13 @@ void Mario::Update() {
 void Mario::Die() {
     if (m_IsDead) return;
     m_IsDead = true;
-    m_RespawnTimer = 1.0f;
+    m_RespawnTimer = 1.25f;
     m_VelocityX = 0.0f;
-    m_VelocityY = 0.0f;
+    m_VelocityY = 900.0f;
+    m_IsCrouching = false;
+    m_OnGround = false;
     SetVisible(true);
+    m_Image->SetImage(m_DeathFramePath);
 }
 
 void Mario::BounceAfterStomp() {
@@ -490,6 +656,23 @@ void Mario::BounceAfterStomp() {
 }
 
 void Mario::HandleAnimation(float dt) {
+    if (m_IsDead) {
+        m_Image->SetImage(m_DeathFramePath);
+        return;
+    }
+
+    if (m_TransformType != TransformType::None) {
+        if (m_TransformType == TransformType::SmallBigTransition) {
+            const std::string path = m_TransformShowBigFrame
+                ? m_BigAnimations.at(AnimState::IDLE)->GetCurrentFramePath()
+                : m_SmallAnimations.at(AnimState::IDLE)->GetCurrentFramePath();
+            m_Image->SetImage(path);
+        } else if (m_TransformAnimation) {
+            m_Image->SetImage(m_TransformAnimation->GetCurrentFramePath());
+        }
+        return;
+    }
+
     AnimState lastState = m_AnimState;
 
     if (!m_OnGround) m_AnimState = AnimState::JUMP;

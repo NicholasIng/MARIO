@@ -4,19 +4,33 @@
 #include "Util/Time.hpp"
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 extern std::unique_ptr<MapManager> g_MapManager;
 
 Pickup::Pickup(LootType type, float x, float y)
     : m_Type(type) {
-    const std::string path = (type == LootType::RedMushroom)
-        ? AssetPaths::Image("Mushroom_red.png")
-        : AssetPaths::Image("Mushroom_green.png");
+    std::vector<std::string> frames;
+    if (type == LootType::RedMushroom) {
+        frames = { AssetPaths::Image("Mushroom_red.png") };
+    } else {
+        frames = {
+            AssetPaths::Image("flower1.png"),
+            AssetPaths::Image("flower2.png"),
+            AssetPaths::Image("flower3.png"),
+            AssetPaths::Image("flower4.png")
+        };
+    }
 
-    m_Image = std::make_shared<Util::Image>(path);
+    m_Image = std::make_shared<Util::Image>(frames.front());
+    m_Animation = std::make_unique<Animation>(
+        frames,
+        (type == LootType::FireFlower) ? 0.1f : 1.0f
+    );
     SetDrawable(m_Image);
     m_Transform.translation = { x, y };
-    m_Transform.scale = { 3.0f, 3.0f };
+    m_SpawnStartY = y;
+    m_Transform.scale = { BASE_SCALE, 0.01f };
     m_ZIndex = 8.0f;
 }
 
@@ -24,12 +38,17 @@ void Pickup::Update() {
     if (m_Collected) return;
 
     const float dt = Util::Time::GetDeltaTimeMs() / 1000.0f;
-    if (m_RiseRemaining > 0.0f) {
-        const float rise = std::min(m_RiseRemaining, 48.0f * dt);
-        m_Transform.translation.y += rise;
-        m_RiseRemaining -= rise;
+    if (m_Animation) {
+        m_Animation->Update(dt);
+        m_Image->SetImage(m_Animation->GetCurrentFramePath());
+    }
+
+    UpdateRise(dt);
+    if (m_RiseElapsed < RISE_DURATION) {
         return;
     }
+
+    if (m_Type == LootType::FireFlower) return;
 
     if (!g_MapManager) return;
 
@@ -49,65 +68,114 @@ void Pickup::Update() {
     auto worldToGridY = [&](float worldY) {
         return static_cast<int>(std::floor((mapTop - worldY) / tileSize));
     };
+    const auto isInsideMap = [&](int gridX, int gridY) {
+        return gridX >= 0 && gridX < mapWidth && gridY >= 0 && gridY < mapHeight;
+    };
+    const auto isSolidAtWorld = [&](float worldX, float worldY) {
+        const int gridX = worldToGridX(worldX);
+        const int gridY = worldToGridY(worldY);
+        return isInsideMap(gridX, gridY) && g_MapManager->IsSolidAt(gridX, gridY);
+    };
+    const auto hasGroundSupport = [&](float centerX, float centerY) {
+        const float probeY = centerY - half.y - 1.0f;
+        return isSolidAtWorld(centerX - half.x + 4.0f, probeY) ||
+               isSolidAtWorld(centerX, probeY) ||
+               isSolidAtWorld(centerX + half.x - 4.0f, probeY);
+    };
 
-    m_VelocityY += gravity * dt;
+    if (!m_HasLanded || !hasGroundSupport(m_Transform.translation.x, m_Transform.translation.y)) {
+        m_HasLanded = false;
+        m_VelocityY += gravity * dt;
+    } else {
+        m_VelocityY = std::min(0.0f, m_VelocityY);
+    }
 
     float candidateY = m_Transform.translation.y + m_VelocityY * dt;
-    float leftX = m_Transform.translation.x - half.x;
-    float rightX = m_Transform.translation.x + half.x;
-    int leftGridX = std::clamp(worldToGridX(leftX + eps), 0, std::max(0, mapWidth - 1));
-    int rightGridX = std::clamp(worldToGridX(rightX - eps), 0, std::max(0, mapWidth - 1));
+    int leftGridX = std::max(0, worldToGridX(m_Transform.translation.x - half.x + 2.0f));
+    int rightGridX = std::min(mapWidth - 1, worldToGridX(m_Transform.translation.x + half.x - 2.0f));
+    if (leftGridX > rightGridX) {
+        leftGridX = rightGridX = std::clamp(worldToGridX(m_Transform.translation.x), 0, std::max(0, mapWidth - 1));
+    }
 
     if (m_VelocityY <= 0.0f) {
-        float bottomEdge = candidateY - half.y;
-        int gridY = std::clamp(worldToGridY(bottomEdge + eps), 0, std::max(0, mapHeight - 1));
-        for (int gx = leftGridX; gx <= rightGridX; ++gx) {
-            if (g_MapManager->IsSolidAt(gx, gridY)) {
-                float tileTop = mapTop - gridY * tileSize;
-                candidateY = tileTop + half.y;
-                m_VelocityY = 0.0f;
-                break;
+        const int gridY = worldToGridY(candidateY - half.y + eps);
+        if (gridY >= 0 && gridY < mapHeight) {
+            for (int gx = leftGridX; gx <= rightGridX; ++gx) {
+                if (g_MapManager->IsSolidAt(gx, gridY)) {
+                    const float tileTop = mapTop - gridY * tileSize;
+                    candidateY = tileTop + half.y;
+                    m_VelocityY = 0.0f;
+                    m_HasLanded = true;
+                    break;
+                }
             }
         }
     } else {
-        float topEdge = candidateY + half.y;
-        int gridY = std::clamp(worldToGridY(topEdge + eps), 0, std::max(0, mapHeight - 1));
-        for (int gx = leftGridX; gx <= rightGridX; ++gx) {
-            if (g_MapManager->IsSolidAt(gx, gridY)) {
-                float tileBottom = mapTop - (gridY + 1) * tileSize;
-                candidateY = tileBottom - half.y - eps;
-                m_VelocityY = 0.0f;
-                break;
+        const int gridY = worldToGridY(candidateY + half.y + eps);
+        if (gridY >= 0 && gridY < mapHeight) {
+            for (int gx = leftGridX; gx <= rightGridX; ++gx) {
+                if (g_MapManager->IsSolidAt(gx, gridY)) {
+                    const float tileBottom = mapTop - (gridY + 1) * tileSize;
+                    candidateY = tileBottom - half.y - eps;
+                    m_VelocityY = 0.0f;
+                    break;
+                }
             }
         }
     }
     m_Transform.translation.y = candidateY;
 
-    float candidateX = m_Transform.translation.x + m_HorizontalDirection * moveSpeed * dt;
-    float topY = m_Transform.translation.y + half.y - eps;
-    float bottomY = m_Transform.translation.y - half.y + eps;
-    int topGridY = std::clamp(worldToGridY(topY - eps), 0, std::max(0, mapHeight - 1));
-    int bottomGridY = std::clamp(worldToGridY(bottomY + eps), 0, std::max(0, mapHeight - 1));
+    if (!m_HasLanded) return;
+
+    if (!hasGroundSupport(m_Transform.translation.x, m_Transform.translation.y)) {
+        m_HasLanded = false;
+        return;
+    }
+
+    const float candidateX = m_Transform.translation.x + m_HorizontalDirection * moveSpeed * dt;
+    const int topGridY = std::max(0, worldToGridY(m_Transform.translation.y + half.y - eps));
+    const int bottomGridY = std::min(mapHeight - 1, worldToGridY(m_Transform.translation.y - half.y + eps));
 
     if (m_HorizontalDirection > 0.0f) {
-        float rightEdge = candidateX + half.x;
-        int gridX = std::clamp(worldToGridX(rightEdge - eps), 0, std::max(0, mapWidth - 1));
-        for (int gy = topGridY; gy <= bottomGridY; ++gy) {
-            if (g_MapManager->IsSolidAt(gridX, gy)) {
-                m_HorizontalDirection = -1.0f;
-                return;
+        const int gridX = worldToGridX(candidateX + half.x - eps);
+        if (gridX >= mapWidth) {
+            m_HorizontalDirection = -1.0f;
+            return;
+        }
+        if (gridX >= 0) {
+            for (int gy = topGridY; gy <= bottomGridY; ++gy) {
+                if (g_MapManager->IsSolidAt(gridX, gy)) {
+                    m_HorizontalDirection = -1.0f;
+                    return;
+                }
             }
         }
     } else {
-        float leftEdge = candidateX - half.x;
-        int gridX = std::clamp(worldToGridX(leftEdge + eps), 0, std::max(0, mapWidth - 1));
-        for (int gy = topGridY; gy <= bottomGridY; ++gy) {
-            if (g_MapManager->IsSolidAt(gridX, gy)) {
-                m_HorizontalDirection = 1.0f;
-                return;
+        const int gridX = worldToGridX(candidateX - half.x + eps);
+        if (gridX < 0) {
+            m_HorizontalDirection = 1.0f;
+            return;
+        }
+        if (gridX < mapWidth) {
+            for (int gy = topGridY; gy <= bottomGridY; ++gy) {
+                if (g_MapManager->IsSolidAt(gridX, gy)) {
+                    m_HorizontalDirection = 1.0f;
+                    return;
+                }
             }
         }
     }
 
     m_Transform.translation.x = candidateX;
+}
+
+void Pickup::UpdateRise(float dt) {
+    m_RiseElapsed = std::min(RISE_DURATION, m_RiseElapsed + dt);
+    const float progress = (RISE_DURATION <= 0.0f) ? 1.0f : (m_RiseElapsed / RISE_DURATION);
+
+    // Grow the sprite upward while it rises so it feels like it is emerging
+    // from inside the block instead of teleporting above it.
+    const float visibleScaleY = std::max(0.01f, BASE_SCALE * progress);
+    m_Transform.scale = { BASE_SCALE, visibleScaleY };
+    m_Transform.translation.y = m_SpawnStartY + RISE_DISTANCE * progress * 0.5f;
 }

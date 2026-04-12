@@ -21,7 +21,9 @@ private:
     float m_Speed = 40.0f;
     float m_VelocityY = 0.0f;
     float m_DeathTimer = 0.0f;
+    float m_WalkAnimationTimer = 0.0f;
     bool m_Alive = true;
+    bool m_UseLeftWalkFrame = true;
     std::string m_LeftPath;
     std::string m_RightPath;
     std::string m_DeathPath;

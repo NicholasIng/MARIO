@@ -2,6 +2,7 @@
 #include "Util/Input.hpp"
 #include "Util/Keycode.hpp"
 #include "Util/Logger.hpp"
+#include "Util/Time.hpp"
 #include "MapManager.hpp"
 #include "ConvertSketch.hpp"
 #include "Enemy.hpp"
@@ -13,15 +14,31 @@
 // global pointer for Mario collision
 std::unique_ptr<MapManager> g_MapManager;
 
+namespace {
+
+constexpr float SKY_BLUE_R = 90.0f;
+constexpr float SKY_BLUE_G = 147.0f;
+constexpr float SKY_BLUE_B = 235.0f;
+
+}
+
 void App::Start() {
     LOG_TRACE("Start");
 
     g_MapManager = std::make_unique<MapManager>();
     m_Mario = std::make_unique<Mario>();
     m_Enemies.clear();
+    m_Fireballs.clear();
     m_Pickups.clear();
+    m_Debris.clear();
+    m_FireballCooldown = 0.0f;
 
-    Util::Color bg(0, 255, 255, 255);
+    Util::Color bg(
+        static_cast<unsigned char>(SKY_BLUE_R),
+        static_cast<unsigned char>(SKY_BLUE_G),
+        static_cast<unsigned char>(SKY_BLUE_B),
+        255
+    );
     std::vector<glm::vec2> enemySpawns;
     bool foundSpawn = convert_sketch(
         AssetPaths::Image("LevelSketch0.png"),
@@ -54,6 +71,7 @@ void App::Start() {
 }
 
 void App::Update() {
+    const float dt = std::max(0.001f, Util::Time::GetDeltaTimeMs() / 1000.0f);
     if (g_MapManager) {
         g_MapManager->Update();
     }
@@ -62,14 +80,41 @@ void App::Update() {
     while (g_MapManager && g_MapManager->PollSpawnEvent(lootType, lootPos)) {
         m_Pickups.push_back(std::make_unique<Pickup>(lootType, lootPos.x, lootPos.y));
     }
+    glm::vec2 breakPos;
+    while (g_MapManager && g_MapManager->PollBrickBreakEvent(breakPos)) {
+        m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::TopLeft));
+        m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::TopRight));
+        m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::BottomLeft));
+        m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::BottomRight));
+    }
     if (m_Mario) {
         m_Mario->Update();
     }
     for (auto& enemy : m_Enemies) {
         enemy->Update();
     }
+    for (auto& fireball : m_Fireballs) {
+        fireball->Update();
+    }
     for (auto& pickup : m_Pickups) {
         pickup->Update();
+    }
+    for (auto& debris : m_Debris) {
+        debris->Update();
+    }
+
+    m_FireballCooldown = std::max(0.0f, m_FireballCooldown - dt);
+    if (m_Mario && m_Mario->IsFire() && !m_Mario->IsDead() &&
+        Util::Input::IsKeyDown(Util::Keycode::F) &&
+        m_FireballCooldown <= 0.0f &&
+        m_Fireballs.size() < 2) {
+        const glm::vec2 spawn = m_Mario->GetFireballSpawnPosition();
+        m_Fireballs.push_back(std::make_unique<Fireball>(
+            spawn.x,
+            spawn.y,
+            m_Mario->GetFacingDirection()
+        ));
+        m_FireballCooldown = 0.18f;
     }
 
     if (m_Mario && !m_Mario->IsDead()) {
@@ -96,11 +141,14 @@ void App::Update() {
                 std::min(marioRight, enemyRight) - std::max(marioLeft, enemyLeft);
             const float verticalOverlap =
                 std::min(marioTop, enemyTop) - std::max(marioBottom, enemyBottom);
+            const float stompForgiveness = 18.0f;
+            const float minimumStompWidth = enemyHalf.x * 0.35f;
             const bool stomped =
-                m_Mario->GetVelocityY() < 0.0f &&
-                m_Mario->m_Transform.translation.y >= enemy->m_Transform.translation.y &&
-                marioBottom >= enemyTop - 12.0f &&
-                verticalOverlap <= horizontalOverlap;
+                m_Mario->GetVelocityY() < -30.0f &&
+                m_Mario->m_Transform.translation.y >= enemy->m_Transform.translation.y - 8.0f &&
+                marioBottom >= enemyTop - stompForgiveness &&
+                horizontalOverlap >= minimumStompWidth &&
+                verticalOverlap <= enemyHalf.y + stompForgiveness;
 
             if (stomped) {
                 enemy->Stomp();
@@ -125,8 +173,36 @@ void App::Update() {
             const bool overlapX = marioRight > pickupLeft && marioLeft < pickupRight;
             const bool overlapY = marioTop > pickupBottom && marioBottom < pickupTop;
             if (overlapX && overlapY) {
-                m_Mario->PowerUp();
+                m_Mario->PowerUp(pickup->GetType());
                 pickup->Collect();
+            }
+        }
+
+        for (auto& fireball : m_Fireballs) {
+            if (fireball->IsExpired() || fireball->IsExploding()) continue;
+
+            const glm::vec2 fireballHalf = fireball->GetHalfExtents();
+            const float fireballLeft = fireball->m_Transform.translation.x - fireballHalf.x;
+            const float fireballRight = fireball->m_Transform.translation.x + fireballHalf.x;
+            const float fireballBottom = fireball->m_Transform.translation.y - fireballHalf.y;
+            const float fireballTop = fireball->m_Transform.translation.y + fireballHalf.y;
+
+            for (auto& enemy : m_Enemies) {
+                if (!enemy->IsAlive()) continue;
+
+                const glm::vec2 enemyHalf = enemy->GetHalfExtents();
+                const float enemyLeft = enemy->m_Transform.translation.x - enemyHalf.x;
+                const float enemyRight = enemy->m_Transform.translation.x + enemyHalf.x;
+                const float enemyBottom = enemy->m_Transform.translation.y - enemyHalf.y;
+                const float enemyTop = enemy->m_Transform.translation.y + enemyHalf.y;
+
+                const bool overlapX = fireballRight > enemyLeft && fireballLeft < enemyRight;
+                const bool overlapY = fireballTop > enemyBottom && fireballBottom < enemyTop;
+                if (!overlapX || !overlapY) continue;
+
+                enemy->Stomp();
+                fireball->Explode();
+                break;
             }
         }
 
@@ -141,10 +217,20 @@ void App::Update() {
                        [](const std::unique_ptr<Enemy>& enemy) { return enemy->IsDeadAndExpired(); }),
         m_Enemies.end()
     );
+    m_Fireballs.erase(
+        std::remove_if(m_Fireballs.begin(), m_Fireballs.end(),
+                       [](const std::unique_ptr<Fireball>& fireball) { return fireball->IsExpired(); }),
+        m_Fireballs.end()
+    );
     m_Pickups.erase(
         std::remove_if(m_Pickups.begin(), m_Pickups.end(),
                        [](const std::unique_ptr<Pickup>& pickup) { return pickup->IsCollected(); }),
         m_Pickups.end()
+    );
+    m_Debris.erase(
+        std::remove_if(m_Debris.begin(), m_Debris.end(),
+                       [](const std::unique_ptr<Debris>& debris) { return debris->IsExpired(); }),
+        m_Debris.end()
     );
 
     if (m_Mario && g_MapManager) {
@@ -177,6 +263,7 @@ void App::Update() {
         // draw Mario relative to camera, but keep real position for physics
         auto oldPos = m_Mario->m_Transform.translation;
         m_Mario->m_Transform.translation.x -= m_ViewX;
+        m_Mario->m_Transform.translation.y += m_Mario->GetRenderOffsetY();
 
         m_Mario->Draw();
 
@@ -188,11 +275,23 @@ void App::Update() {
         enemy->Draw();
         enemy->m_Transform.translation = oldPos;
     }
+    for (auto& fireball : m_Fireballs) {
+        auto oldPos = fireball->m_Transform.translation;
+        fireball->m_Transform.translation.x -= m_ViewX;
+        fireball->Draw();
+        fireball->m_Transform.translation = oldPos;
+    }
     for (auto& pickup : m_Pickups) {
         auto oldPos = pickup->m_Transform.translation;
         pickup->m_Transform.translation.x -= m_ViewX;
         pickup->Draw();
         pickup->m_Transform.translation = oldPos;
+    }
+    for (auto& debris : m_Debris) {
+        auto oldPos = debris->m_Transform.translation;
+        debris->m_Transform.translation.x -= m_ViewX;
+        debris->Draw();
+        debris->m_Transform.translation = oldPos;
     }
 
     if (Util::Input::IsKeyUp(Util::Keycode::ESCAPE) || Util::Input::IfExit()) {
