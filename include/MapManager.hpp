@@ -54,6 +54,12 @@ private:
     std::queue<BrickBreakEvent> m_BrickBreakEvents;
     bool m_HasGoal = false;
     float m_GoalX = 0.0f;
+    float m_GoalGroundY = 0.0f;
+    float m_FlagTopY = 0.0f;
+    float m_FlagBottomY = 0.0f;
+    float m_FlagX = 0.0f;
+    std::shared_ptr<Util::GameObject> m_GoalFlagObject;
+    std::shared_ptr<Util::Image> m_GoalFlagImage;
     mutable std::mt19937 m_Rng{std::random_device{}()};
 
     int m_Width = 0;
@@ -248,6 +254,12 @@ public:
         std::swap(m_BrickBreakEvents, emptyBreaks);
         m_HasGoal = false;
         m_GoalX = 0.0f;
+        m_GoalGroundY = 0.0f;
+        m_FlagTopY = 0.0f;
+        m_FlagBottomY = 0.0f;
+        m_FlagX = 0.0f;
+        m_GoalFlagObject = nullptr;
+        m_GoalFlagImage = nullptr;
     }
 
     void AddTileSprite(int gridX, int gridY, int tileSpanX, int tileSpanY,
@@ -492,8 +504,37 @@ public:
         m_GoalX = x;
     }
 
+    void ConfigureGoalVisuals(int poleGridX,
+                              int flagGridX,
+                              int flagGridY,
+                              int poleBottomGridY,
+                              const std::string& flagPath) {
+        m_HasGoal = true;
+        m_GoalX = GetWorldLeft() + poleGridX * TILE_SIZE + TILE_SIZE * 0.5f;
+        m_GoalGroundY = (m_Height * TILE_SIZE) / 2.0f - poleBottomGridY * TILE_SIZE;
+        m_FlagX = GetWorldLeft() + flagGridX * TILE_SIZE + TILE_SIZE * 0.5f;
+        m_FlagTopY = (m_Height * TILE_SIZE) / 2.0f - flagGridY * TILE_SIZE - TILE_SIZE * 0.5f;
+        m_FlagBottomY = (m_Height * TILE_SIZE) / 2.0f - poleBottomGridY * TILE_SIZE - TILE_SIZE * 0.5f;
+
+        m_GoalFlagObject = std::make_shared<Util::GameObject>();
+        m_GoalFlagImage = std::make_shared<Util::Image>(ResolveBackgroundPath(flagPath));
+        m_GoalFlagObject->SetDrawable(m_GoalFlagImage);
+        m_GoalFlagObject->m_Transform.translation = { m_FlagX, m_FlagTopY };
+        m_GoalFlagObject->m_Transform.scale = { 3.0f, 3.0f };
+        m_GoalFlagObject->SetZIndex(-9.0f);
+    }
+
     bool HasGoal() const { return m_HasGoal; }
     float GetGoalX() const { return m_GoalX; }
+    float GetGoalGroundY() const { return m_GoalGroundY; }
+    float GetFlagTopY() const { return m_FlagTopY; }
+    float GetFlagBottomY() const { return m_FlagBottomY; }
+    float GetFlagX() const { return m_FlagX; }
+    void SetFlagY(float y) {
+        if (m_GoalFlagObject) {
+            m_GoalFlagObject->m_Transform.translation.y = std::clamp(y, m_FlagBottomY, m_FlagTopY);
+        }
+    }
 
     void Update() {
         const float dt = std::max(0.001f, Util::Time::GetDeltaTimeMs() / 1000.0f);
@@ -501,6 +542,7 @@ public:
             tile.animation.Update(dt);
             tile.image->SetImage(tile.animation.GetCurrentFramePath());
         }
+
     }
 
     void Draw(float viewX) {
@@ -511,12 +553,20 @@ public:
             obj->m_Transform.translation = oldPos;
         }
 
+        if (m_GoalFlagObject != nullptr) {
+            auto oldPos = m_GoalFlagObject->m_Transform.translation;
+            m_GoalFlagObject->m_Transform.translation.x -= viewX;
+            m_GoalFlagObject->Draw();
+            m_GoalFlagObject->m_Transform.translation = oldPos;
+        }
+
         for (auto& obj : m_Objects) {
             auto oldPos = obj->m_Transform.translation;
             obj->m_Transform.translation.x -= viewX;
             obj->Draw();
             obj->m_Transform.translation = oldPos;
         }
+
     }
 
     int GetWidth() const { return m_Width; }

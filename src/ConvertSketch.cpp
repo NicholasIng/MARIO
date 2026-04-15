@@ -477,9 +477,7 @@ bool convert_sketch(
 
             const int flagX = std::max(0, minX - 1);
             const int flagY = std::min(maxY, minY + 1);
-            map.AddBackgroundTile(flagX, flagY, flagPath);
-
-            map.SetGoal(map.GetWorldLeft() + minX * map.GetTileSize() + map.GetTileSize() * 0.5f);
+            map.ConfigureGoalVisuals(minX, flagX, flagY, maxY, flagPath);
         }
     }
 

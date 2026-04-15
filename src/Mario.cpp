@@ -12,6 +12,10 @@
 extern std::unique_ptr<MapManager> g_MapManager;
 
 namespace {
+constexpr float GOAL_SLIDE_SPEED = 220.0f;
+constexpr float GOAL_WALK_SPEED = 110.0f;
+constexpr float GOAL_ENTER_DURATION = 0.4f;
+constexpr float POLE_GRAB_OFFSET_X = 18.0f;
 
 bool IntersectsSolidTile(const glm::vec2& center, const glm::vec2& halfExtents) {
     if (!g_MapManager) return false;
@@ -176,6 +180,25 @@ Mario::Mario()
     }, 1.0f
     );
 
+    m_FlagAnimations[PowerState::Small] = std::make_unique<Animation>(
+        std::vector<std::string>{
+            AssetPaths::Image("character/Marioflag1.png"),
+            AssetPaths::Image("character/Marioflag2.png")
+        }, 0.12f
+    );
+    m_FlagAnimations[PowerState::Big] = std::make_unique<Animation>(
+        std::vector<std::string>{
+            AssetPaths::Image("character/Bigmarioflag1.png"),
+            AssetPaths::Image("character/Bigmarioflag2.png")
+        }, 0.12f
+    );
+    m_FlagAnimations[PowerState::Fire] = std::make_unique<Animation>(
+        std::vector<std::string>{
+            AssetPaths::Image("character/mario_fire_flag1.png"),
+            AssetPaths::Image("character/mario_fire_flag2.png")
+        }, 0.12f
+    );
+
     m_SizeTransitionFramePath = AssetPaths::Image("character/mario_transition.png");
     m_DeathFramePath = AssetPaths::Image("character/mario_die.png");
     m_TransformAnimation = std::make_unique<Animation>(
@@ -231,8 +254,21 @@ const std::map<Mario::AnimState, std::unique_ptr<Animation>>& Mario::ActiveAnima
     return (m_PowerState == PowerState::Big) ? m_BigAnimations : m_SmallAnimations;
 }
 
+Animation& Mario::ActiveFlagAnimation() {
+    return *m_FlagAnimations.at(m_PowerState);
+}
+
+const Animation& Mario::ActiveFlagAnimation() const {
+    return *m_FlagAnimations.at(m_PowerState);
+}
+
 void Mario::ResetAnimations() {
     for (auto& entry : ActiveAnimations()) {
+        if (entry.second) {
+            entry.second->Reset();
+        }
+    }
+    for (auto& entry : m_FlagAnimations) {
         if (entry.second) {
             entry.second->Reset();
         }
@@ -328,6 +364,47 @@ void Mario::TakeEnemyHit() {
 
 void Mario::Update() {
     float dt = std::max(0.001f, Util::Time::GetDeltaTimeMs() / 1000.0f);
+
+    if (m_GoalSequenceState != GoalSequenceState::None) {
+        const float standingY = m_GoalGroundY + GetHalfExtents().y;
+        m_IsCrouching = false;
+        m_VelocityX = 0.0f;
+        m_VelocityY = 0.0f;
+        m_OnGround = false;
+        m_Transform.scale.x = std::abs(m_Transform.scale.x);
+        SetVisible(true);
+
+        if (m_GoalSequenceState == GoalSequenceState::SlideDownFlag) {
+            m_Transform.translation.x = m_GoalPoleX + POLE_GRAB_OFFSET_X;
+            m_Transform.translation.y = std::max(standingY, m_Transform.translation.y - GOAL_SLIDE_SPEED * dt);
+            if (m_Transform.translation.y <= standingY + 0.5f) {
+                m_Transform.translation.y = standingY;
+                m_GoalSequenceState = GoalSequenceState::WalkToCastle;
+                ActiveAnimations().at(AnimState::WALK)->Reset();
+            }
+        } else if (m_GoalSequenceState == GoalSequenceState::WalkToCastle) {
+            m_OnGround = true;
+            m_Transform.translation.y = standingY;
+            m_Transform.translation.x += GOAL_WALK_SPEED * dt;
+            if (m_Transform.translation.x >= m_CastleDoorX) {
+                m_Transform.translation.x = m_CastleDoorX;
+                m_GoalSequenceState = GoalSequenceState::EnterCastle;
+                m_GoalEnterTimer = GOAL_ENTER_DURATION;
+            }
+        } else if (m_GoalSequenceState == GoalSequenceState::EnterCastle) {
+            m_OnGround = true;
+            m_Transform.translation.y = standingY;
+            m_Transform.translation.x += GOAL_WALK_SPEED * dt;
+            m_GoalEnterTimer = std::max(0.0f, m_GoalEnterTimer - dt);
+            if (m_GoalEnterTimer <= 0.0f) {
+                SetVisible(false);
+                m_GoalSequenceState = GoalSequenceState::Finished;
+            }
+        }
+
+        HandleAnimation(dt);
+        return;
+    }
 
     if (m_IsDead) {
         m_VelocityY += m_Gravity * dt;
@@ -655,9 +732,48 @@ void Mario::BounceAfterStomp() {
     m_JumpTimer = 0.0f;
 }
 
+void Mario::StartGoalSequence(float poleX, float groundY, float castleDoorX) {
+    if (m_IsDead || m_GoalSequenceState != GoalSequenceState::None) return;
+
+    m_GoalPoleX = poleX;
+    m_GoalGroundY = groundY;
+    m_CastleDoorX = castleDoorX;
+    m_GoalEnterTimer = 0.0f;
+    m_TransformType = TransformType::None;
+    m_TransformTimer = 0.0f;
+    m_TargetPowerState = m_PowerState;
+    m_InvulnerabilityTimer = 0.0f;
+    m_PowerDownLockTimer = 0.0f;
+    m_IsCrouching = false;
+    m_VelocityX = 0.0f;
+    m_VelocityY = 0.0f;
+    m_JumpTimer = 0.0f;
+    m_OnGround = false;
+    m_GoalSequenceState = GoalSequenceState::SlideDownFlag;
+    m_Transform.scale.x = std::abs(m_Transform.scale.x);
+    m_Transform.translation.x = m_GoalPoleX + POLE_GRAB_OFFSET_X;
+    m_Transform.translation.y = std::max(m_Transform.translation.y, m_GoalGroundY + GetHalfExtents().y);
+    ActiveFlagAnimation().Reset();
+    SetVisible(true);
+}
+
 void Mario::HandleAnimation(float dt) {
     if (m_IsDead) {
         m_Image->SetImage(m_DeathFramePath);
+        return;
+    }
+
+    if (m_GoalSequenceState != GoalSequenceState::None) {
+        if (m_GoalSequenceState == GoalSequenceState::SlideDownFlag) {
+            Animation& flagAnimation = ActiveFlagAnimation();
+            flagAnimation.Update(dt);
+            m_Image->SetImage(flagAnimation.GetCurrentFramePath());
+        } else {
+            m_AnimState = AnimState::WALK;
+            auto& animations = ActiveAnimations();
+            animations[m_AnimState]->Update(dt);
+            m_Image->SetImage(animations[m_AnimState]->GetCurrentFramePath());
+        }
         return;
     }
 

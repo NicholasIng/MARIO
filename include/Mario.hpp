@@ -13,6 +13,7 @@ public:
     enum class AnimState { IDLE, WALK, JUMP, BRAKE, CROUCH };
     enum class PowerState { Small, Big, Fire };
     enum class TransformType { None, SmallBigTransition, FireTransition };
+    enum class GoalSequenceState { None, SlideDownFlag, WalkToCastle, EnterCastle, Finished };
 
     Mario();
     void Update();
@@ -21,6 +22,9 @@ public:
     void TakeEnemyHit();
     void Die();
     void BounceAfterStomp();
+    void StartGoalSequence(float poleX, float groundY, float castleDoorX);
+    bool IsGoalSequenceActive() const { return m_GoalSequenceState != GoalSequenceState::None; }
+    bool IsGoalSequenceFinished() const { return m_GoalSequenceState == GoalSequenceState::Finished; }
     float GetFacingDirection() const { return m_Transform.scale.x >= 0.0f ? 1.0f : -1.0f; }
     float GetRenderOffsetY() const;
     glm::vec2 GetFireballSpawnPosition() const;
@@ -54,11 +58,17 @@ private:
     PowerState m_TargetPowerState = PowerState::Small;
     TransformType m_TransformType = TransformType::None;
     bool m_TransformShowBigFrame = false;
+    GoalSequenceState m_GoalSequenceState = GoalSequenceState::None;
+    float m_GoalPoleX = 0.0f;
+    float m_GoalGroundY = 0.0f;
+    float m_CastleDoorX = 0.0f;
+    float m_GoalEnterTimer = 0.0f;
 
     AnimState m_AnimState = AnimState::IDLE;
     std::map<AnimState, std::unique_ptr<Animation>> m_SmallAnimations;
     std::map<AnimState, std::unique_ptr<Animation>> m_BigAnimations;
     std::map<AnimState, std::unique_ptr<Animation>> m_FireAnimations;
+    std::map<PowerState, std::unique_ptr<Animation>> m_FlagAnimations;
 
     std::shared_ptr<Util::Image> m_Image;
     std::unique_ptr<Animation> m_TransformAnimation;
@@ -71,6 +81,8 @@ private:
     void BeginTransformation(PowerState targetState, TransformType transformType);
     void SetPowerState(PowerState newState);
     void HandleAnimation(float dt);
+    Animation& ActiveFlagAnimation();
+    const Animation& ActiveFlagAnimation() const;
 };
 
 #endif
