@@ -31,7 +31,8 @@ public:
     bool IsDead() const { return m_IsDead; }
     bool IsBig() const { return m_PowerState != PowerState::Small; }
     bool IsFire() const { return m_PowerState == PowerState::Fire; }
-    bool IsInvulnerable() const { return m_InvulnerabilityTimer > 0.0f; }
+    bool IsInvulnerable() const { return m_InvulnerabilityTimer > 0.0f || m_StarPowerTimer > 0.0f; }
+    bool HasStarPower() const { return m_StarPowerTimer > 0.0f; }
     glm::vec2 GetHalfExtents() const;
     float GetVelocityY() const { return m_VelocityY; }
     bool WasJumpingUpward() const { return m_VelocityY > 0.0f; }
@@ -51,6 +52,7 @@ private:
     float m_JumpTimer, m_MaxJumpTime;
     float m_RespawnTimer = 0.0f;
     float m_InvulnerabilityTimer = 0.0f;
+    float m_StarPowerTimer = 0.0f;
     float m_PowerDownLockTimer = 0.0f;
     float m_TransformTimer = 0.0f;
     glm::vec2 m_SpawnPosition = { 0.0f, -250.0f };
@@ -81,6 +83,7 @@ private:
     void ResetAnimations();
     void BeginTransformation(PowerState targetState, TransformType transformType);
     void SetPowerState(PowerState newState);
+    void ActivateStarPower();
     void HandleAnimation(float dt);
     Animation& ActiveFlagAnimation();
     const Animation& ActiveFlagAnimation() const;

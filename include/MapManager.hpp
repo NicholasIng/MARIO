@@ -9,7 +9,6 @@
 #include <filesystem>
 #include <set>
 #include <queue>
-#include <random>
 #include <glm/vec2.hpp> // for glm::vec2
 
 #include "Util/GameObject.hpp"
@@ -20,7 +19,7 @@
 #include "config.hpp"
 
 enum class Cell { Empty, Wall, Brick, QuestionBlock, Pipe, Coin };
-enum class LootType { RedMushroom, FireFlower };
+enum class LootType { RedMushroom, GreenMushroom, FireFlower, Coin, Star, ProgressivePowerUp };
 
 class MapManager {
 private:
@@ -43,6 +42,8 @@ private:
     };
     std::vector<AnimatedTile> m_AnimatedTiles;
     std::vector<std::vector<bool>> m_QuestionBlockUsed;
+    std::vector<std::vector<LootType>> m_QuestionBlockLoot;
+    std::vector<std::vector<int>> m_QuestionBlockRemainingHits;
     struct SpawnEvent {
         LootType type;
         glm::vec2 position;
@@ -61,8 +62,6 @@ private:
     float m_GoalSlideStartY = 0.0f;
     std::shared_ptr<Util::GameObject> m_GoalFlagObject;
     std::shared_ptr<Util::Image> m_GoalFlagImage;
-    mutable std::mt19937 m_Rng{std::random_device{}()};
-
     int m_Width = 0;
     int m_Height = 0;
 
@@ -246,6 +245,8 @@ public:
         m_TileObjects.assign(width, std::vector<std::shared_ptr<Util::GameObject>>(height, nullptr));
         m_BackgroundTileObjects.assign(width, std::vector<std::shared_ptr<Util::GameObject>>(height, nullptr));
         m_QuestionBlockUsed.assign(width, std::vector<bool>(height, false));
+        m_QuestionBlockLoot.assign(width, std::vector<LootType>(height, LootType::Coin));
+        m_QuestionBlockRemainingHits.assign(width, std::vector<int>(height, 1));
         m_Objects.clear();
         m_BackgroundObjects.clear();
         m_AnimatedTiles.clear();
@@ -346,6 +347,34 @@ public:
         AddTileSprite(gridX, gridY, 1, 1, type, texturePath);
     }
 
+    void SetQuestionBlockLoot(int x, int y, LootType lootType) {
+        if (x < 0 || x >= m_Width || y < 0 || y >= m_Height) return;
+        if (m_Map[x][y] != Cell::QuestionBlock) return;
+        m_QuestionBlockLoot[x][y] = lootType;
+    }
+
+    void SetQuestionBlockHitCount(int x, int y, int hitCount) {
+        if (x < 0 || x >= m_Width || y < 0 || y >= m_Height) return;
+        if (m_Map[x][y] != Cell::QuestionBlock) return;
+        m_QuestionBlockRemainingHits[x][y] = std::max(1, hitCount);
+    }
+
+    void SetQuestionBlockStaticTexture(int x, int y, const std::string& texturePath) {
+        if (x < 0 || x >= m_Width || y < 0 || y >= m_Height) return;
+        if (m_Map[x][y] != Cell::QuestionBlock) return;
+
+        const std::string resolvedPath = ResolveTilePath(Cell::Brick, texturePath);
+        if (m_TileObjects[x][y] != nullptr) {
+            m_TileObjects[x][y]->SetDrawable(std::make_shared<Util::Image>(resolvedPath));
+        }
+
+        m_AnimatedTiles.erase(
+            std::remove_if(m_AnimatedTiles.begin(), m_AnimatedTiles.end(),
+                           [&](const AnimatedTile& tile) { return tile.gridX == x && tile.gridY == y; }),
+            m_AnimatedTiles.end()
+        );
+    }
+
     void AddBackgroundSprite(int gridX, int gridY, int tileSpanX, int tileSpanY,
                              const std::string& texturePath) {
         if (gridX < 0 || gridX >= m_Width || gridY < 0 || gridY >= m_Height)
@@ -439,6 +468,8 @@ public:
         m_Map[x][y] = Cell::Empty;
         m_TileObjects[x][y] = nullptr;
         m_QuestionBlockUsed[x][y] = false;
+        m_QuestionBlockLoot[x][y] = LootType::Coin;
+        m_QuestionBlockRemainingHits[x][y] = 1;
         return true;
     }
 
@@ -447,9 +478,22 @@ public:
         return ClearTile(x, y);
     }
 
-    bool HitQuestionBlock(int x, int y) {
+    bool HitQuestionBlock(int x, int y, bool marioIsBig = false) {
         if (x < 0 || x >= m_Width || y < 0 || y >= m_Height) return false;
         if (m_Map[x][y] != Cell::QuestionBlock || m_QuestionBlockUsed[x][y]) return false;
+
+        float worldX = GetWorldLeft() + x * TILE_SIZE + TILE_SIZE / 2.0f;
+        float worldY = (m_Height * TILE_SIZE) / 2.0f - y * TILE_SIZE;
+        LootType spawnType = m_QuestionBlockLoot[x][y];
+        if (spawnType == LootType::ProgressivePowerUp) {
+            spawnType = marioIsBig ? LootType::FireFlower : LootType::RedMushroom;
+        }
+        m_SpawnEvents.push({ spawnType, { worldX, worldY } });
+
+        m_QuestionBlockRemainingHits[x][y] = std::max(0, m_QuestionBlockRemainingHits[x][y] - 1);
+        if (m_QuestionBlockRemainingHits[x][y] > 0) {
+            return true;
+        }
 
         m_QuestionBlockUsed[x][y] = true;
 
@@ -464,11 +508,6 @@ public:
             m_AnimatedTiles.end()
         );
 
-        std::uniform_int_distribution<int> dist(0, 1);
-        LootType type = dist(m_Rng) == 0 ? LootType::RedMushroom : LootType::FireFlower;
-        float worldX = GetWorldLeft() + x * TILE_SIZE + TILE_SIZE / 2.0f;
-        float worldY = (m_Height * TILE_SIZE) / 2.0f - y * TILE_SIZE;
-        m_SpawnEvents.push({ type, { worldX, worldY } });
         return true;
     }
 

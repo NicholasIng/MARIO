@@ -46,6 +46,18 @@ bool IntersectsSolidTile(const glm::vec2& center, const glm::vec2& halfExtents) 
     return false;
 }
 
+bool IsSolidAtWorld(float worldX, float worldY) {
+    if (!g_MapManager) return false;
+
+    const float tileSize = g_MapManager->GetTileSize();
+    const float mapLeft = g_MapManager->GetWorldLeft();
+    const float mapTop = (g_MapManager->GetHeight() * tileSize) / 2.0f;
+
+    const int gridX = static_cast<int>(std::floor((worldX - mapLeft) / tileSize));
+    const int gridY = static_cast<int>(std::floor((mapTop - worldY) / tileSize));
+    return g_MapManager->IsSolidAt(gridX, gridY);
+}
+
 void SnapUpOutOfGround(glm::vec2& center, const glm::vec2& halfExtents) {
     if (!g_MapManager) return;
 
@@ -103,6 +115,7 @@ void Enemy::Update() {
     m_VelocityY += gravity * dt;
 
     float candidateY = m_Transform.translation.y + m_VelocityY * dt;
+    bool grounded = false;
     float leftX = m_Transform.translation.x - half.x;
     float rightX = m_Transform.translation.x + half.x;
     int leftGridX = std::clamp(worldToGridX(leftX + eps), 0, std::max(0, mapWidth - 1));
@@ -116,6 +129,7 @@ void Enemy::Update() {
                 float tileTop = mapTop - gridY * tileSize;
                 candidateY = tileTop + half.y;
                 m_VelocityY = 0.0f;
+                grounded = true;
                 break;
             }
         }
@@ -147,6 +161,16 @@ void Enemy::Update() {
                 RefreshSprite();
                 return;
             }
+        }
+    }
+
+    if (grounded) {
+        const float frontX = candidateX + m_Direction * (half.x + 2.0f);
+        const float footY = m_Transform.translation.y - half.y - 2.0f;
+        if (!IsSolidAtWorld(frontX, footY)) {
+            m_Direction *= -1.0f;
+            RefreshSprite();
+            return;
         }
     }
 

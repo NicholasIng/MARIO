@@ -16,6 +16,7 @@ constexpr float GOAL_SLIDE_SPEED = 220.0f;
 constexpr float GOAL_WALK_SPEED = 110.0f;
 constexpr float GOAL_ENTER_DURATION = 0.4f;
 constexpr float POLE_GRAB_OFFSET_X = 18.0f;
+constexpr float STAR_POWER_DURATION = 10.0f;
 
 bool IntersectsSolidTile(const glm::vec2& center, const glm::vec2& halfExtents) {
     if (!g_MapManager) return false;
@@ -322,7 +323,28 @@ void Mario::SetPowerState(PowerState newState) {
     m_Image->SetImage(ActiveAnimations().at(m_AnimState)->GetCurrentFramePath());
 }
 
+void Mario::ActivateStarPower() {
+    m_StarPowerTimer = STAR_POWER_DURATION;
+    SetVisible(true);
+}
+
 void Mario::PowerUp(LootType type) {
+    if (type == LootType::Coin) {
+        return;
+    }
+
+    if (type == LootType::Star) {
+        ActivateStarPower();
+        return;
+    }
+
+    if (type == LootType::GreenMushroom) {
+        if (m_PowerState == PowerState::Small) {
+            BeginTransformation(PowerState::Big, TransformType::SmallBigTransition);
+        }
+        return;
+    }
+
     if (type == LootType::FireFlower) {
         if (m_PowerState != PowerState::Fire) {
             BeginTransformation(PowerState::Fire, TransformType::FireTransition);
@@ -418,6 +440,7 @@ void Mario::Update() {
             m_IsCrouching = false;
             m_JumpTimer = 0.0f;
             m_InvulnerabilityTimer = 0.0f;
+            m_StarPowerTimer = 0.0f;
             m_PowerDownLockTimer = 0.0f;
             m_PowerState = PowerState::Small;
             m_AnimState = AnimState::IDLE;
@@ -466,8 +489,14 @@ void Mario::Update() {
 
     if (m_InvulnerabilityTimer > 0.0f) {
         m_InvulnerabilityTimer = std::max(0.0f, m_InvulnerabilityTimer - dt);
+    }
+
+    if (m_StarPowerTimer > 0.0f) {
+        m_StarPowerTimer = std::max(0.0f, m_StarPowerTimer - dt);
+    }
+
+    if (m_InvulnerabilityTimer > 0.0f) {
         const bool blinkVisible =
-            m_InvulnerabilityTimer <= 0.0f ||
             static_cast<int>(m_InvulnerabilityTimer * 12.0f) % 2 == 0;
         SetVisible(blinkVisible);
     } else {
@@ -657,7 +686,7 @@ void Mario::Update() {
                 Cell hitCell = g_MapManager->GetCell(gx, gridY);
                 if (MapManager::IsSolidCell(hitCell)) {
                     if (hitCell == Cell::QuestionBlock) {
-                        g_MapManager->HitQuestionBlock(gx, gridY);
+                        g_MapManager->HitQuestionBlock(gx, gridY, IsBig());
                     } else if (hitCell == Cell::Brick && IsBig() && !m_IsCrouching) {
                         g_MapManager->BreakBrick(gx, gridY);
                     }
@@ -665,6 +694,7 @@ void Mario::Update() {
                     float tileBottom = mapTop - (gridY + 1) * tileSize;
                     candidateY = tileBottom - halfHeight - eps;
                     m_VelocityY = 0.0f;
+                    m_JumpTimer = 0.0f;
                     break;
                 }
             }
@@ -753,10 +783,8 @@ void Mario::StartGoalSequence(float poleX, float groundY, float castleDoorX, flo
     m_GoalSequenceState = GoalSequenceState::SlideDownFlag;
     m_Transform.scale.x = std::abs(m_Transform.scale.x);
     m_Transform.translation.x = m_GoalPoleX + POLE_GRAB_OFFSET_X;
-    m_Transform.translation.y = std::max(
-        m_GoalSlideStartY,
-        m_GoalGroundY + GetHalfExtents().y
-    );
+    const float standingY = m_GoalGroundY + GetHalfExtents().y;
+    m_Transform.translation.y = std::max(m_GoalSlideStartY, standingY);
     ActiveFlagAnimation().Reset();
     SetVisible(true);
 }

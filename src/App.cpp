@@ -23,7 +23,22 @@ constexpr float CASTLE_TARGET_HEIGHT_TILES = 6.0f;
 constexpr float CASTLE_OFFSET_TILES = 7.0f;
 constexpr float CASTLE_END_INSET_TILES = 1.0f;
 constexpr float GOAL_FINISH_DELAY = 0.55f;
+constexpr float ENEMY_SPAWN_RANGE_X = WINDOW_WIDTH * 0.75f;
 
+}
+
+void App::ActivateNearbyEnemies() {
+    if (!m_Mario) return;
+
+    for (auto& pending : m_PendingEnemySpawns) {
+        if (pending.activated) continue;
+        if (std::abs(pending.position.x - m_Mario->m_Transform.translation.x) > ENEMY_SPAWN_RANGE_X) {
+            continue;
+        }
+
+        m_Enemies.push_back(std::make_unique<Enemy>(pending.position.x, pending.position.y));
+        pending.activated = true;
+    }
 }
 
 void App::StartGoalSequence() {
@@ -61,13 +76,20 @@ void App::StartGoalSequence() {
         m_CastleDoorX = g_MapManager->GetWorldRight() - g_MapManager->GetTileSize() * 2.0f;
     }
 
+    const float touchY = std::clamp(
+        m_Mario->m_Transform.translation.y,
+        g_MapManager->GetFlagBottomY(),
+        g_MapManager->GetFlagTopY()
+    );
+    g_MapManager->SetFlagY(touchY);
+
     m_Mario->StartGoalSequence(
         g_MapManager->GetGoalX(),
         g_MapManager->GetGoalGroundY(),
         m_CastleDoorX,
-        g_MapManager->GetGoalSlideStartY()
+        touchY
     );
-    m_GoalFlagMarioOffsetY = g_MapManager->GetFlagTopY() - m_Mario->m_Transform.translation.y;
+    m_GoalFlagMarioOffsetY = touchY - m_Mario->m_Transform.translation.y;
 }
 
 void App::UpdateGoalSequence(float dt) {
@@ -78,8 +100,8 @@ void App::UpdateGoalSequence(float dt) {
     if (m_GoalSequenceStage == GoalSequenceStage::Sliding) {
         const float nextFlagY = m_Mario->m_Transform.translation.y + m_GoalFlagMarioOffsetY;
         g_MapManager->SetFlagY(nextFlagY);
-        if (g_MapManager->GetFlagTopY() != 0.0f &&
-            nextFlagY <= g_MapManager->GetFlagBottomY() + 0.5f) {
+        const float standingY = g_MapManager->GetGoalGroundY() + m_Mario->GetHalfExtents().y;
+        if (m_Mario->m_Transform.translation.y <= standingY + 0.5f) {
             g_MapManager->SetFlagY(g_MapManager->GetFlagBottomY());
             m_GoalSequenceStage = GoalSequenceStage::Walking;
         }
@@ -103,6 +125,7 @@ void App::Start() {
     g_MapManager = std::make_unique<MapManager>();
     m_Mario = std::make_unique<Mario>();
     m_Enemies.clear();
+    m_PendingEnemySpawns.clear();
     m_Fireballs.clear();
     m_Pickups.clear();
     m_Debris.clear();
@@ -129,7 +152,7 @@ void App::Start() {
     glClearColor(bg.r / 255.0f, bg.g / 255.0f, bg.b / 255.0f, 1.0f);
 
     for (const auto& spawn : enemySpawns) {
-        m_Enemies.push_back(std::make_unique<Enemy>(spawn.x, spawn.y));
+        m_PendingEnemySpawns.push_back({ spawn, false });
     }
 
     // fallback if red spawn pixel is missing
@@ -172,6 +195,8 @@ void App::Start() {
         m_Mario->m_Transform.translation.x,
         m_Mario->m_Transform.translation.y);
 
+    ActivateNearbyEnemies();
+
     m_CurrentState = State::UPDATE;
 }
 
@@ -199,6 +224,7 @@ void App::Update() {
         if (m_Mario) {
             m_Mario->Update();
         }
+        ActivateNearbyEnemies();
         for (auto& enemy : m_Enemies) {
             enemy->Update();
         }
@@ -261,7 +287,9 @@ void App::Update() {
                 horizontalOverlap >= minimumStompWidth &&
                 verticalOverlap <= enemyHalf.y + stompForgiveness;
 
-            if (stomped) {
+            if (m_Mario->HasStarPower()) {
+                enemy->Stomp();
+            } else if (stomped) {
                 enemy->Stomp();
                 m_Mario->BounceAfterStomp();
             } else if (!m_Mario->IsInvulnerable()) {

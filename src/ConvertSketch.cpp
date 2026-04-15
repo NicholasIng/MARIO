@@ -190,14 +190,23 @@ bool convert_sketch(
     background_color = Util::Color(SKY_BLUE_R, SKY_BLUE_G, SKY_BLUE_B, 255);
 
     // tile mappings: packed RGB -> pair(Cell type, requested filename)
-    struct TileEntry { Cell type; std::string requested; };
+    struct TileEntry {
+        Cell type;
+        std::string requested;
+        LootType questionLoot = LootType::Coin;
+        int questionHitCount = 1;
+        bool renderAsBrick = false;
+    };
     std::unordered_map<uint32_t, TileEntry> tileMap = {
         { PackRGB(0,   0,   0),   { Cell::Wall,          "Ground.png" } },
         { PackRGB(182, 73,  0),   { Cell::Brick,         "Brick.png" } },
         { PackRGB(146, 73,  0),   { Cell::Brick,         "Brick.png" } },
         { PackRGB(255, 255, 0),   { Cell::Coin,          "Coin.png" } },
-        { PackRGB(255, 73,  85),  { Cell::QuestionBlock, "Question.png" } },
-        { PackRGB(255, 146, 85),  { Cell::QuestionBlock, "Question.png" } },
+        { PackRGB(255, 73,  85),  { Cell::QuestionBlock, "Question.png", LootType::ProgressivePowerUp } },
+        { PackRGB(255, 146, 85),  { Cell::QuestionBlock, "Question.png", LootType::Coin } },
+        { PackRGB(0,   20, 255),  { Cell::QuestionBlock, "Question.png", LootType::Star } },
+        { PackRGB(121, 255, 107), { Cell::QuestionBlock, "Question.png", LootType::GreenMushroom } },
+        { PackRGB(243, 125, 45),  { Cell::QuestionBlock, "Brick.png", LootType::Coin, 11, true } },
         { PackRGB(0,   146, 0),   { Cell::Pipe,          "Pipe.png" } },
         { PackRGB(0,   182, 0),   { Cell::Pipe,          "Pipe.png" } },
         { PackRGB(0,   219, 0),   { Cell::Pipe,          "Pipe.png" } },
@@ -261,6 +270,13 @@ bool convert_sketch(
                                      r, g, b, matchedTile->requested, resolvedPath);
                         }
                         map.AddTile(x, y, matchedTile->type, resolvedPath);
+                        if (matchedTile->type == Cell::QuestionBlock) {
+                            map.SetQuestionBlockLoot(x, y, matchedTile->questionLoot);
+                            map.SetQuestionBlockHitCount(x, y, matchedTile->questionHitCount);
+                            if (matchedTile->renderAsBrick) {
+                                map.SetQuestionBlockStaticTexture(x, y, matchedTile->requested);
+                            }
+                        }
                     }
                 } else {
                     // If not matched, prefer a Stair asset if present; otherwise try Brick fallback.
@@ -533,24 +549,6 @@ bool convert_sketch(
         }
     }
 
-    // Post-process: replace side-by-side neighbors of QuestionBlock with Brick.
-    auto FindTilePathForType = [&](Cell t)->std::string {
-        for (const auto& kv : tileMap) {
-            if (kv.second.type == t && !kv.second.requested.empty()) {
-                std::string resolved = MapManager::ResolveTilePath(t, kv.second.requested);
-                if (!resolved.empty()) return resolved;
-            }
-        }
-        // fallback: ask MapManager for the default by type (attempt common filenames)
-        switch (t) {
-            case Cell::Brick: return MapManager::ResolveTilePath(t, "Brick.png");
-            case Cell::Pipe:  return MapManager::ResolveTilePath(t, "Pipe.png");
-            case Cell::Wall:  return MapManager::ResolveTilePath(t, "Ground.png");
-            default: return std::string();
-        }
-    };
-
-    std::string brickPath = FindTilePathForType(Cell::Brick);
     std::string hardBlockPath = MapManager::ResolveTilePath(Cell::Brick, "HardBlock.png");
     bool haveHardBlockAsset = !hardBlockPath.empty() && fs::exists(hardBlockPath);
     if (haveHardBlockAsset) {
@@ -625,25 +623,6 @@ bool convert_sketch(
                 for (const auto& p : comp) {
                     map.AddTile(p.first, p.second, Cell::Brick, hardBlockPath);
                     isHard[p.first][p.second] = 1;
-                }
-            }
-        }
-    }
-
-    for (int x = 0; x < width; ++x) {
-        for (int y = 0; y < layerHeight; ++y) {
-            Cell c = map.GetCell(x, y);
-            if (c == Cell::QuestionBlock) {
-                for (int dx : {-1, 1}) {
-                    int nx = x + dx;
-                    if (nx < 0 || nx >= width) continue;
-                    if (isHard[nx][y]) continue;
-                    Cell neighbor = map.GetCell(nx, y);
-                    if (neighbor == Cell::QuestionBlock || neighbor == Cell::Pipe) continue;
-                    if (!brickPath.empty()) {
-                        LOG_INFO("Replacing neighbor at ({}, {}) with Brick", nx, y);
-                        map.AddTile(nx, y, Cell::Brick, brickPath);
-                    }
                 }
             }
         }

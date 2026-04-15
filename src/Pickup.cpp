@@ -13,19 +13,35 @@ Pickup::Pickup(LootType type, float x, float y)
     std::vector<std::string> frames;
     if (type == LootType::RedMushroom) {
         frames = { AssetPaths::Image("Mushroom_red.png") };
-    } else {
+    } else if (type == LootType::GreenMushroom) {
+        frames = { AssetPaths::Image("Mushroom_green.png") };
+    } else if (type == LootType::Star) {
+        frames = {
+            AssetPaths::Image("stars1.png"),
+            AssetPaths::Image("stars2.png"),
+            AssetPaths::Image("stars3.png"),
+            AssetPaths::Image("stars4.png")
+        };
+    } else if (type == LootType::FireFlower) {
         frames = {
             AssetPaths::Image("flower1.png"),
             AssetPaths::Image("flower2.png"),
             AssetPaths::Image("flower3.png"),
             AssetPaths::Image("flower4.png")
         };
+    } else {
+        frames = {
+            AssetPaths::Image("coin1.png"),
+            AssetPaths::Image("coin2.png"),
+            AssetPaths::Image("coin3.png"),
+            AssetPaths::Image("coin4.png")
+        };
     }
 
     m_Image = std::make_shared<Util::Image>(frames.front());
     m_Animation = std::make_unique<Animation>(
         frames,
-        (type == LootType::FireFlower) ? 0.1f : 1.0f
+        (type == LootType::FireFlower || type == LootType::Coin || type == LootType::Star) ? 0.1f : 1.0f
     );
     SetDrawable(m_Image);
     m_Transform.translation = { x, y };
@@ -45,6 +61,11 @@ void Pickup::Update() {
 
     UpdateRise(dt);
     if (m_RiseElapsed < RISE_DURATION) {
+        return;
+    }
+
+    if (m_Type == LootType::Coin) {
+        Collect();
         return;
     }
 

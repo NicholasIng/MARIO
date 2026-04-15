@@ -24,11 +24,16 @@ public:
 
 private:
     enum class GoalSequenceStage { None, Sliding, Walking, Entering, Finished };
+    struct PendingEnemySpawn {
+        glm::vec2 position;
+        bool activated = false;
+    };
 
     State m_CurrentState = State::START;
 
     std::unique_ptr<Mario> m_Mario;
     std::vector<std::unique_ptr<Enemy>> m_Enemies;
+    std::vector<PendingEnemySpawn> m_PendingEnemySpawns;
     std::vector<std::unique_ptr<Fireball>> m_Fireballs;
     std::vector<std::unique_ptr<Pickup>> m_Pickups;
     std::vector<std::unique_ptr<Debris>> m_Debris;
@@ -45,6 +50,7 @@ private:
 
     void StartGoalSequence();
     void UpdateGoalSequence(float dt);
+    void ActivateNearbyEnemies();
 };
 
 #endif
