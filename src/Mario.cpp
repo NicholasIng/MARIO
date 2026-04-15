@@ -732,12 +732,13 @@ void Mario::BounceAfterStomp() {
     m_JumpTimer = 0.0f;
 }
 
-void Mario::StartGoalSequence(float poleX, float groundY, float castleDoorX) {
+void Mario::StartGoalSequence(float poleX, float groundY, float castleDoorX, float slideStartY) {
     if (m_IsDead || m_GoalSequenceState != GoalSequenceState::None) return;
 
     m_GoalPoleX = poleX;
     m_GoalGroundY = groundY;
     m_CastleDoorX = castleDoorX;
+    m_GoalSlideStartY = slideStartY;
     m_GoalEnterTimer = 0.0f;
     m_TransformType = TransformType::None;
     m_TransformTimer = 0.0f;
@@ -752,7 +753,10 @@ void Mario::StartGoalSequence(float poleX, float groundY, float castleDoorX) {
     m_GoalSequenceState = GoalSequenceState::SlideDownFlag;
     m_Transform.scale.x = std::abs(m_Transform.scale.x);
     m_Transform.translation.x = m_GoalPoleX + POLE_GRAB_OFFSET_X;
-    m_Transform.translation.y = std::max(m_Transform.translation.y, m_GoalGroundY + GetHalfExtents().y);
+    m_Transform.translation.y = std::max(
+        m_GoalSlideStartY,
+        m_GoalGroundY + GetHalfExtents().y
+    );
     ActiveFlagAnimation().Reset();
     SetVisible(true);
 }

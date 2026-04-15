@@ -58,6 +58,7 @@ private:
     float m_FlagTopY = 0.0f;
     float m_FlagBottomY = 0.0f;
     float m_FlagX = 0.0f;
+    float m_GoalSlideStartY = 0.0f;
     std::shared_ptr<Util::GameObject> m_GoalFlagObject;
     std::shared_ptr<Util::Image> m_GoalFlagImage;
     mutable std::mt19937 m_Rng{std::random_device{}()};
@@ -258,6 +259,7 @@ public:
         m_FlagTopY = 0.0f;
         m_FlagBottomY = 0.0f;
         m_FlagX = 0.0f;
+        m_GoalSlideStartY = 0.0f;
         m_GoalFlagObject = nullptr;
         m_GoalFlagImage = nullptr;
     }
@@ -508,19 +510,29 @@ public:
                               int flagGridX,
                               int flagGridY,
                               int poleBottomGridY,
+                              int baseGridY,
                               const std::string& flagPath) {
         m_HasGoal = true;
-        m_GoalX = GetWorldLeft() + poleGridX * TILE_SIZE + TILE_SIZE * 0.5f;
-        m_GoalGroundY = (m_Height * TILE_SIZE) / 2.0f - poleBottomGridY * TILE_SIZE;
-        m_FlagX = GetWorldLeft() + flagGridX * TILE_SIZE + TILE_SIZE * 0.5f;
+        const float poleX = GetWorldLeft() + poleGridX * TILE_SIZE + TILE_SIZE * 0.5f;
+        m_GoalX = poleX;
+        m_GoalGroundY = (m_Height * TILE_SIZE) / 2.0f - baseGridY * TILE_SIZE;
+        // Attach the flag to the pole instead of leaving a full tile gap.
+        m_FlagX = poleX - TILE_SIZE * 0.5f;
         m_FlagTopY = (m_Height * TILE_SIZE) / 2.0f - flagGridY * TILE_SIZE - TILE_SIZE * 0.5f;
         m_FlagBottomY = (m_Height * TILE_SIZE) / 2.0f - poleBottomGridY * TILE_SIZE - TILE_SIZE * 0.5f;
+        m_GoalSlideStartY = m_FlagTopY;
 
         m_GoalFlagObject = std::make_shared<Util::GameObject>();
         m_GoalFlagImage = std::make_shared<Util::Image>(ResolveBackgroundPath(flagPath));
         m_GoalFlagObject->SetDrawable(m_GoalFlagImage);
         m_GoalFlagObject->m_Transform.translation = { m_FlagX, m_FlagTopY };
-        m_GoalFlagObject->m_Transform.scale = { 3.0f, 3.0f };
+        glm::vec2 flagSize = m_GoalFlagImage->GetSize();
+        if (flagSize.x > 0.0f && flagSize.y > 0.0f) {
+            const float uniformScale = TILE_SIZE / std::max(flagSize.x, flagSize.y);
+            m_GoalFlagObject->m_Transform.scale = { uniformScale, uniformScale };
+        } else {
+            m_GoalFlagObject->m_Transform.scale = { 1.0f, 1.0f };
+        }
         m_GoalFlagObject->SetZIndex(-9.0f);
     }
 
@@ -530,6 +542,7 @@ public:
     float GetFlagTopY() const { return m_FlagTopY; }
     float GetFlagBottomY() const { return m_FlagBottomY; }
     float GetFlagX() const { return m_FlagX; }
+    float GetGoalSlideStartY() const { return m_GoalSlideStartY; }
     void SetFlagY(float y) {
         if (m_GoalFlagObject) {
             m_GoalFlagObject->m_Transform.translation.y = std::clamp(y, m_FlagBottomY, m_FlagTopY);

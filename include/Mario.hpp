@@ -22,7 +22,7 @@ public:
     void TakeEnemyHit();
     void Die();
     void BounceAfterStomp();
-    void StartGoalSequence(float poleX, float groundY, float castleDoorX);
+    void StartGoalSequence(float poleX, float groundY, float castleDoorX, float slideStartY);
     bool IsGoalSequenceActive() const { return m_GoalSequenceState != GoalSequenceState::None; }
     bool IsGoalSequenceFinished() const { return m_GoalSequenceState == GoalSequenceState::Finished; }
     float GetFacingDirection() const { return m_Transform.scale.x >= 0.0f ? 1.0f : -1.0f; }
@@ -62,6 +62,7 @@ private:
     float m_GoalPoleX = 0.0f;
     float m_GoalGroundY = 0.0f;
     float m_CastleDoorX = 0.0f;
+    float m_GoalSlideStartY = 0.0f;
     float m_GoalEnterTimer = 0.0f;
 
     AnimState m_AnimState = AnimState::IDLE;

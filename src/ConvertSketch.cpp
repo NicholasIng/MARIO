@@ -469,15 +469,25 @@ bool convert_sketch(
             const std::string flagstickPath = MapManager::ResolveBackgroundPath("flagstick.png");
             const std::string dotPath = MapManager::ResolveBackgroundPath("dot.png");
             const std::string flagPath = MapManager::ResolveBackgroundPath("flag.png");
+            const std::string hardBlockPath = MapManager::ResolveTilePath(Cell::Wall, "HardBlock.png");
+            const int poleBottomY = maxY;
+            const int maxBaseY = layerHeight - 1;
+            const int baseY = std::min(maxBaseY, poleBottomY + 1);
+            const int flagX = std::max(0, minX - 1);
+            const int flagY = std::min(poleBottomY, minY + 1);
 
-            for (int poleY = minY + 1; poleY <= maxY; ++poleY) {
+            for (int clearX = flagX; clearX <= maxX; ++clearX) {
+                for (int clearY = minY; clearY <= baseY; ++clearY) {
+                    map.ClearTile(clearX, clearY);
+                }
+            }
+
+            for (int poleY = minY + 1; poleY <= poleBottomY; ++poleY) {
                 map.AddBackgroundTile(minX, poleY, flagstickPath);
             }
             map.AddBackgroundTile(minX, minY, dotPath);
-
-            const int flagX = std::max(0, minX - 1);
-            const int flagY = std::min(maxY, minY + 1);
-            map.ConfigureGoalVisuals(minX, flagX, flagY, maxY, flagPath);
+            map.AddTile(minX, baseY, Cell::Wall, hardBlockPath);
+            map.ConfigureGoalVisuals(minX, flagX, flagY, poleBottomY, baseY, flagPath);
         }
     }
 

@@ -41,6 +41,7 @@ private:
     GoalSequenceStage m_GoalSequenceStage = GoalSequenceStage::None;
     float m_GoalSequenceTimer = 0.0f;
     float m_CastleDoorX = 0.0f;
+    float m_GoalFlagMarioOffsetY = 0.0f;
 
     void StartGoalSequence();
     void UpdateGoalSequence(float dt);
