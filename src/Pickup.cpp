@@ -99,9 +99,8 @@ void Pickup::Update() {
     };
     const auto hasGroundSupport = [&](float centerX, float centerY) {
         const float probeY = centerY - half.y - 1.0f;
-        return isSolidAtWorld(centerX - half.x + 4.0f, probeY) ||
-               isSolidAtWorld(centerX, probeY) ||
-               isSolidAtWorld(centerX + half.x - 4.0f, probeY);
+        return isSolidAtWorld(centerX - half.x * 0.35f, probeY) ||
+               isSolidAtWorld(centerX + half.x * 0.35f, probeY);
     };
 
     if (!m_HasLanded || !hasGroundSupport(m_Transform.translation.x, m_Transform.translation.y)) {

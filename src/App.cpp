@@ -521,6 +521,48 @@ void App::UpdateGameplay(float dt) {
             for (auto& enemy : m_Enemies) {
                 enemy->Update();
             }
+            for (size_t i = 0; i < m_Enemies.size(); ++i) {
+                Enemy* leftEnemy = m_Enemies[i].get();
+                if (!leftEnemy->IsAlive()) continue;
+
+                for (size_t j = i + 1; j < m_Enemies.size(); ++j) {
+                    Enemy* rightEnemy = m_Enemies[j].get();
+                    if (!rightEnemy->IsAlive()) continue;
+
+                    const glm::vec2 leftHalf = leftEnemy->GetHalfExtents();
+                    const glm::vec2 rightHalf = rightEnemy->GetHalfExtents();
+
+                    const float leftLeft = leftEnemy->m_Transform.translation.x - leftHalf.x;
+                    const float leftRight = leftEnemy->m_Transform.translation.x + leftHalf.x;
+                    const float leftBottom = leftEnemy->m_Transform.translation.y - leftHalf.y;
+                    const float leftTop = leftEnemy->m_Transform.translation.y + leftHalf.y;
+
+                    const float rightLeft = rightEnemy->m_Transform.translation.x - rightHalf.x;
+                    const float rightRight = rightEnemy->m_Transform.translation.x + rightHalf.x;
+                    const float rightBottom = rightEnemy->m_Transform.translation.y - rightHalf.y;
+                    const float rightTop = rightEnemy->m_Transform.translation.y + rightHalf.y;
+
+                    const bool overlapX = leftRight > rightLeft && leftLeft < rightRight;
+                    const bool overlapY = leftTop > rightBottom && leftBottom < rightTop;
+                    if (!overlapX || !overlapY) continue;
+
+                    const float overlapAmount =
+                        std::min(leftRight, rightRight) - std::max(leftLeft, rightLeft);
+                    if (overlapAmount <= 0.0f) continue;
+
+                    const float separation = overlapAmount * 0.5f + 0.05f;
+                    if (leftEnemy->m_Transform.translation.x <= rightEnemy->m_Transform.translation.x) {
+                        leftEnemy->m_Transform.translation.x -= separation;
+                        rightEnemy->m_Transform.translation.x += separation;
+                    } else {
+                        leftEnemy->m_Transform.translation.x += separation;
+                        rightEnemy->m_Transform.translation.x -= separation;
+                    }
+
+                    leftEnemy->SetDirection(-leftEnemy->GetDirection());
+                    rightEnemy->SetDirection(-rightEnemy->GetDirection());
+                }
+            }
             for (auto& fireball : m_Fireballs) {
                 fireball->Update();
             }

@@ -14,6 +14,8 @@ public:
     bool IsAlive() const { return m_Alive; }
     bool IsDeadAndExpired() const { return !m_Alive && m_DeathFinished; }
     glm::vec2 GetHalfExtents() const { return { 20.0f, 24.0f }; }
+    float GetDirection() const { return m_Direction; }
+    void SetDirection(float direction);
 
 private:
     std::shared_ptr<Util::Image> m_Image;
