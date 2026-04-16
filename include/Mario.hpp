@@ -12,8 +12,8 @@ class Mario : public Util::GameObject {
 public:
     enum class AnimState { IDLE, WALK, JUMP, BRAKE, CROUCH };
     enum class PowerState { Small, Big, Fire };
-    enum class TransformType { None, SmallBigTransition, FireTransition };
-    enum class GoalSequenceState { None, SlideDownFlag, WalkToCastle, EnterCastle, Finished };
+    enum class TransformType { None, SmallBigTransition, FireTransition, StarTransition };
+    enum class GoalSequenceState { None, SlideDownFlag, CrossPole, DropFromPole, Finished };
 
     Mario();
     void Update();
@@ -22,8 +22,11 @@ public:
     void TakeEnemyHit();
     void Die();
     void BounceAfterStomp();
-    void StartGoalSequence(float poleX, float groundY, float castleDoorX, float slideStartY);
-    bool IsGoalSequenceActive() const { return m_GoalSequenceState != GoalSequenceState::None; }
+    void StartGoalSequence(float poleX, float flagX, float flagBottomY, float groundY, float castleDoorX, float slideStartY);
+    bool IsGoalSequenceActive() const {
+        return m_GoalSequenceState != GoalSequenceState::None &&
+               m_GoalSequenceState != GoalSequenceState::Finished;
+    }
     bool IsGoalSequenceFinished() const { return m_GoalSequenceState == GoalSequenceState::Finished; }
     float GetFacingDirection() const { return m_Transform.scale.x >= 0.0f ? 1.0f : -1.0f; }
     float GetRenderOffsetY() const;
@@ -31,6 +34,7 @@ public:
     bool IsDead() const { return m_IsDead; }
     bool IsBig() const { return m_PowerState != PowerState::Small; }
     bool IsFire() const { return m_PowerState == PowerState::Fire; }
+    bool IsTransforming() const { return m_TransformType != TransformType::None; }
     bool IsInvulnerable() const { return m_InvulnerabilityTimer > 0.0f || m_StarPowerTimer > 0.0f; }
     bool HasStarPower() const { return m_StarPowerTimer > 0.0f; }
     glm::vec2 GetHalfExtents() const;
@@ -50,6 +54,8 @@ private:
     bool m_IsCrouching = false;
     bool m_IsDead = false;
     float m_JumpTimer, m_MaxJumpTime;
+    float m_StoredVelocityX = 0.0f;
+    float m_StoredVelocityY = 0.0f;
     float m_RespawnTimer = 0.0f;
     float m_InvulnerabilityTimer = 0.0f;
     float m_StarPowerTimer = 0.0f;
@@ -59,9 +65,12 @@ private:
     PowerState m_PowerState = PowerState::Small;
     PowerState m_TargetPowerState = PowerState::Small;
     TransformType m_TransformType = TransformType::None;
+    AnimState m_TransformAnimState = AnimState::IDLE;
     bool m_TransformShowBigFrame = false;
     GoalSequenceState m_GoalSequenceState = GoalSequenceState::None;
     float m_GoalPoleX = 0.0f;
+    float m_GoalFlagX = 0.0f;
+    float m_GoalFlagBottomY = 0.0f;
     float m_GoalGroundY = 0.0f;
     float m_CastleDoorX = 0.0f;
     float m_GoalSlideStartY = 0.0f;
@@ -80,13 +89,19 @@ private:
 
     std::map<AnimState, std::unique_ptr<Animation>>& ActiveAnimations();
     const std::map<AnimState, std::unique_ptr<Animation>>& ActiveAnimations() const;
+    std::map<AnimState, std::unique_ptr<Animation>>& AnimationsForPowerState(PowerState state);
+    const std::map<AnimState, std::unique_ptr<Animation>>& AnimationsForPowerState(PowerState state) const;
     void ResetAnimations();
     void BeginTransformation(PowerState targetState, TransformType transformType);
     void SetPowerState(PowerState newState);
     void ActivateStarPower();
+    void RestoreStoredMotion();
     void HandleAnimation(float dt);
     Animation& ActiveFlagAnimation();
     const Animation& ActiveFlagAnimation() const;
+    std::string CurrentAnimatedFramePath() const;
+    std::string FramePathForState(PowerState powerState, AnimState animState) const;
+    std::string DisplayFramePathForBase(const std::string& basePath) const;
 };
 
 #endif

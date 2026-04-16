@@ -85,6 +85,8 @@ void App::StartGoalSequence() {
 
     m_Mario->StartGoalSequence(
         g_MapManager->GetGoalX(),
+        g_MapManager->GetFlagX(),
+        g_MapManager->GetFlagBottomY(),
         g_MapManager->GetGoalGroundY(),
         m_CastleDoorX,
         touchY
@@ -95,18 +97,18 @@ void App::StartGoalSequence() {
 void App::UpdateGoalSequence(float dt) {
     if (!m_Mario || !g_MapManager || m_GoalSequenceStage == GoalSequenceStage::None) return;
 
-    m_Mario->Update();
-
     if (m_GoalSequenceStage == GoalSequenceStage::Sliding) {
+        m_Mario->Update();
         const float nextFlagY = m_Mario->m_Transform.translation.y + m_GoalFlagMarioOffsetY;
         g_MapManager->SetFlagY(nextFlagY);
-        const float standingY = g_MapManager->GetGoalGroundY() + m_Mario->GetHalfExtents().y;
-        if (m_Mario->m_Transform.translation.y <= standingY + 0.5f) {
-            g_MapManager->SetFlagY(g_MapManager->GetFlagBottomY());
-            m_GoalSequenceStage = GoalSequenceStage::Walking;
-        }
-    } else if (m_GoalSequenceStage == GoalSequenceStage::Walking) {
         if (m_Mario->IsGoalSequenceFinished()) {
+            g_MapManager->SetFlagY(g_MapManager->GetFlagBottomY());
+            m_GoalSequenceStage = GoalSequenceStage::PlayerControl;
+        }
+    } else if (m_GoalSequenceStage == GoalSequenceStage::PlayerControl) {
+        if (m_Mario->m_Transform.translation.x >= m_CastleDoorX) {
+            m_Mario->m_Transform.translation.x = m_CastleDoorX;
+            m_Mario->SetVisible(false);
             m_GoalSequenceStage = GoalSequenceStage::Entering;
             m_GoalSequenceTimer = GOAL_FINISH_DELAY;
         }
@@ -165,7 +167,7 @@ void App::Start() {
     m_CastleObject = std::make_shared<Util::GameObject>();
         m_CastleImage = std::make_shared<Util::Image>(AssetPaths::Image("castle1.png"));
     m_CastleObject->SetDrawable(m_CastleImage);
-    m_CastleObject->SetZIndex(25.0f);
+    m_CastleObject->SetZIndex(5.0f);
     if (g_MapManager && g_MapManager->HasGoal() && m_CastleImage != nullptr) {
         const float targetHeight = g_MapManager->GetTileSize() * CASTLE_TARGET_HEIGHT_TILES;
         const glm::vec2 castleSize = m_CastleImage->GetSize();
@@ -202,45 +204,73 @@ void App::Start() {
 
 void App::Update() {
     const float dt = std::max(0.001f, Util::Time::GetDeltaTimeMs() / 1000.0f);
-    if (g_MapManager) {
+    const bool powerupFreezeActive = m_Mario && m_Mario->IsTransforming();
+    if (g_MapManager && !powerupFreezeActive) {
         g_MapManager->Update();
     }
-    LootType lootType;
-    glm::vec2 lootPos;
-    while (g_MapManager && g_MapManager->PollSpawnEvent(lootType, lootPos)) {
-        m_Pickups.push_back(std::make_unique<Pickup>(lootType, lootPos.x, lootPos.y));
-    }
-    glm::vec2 breakPos;
-    while (g_MapManager && g_MapManager->PollBrickBreakEvent(breakPos)) {
-        m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::TopLeft));
-        m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::TopRight));
-        m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::BottomLeft));
-        m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::BottomRight));
+    if (!powerupFreezeActive) {
+        LootType lootType;
+        glm::vec2 lootPos;
+        while (g_MapManager && g_MapManager->PollSpawnEvent(lootType, lootPos)) {
+            m_Pickups.push_back(std::make_unique<Pickup>(lootType, lootPos.x, lootPos.y));
+        }
+        glm::vec2 breakPos;
+        while (g_MapManager && g_MapManager->PollBrickBreakEvent(breakPos)) {
+            m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::TopLeft));
+            m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::TopRight));
+            m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::BottomLeft));
+            m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::BottomRight));
+
+            const float tileSize = g_MapManager->GetTileSize();
+            const float brickTop = breakPos.y + tileSize * 0.5f;
+            for (auto& enemy : m_Enemies) {
+                if (!enemy->IsAlive()) continue;
+
+                const glm::vec2 enemyHalf = enemy->GetHalfExtents();
+                const float enemyBottom = enemy->m_Transform.translation.y - enemyHalf.y;
+                const bool overlapsBrickX =
+                    std::abs(enemy->m_Transform.translation.x - breakPos.x) <= (tileSize * 0.5f + enemyHalf.x - 2.0f);
+                const bool standingOnBrick =
+                    enemyBottom >= brickTop - 8.0f &&
+                    enemyBottom <= brickTop + tileSize * 0.75f;
+                if (overlapsBrickX && standingOnBrick) {
+                    const float horizontalKnockback =
+                        (enemy->m_Transform.translation.x >= breakPos.x) ? 80.0f : -80.0f;
+                    enemy->KillFlipped(horizontalKnockback);
+                }
+            }
+        }
     }
     const bool goalSequenceActive = m_GoalSequenceStage != GoalSequenceStage::None;
-    if (goalSequenceActive) {
+    const bool manualGoalControl = m_GoalSequenceStage == GoalSequenceStage::PlayerControl;
+    const bool autoGoalSequence = goalSequenceActive && !manualGoalControl;
+    if (autoGoalSequence) {
         UpdateGoalSequence(dt);
     } else {
         if (m_Mario) {
             m_Mario->Update();
         }
-        ActivateNearbyEnemies();
-        for (auto& enemy : m_Enemies) {
-            enemy->Update();
-        }
-        for (auto& fireball : m_Fireballs) {
-            fireball->Update();
-        }
-        for (auto& pickup : m_Pickups) {
-            pickup->Update();
-        }
-        for (auto& debris : m_Debris) {
-            debris->Update();
+        if (!powerupFreezeActive) {
+            ActivateNearbyEnemies();
+            for (auto& enemy : m_Enemies) {
+                enemy->Update();
+            }
+            for (auto& fireball : m_Fireballs) {
+                fireball->Update();
+            }
+            for (auto& pickup : m_Pickups) {
+                pickup->Update();
+            }
+            for (auto& debris : m_Debris) {
+                debris->Update();
+            }
         }
     }
 
-    m_FireballCooldown = std::max(0.0f, m_FireballCooldown - dt);
-    if (!goalSequenceActive &&
+    if (!powerupFreezeActive) {
+        m_FireballCooldown = std::max(0.0f, m_FireballCooldown - dt);
+    }
+    if (!autoGoalSequence && !powerupFreezeActive &&
         m_Mario && m_Mario->IsFire() && !m_Mario->IsDead() &&
         Util::Input::IsKeyDown(Util::Keycode::F) &&
         m_FireballCooldown <= 0.0f &&
@@ -254,7 +284,7 @@ void App::Update() {
         m_FireballCooldown = 0.18f;
     }
 
-    if (!goalSequenceActive && m_Mario && !m_Mario->IsDead()) {
+    if (!autoGoalSequence && !powerupFreezeActive && m_Mario && !m_Mario->IsDead()) {
         const glm::vec2 marioHalf = m_Mario->GetHalfExtents();
         for (auto& enemy : m_Enemies) {
             if (!enemy->IsAlive()) continue;
@@ -288,7 +318,7 @@ void App::Update() {
                 verticalOverlap <= enemyHalf.y + stompForgiveness;
 
             if (m_Mario->HasStarPower()) {
-                enemy->Stomp();
+                enemy->KillFlipped(110.0f * m_Mario->GetFacingDirection());
             } else if (stomped) {
                 enemy->Stomp();
                 m_Mario->BounceAfterStomp();
@@ -346,9 +376,21 @@ void App::Update() {
         }
 
         if (g_MapManager && g_MapManager->HasGoal() &&
+            m_GoalSequenceStage == GoalSequenceStage::PlayerControl &&
+            m_Mario->m_Transform.translation.x >= m_CastleDoorX) {
+            m_Mario->m_Transform.translation.x = m_CastleDoorX;
+            m_Mario->SetVisible(false);
+            m_GoalSequenceStage = GoalSequenceStage::Entering;
+            m_GoalSequenceTimer = GOAL_FINISH_DELAY;
+        } else if (g_MapManager && g_MapManager->HasGoal() &&
+            m_GoalSequenceStage == GoalSequenceStage::None &&
             m_Mario->m_Transform.translation.x >= g_MapManager->GetGoalX()) {
             StartGoalSequence();
         }
+    }
+
+    if (m_GoalSequenceStage == GoalSequenceStage::Entering) {
+        UpdateGoalSequence(dt);
     }
 
     m_Enemies.erase(
@@ -398,6 +440,13 @@ void App::Update() {
         g_MapManager->Draw(m_ViewX);
     }
 
+    if (m_CastleObject != nullptr &&
+        g_MapManager != nullptr) {
+        const glm::vec2 oldPos = m_CastleObject->m_Transform.translation;
+        m_CastleObject->m_Transform.translation.x -= m_ViewX;
+        m_CastleObject->Draw();
+        m_CastleObject->m_Transform.translation = oldPos;
+    }
     if (m_Mario) {
         // draw Mario relative to camera, but keep real position for physics
         const glm::vec2 oldPos = m_Mario->m_Transform.translation;
@@ -407,13 +456,6 @@ void App::Update() {
         m_Mario->Draw();
 
         m_Mario->m_Transform.translation = oldPos;
-    }
-    if (m_CastleObject != nullptr &&
-        g_MapManager != nullptr) {
-        const glm::vec2 oldPos = m_CastleObject->m_Transform.translation;
-        m_CastleObject->m_Transform.translation.x -= m_ViewX;
-        m_CastleObject->Draw();
-        m_CastleObject->m_Transform.translation = oldPos;
     }
     for (auto& enemy : m_Enemies) {
         const glm::vec2 oldPos = enemy->m_Transform.translation;

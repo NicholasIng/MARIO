@@ -7,16 +7,180 @@
 #include "MapManager.hpp"
 #include "AssetPaths.hpp"
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <unordered_map>
 
 extern std::unique_ptr<MapManager> g_MapManager;
 
 namespace {
 constexpr float GOAL_SLIDE_SPEED = 220.0f;
+constexpr float GOAL_CROSS_POLE_SPEED = 180.0f;
+constexpr float GOAL_DROP_SPEED = 260.0f;
 constexpr float GOAL_WALK_SPEED = 110.0f;
 constexpr float GOAL_ENTER_DURATION = 0.4f;
-constexpr float POLE_GRAB_OFFSET_X = 18.0f;
+constexpr float FLAG_SLIDE_OFFSET_X = -1.0f;
+constexpr float POLE_EXIT_OFFSET_X = 22.0f;
+constexpr float SMALL_BIG_TRANSITION_DURATION = 0.55f;
+constexpr float SMALL_BIG_TRANSITION_FRAME_INTERVAL = 0.08f;
+constexpr float FIRE_TRANSITION_DURATION = 0.75f;
+constexpr float FIRE_TRANSITION_FRAME_INTERVAL = 0.06f;
+constexpr float STAR_TRANSITION_DURATION = 0.5f;
+constexpr float STAR_TRANSITION_FRAME_INTERVAL = 0.06f;
 constexpr float STAR_POWER_DURATION = 10.0f;
+constexpr float STAR_FLASH_FRAME_INTERVAL = 0.08f;
+
+enum class PaletteVariant {
+    Normal,
+    Green,
+    Red,
+    Black
+};
+
+struct PaletteFrameVariants {
+    std::string green;
+    std::string red;
+    std::string black;
+};
+
+const std::unordered_map<std::string, PaletteFrameVariants>& PaletteVariantMap() {
+    static const std::unordered_map<std::string, PaletteFrameVariants> kVariantMap = {
+        { AssetPaths::Image("Character/MarioIdle.png"), {
+            AssetPaths::Image("character/marioidle_green.png"),
+            AssetPaths::Image("character/marioidle_red.png"),
+            AssetPaths::Image("character/marioidle_black.png")
+        } },
+        { AssetPaths::Image("Character/MarioWalk1.png"), {
+            AssetPaths::Image("character/mariowalk1_green.png"),
+            AssetPaths::Image("character/mariowalk1_red.png"),
+            AssetPaths::Image("character/mariowalk1_black.png")
+        } },
+        { AssetPaths::Image("Character/MarioWalk2.png"), {
+            AssetPaths::Image("character/mariowalk2_green.png"),
+            AssetPaths::Image("character/mariowalk2_red.png"),
+            AssetPaths::Image("character/mariowalk2_black.png")
+        } },
+        { AssetPaths::Image("Character/MarioWalk3.png"), {
+            AssetPaths::Image("character/mariowalk3_green.png"),
+            AssetPaths::Image("character/mariowalk3_red.png"),
+            AssetPaths::Image("character/mariowalk3_black.png")
+        } },
+        { AssetPaths::Image("Character/MarioJump.png"), {
+            AssetPaths::Image("character/mariojump_green.png"),
+            AssetPaths::Image("character/mariojump_red.png"),
+            AssetPaths::Image("character/mariojump_black.png")
+        } },
+        { AssetPaths::Image("Character/MarioBrake.png"), {
+            AssetPaths::Image("character/mariobrake_green.png"),
+            AssetPaths::Image("character/mariobrake_red.png"),
+            AssetPaths::Image("character/mariobrake_black.png")
+        } },
+        { AssetPaths::Image("character/Bigmario.png"), {
+            AssetPaths::Image("character/bigmarioidle_green.png"),
+            AssetPaths::Image("character/bigmarioidle_red.png"),
+            AssetPaths::Image("character/bigmarioidle_black.png")
+        } },
+        { AssetPaths::Image("character/Bigmariowalk1.png"), {
+            AssetPaths::Image("character/bigmariowalk1_green.png"),
+            AssetPaths::Image("character/bigmariowalk1_red.png"),
+            AssetPaths::Image("character/bigmariowalk1_black.png")
+        } },
+        { AssetPaths::Image("character/Bigmariowalk2.png"), {
+            AssetPaths::Image("character/bigmariowalk2_green.png"),
+            AssetPaths::Image("character/bigmariowalk2_red.png"),
+            AssetPaths::Image("character/bigmariowalk2_black.png")
+        } },
+        { AssetPaths::Image("character/Bigmariowalk3.png"), {
+            AssetPaths::Image("character/bigmariowalk3_green.png"),
+            AssetPaths::Image("character/bigmariowalk3_red.png"),
+            AssetPaths::Image("character/bigmariowalk3_black.png")
+        } },
+        { AssetPaths::Image("character/Bigmariojump.png"), {
+            AssetPaths::Image("character/bigmariojump_green.png"),
+            AssetPaths::Image("character/bigmariojump_red.png"),
+            AssetPaths::Image("character/bigmariojump_black.png")
+        } },
+        { AssetPaths::Image("character/Bigmariobrake.png"), {
+            AssetPaths::Image("character/bigmariobrake_green.png"),
+            AssetPaths::Image("character/bigmariobrake_red.png"),
+            AssetPaths::Image("character/bigmariobrake_black.png")
+        } },
+        { AssetPaths::Image("character/Bigmariocrouch.png"), {
+            AssetPaths::Image("character/bigmariocrouch_green.png"),
+            AssetPaths::Image("character/bigmariocrouch_red.png"),
+            AssetPaths::Image("character/bigmariocrouch_black.png")
+        } }
+    };
+
+    return kVariantMap;
+}
+
+bool HasPaletteVariantForPath(const std::string& basePath) {
+    return PaletteVariantMap().find(basePath) != PaletteVariantMap().end();
+}
+
+std::string ResolvePaletteFramePath(const std::string& basePath, PaletteVariant variant) {
+    if (variant == PaletteVariant::Normal) {
+        return basePath;
+    }
+
+    const auto it = PaletteVariantMap().find(basePath);
+    if (it == PaletteVariantMap().end()) {
+        return basePath;
+    }
+
+    switch (variant) {
+    case PaletteVariant::Green:
+        return it->second.green;
+    case PaletteVariant::Red:
+        return it->second.red;
+    case PaletteVariant::Black:
+        return it->second.black;
+    case PaletteVariant::Normal:
+    default:
+        return basePath;
+    }
+}
+
+PaletteVariant FireTransitionPaletteVariant(float elapsed) {
+    static const std::array<PaletteVariant, 6> kSequence = {
+        PaletteVariant::Normal,
+        PaletteVariant::Green,
+        PaletteVariant::Red,
+        PaletteVariant::Black,
+        PaletteVariant::Red,
+        PaletteVariant::Green
+    };
+
+    const int index = static_cast<int>(elapsed / FIRE_TRANSITION_FRAME_INTERVAL) % static_cast<int>(kSequence.size());
+    return kSequence[index];
+}
+
+PaletteVariant StarPaletteVariant(float elapsed) {
+    static const std::array<PaletteVariant, 4> kSequence = {
+        PaletteVariant::Normal,
+        PaletteVariant::Green,
+        PaletteVariant::Red,
+        PaletteVariant::Black
+    };
+
+    const int index = static_cast<int>(elapsed / STAR_FLASH_FRAME_INTERVAL) % static_cast<int>(kSequence.size());
+    return kSequence[index];
+}
+
+PaletteVariant StarTransitionPaletteVariant(float elapsed) {
+    static const std::array<PaletteVariant, 6> kSequence = {
+        PaletteVariant::Normal,
+        PaletteVariant::Green,
+        PaletteVariant::Red,
+        PaletteVariant::Black,
+        PaletteVariant::Red,
+        PaletteVariant::Green
+    };
+
+    const int index = static_cast<int>(elapsed / STAR_TRANSITION_FRAME_INTERVAL) % static_cast<int>(kSequence.size());
+    return kSequence[index];
+}
 
 bool IntersectsSolidTile(const glm::vec2& center, const glm::vec2& halfExtents) {
     if (!g_MapManager) return false;
@@ -255,12 +419,92 @@ const std::map<Mario::AnimState, std::unique_ptr<Animation>>& Mario::ActiveAnima
     return (m_PowerState == PowerState::Big) ? m_BigAnimations : m_SmallAnimations;
 }
 
+std::map<Mario::AnimState, std::unique_ptr<Animation>>& Mario::AnimationsForPowerState(PowerState state) {
+    if (state == PowerState::Fire) return m_FireAnimations;
+    return (state == PowerState::Big) ? m_BigAnimations : m_SmallAnimations;
+}
+
+const std::map<Mario::AnimState, std::unique_ptr<Animation>>& Mario::AnimationsForPowerState(PowerState state) const {
+    if (state == PowerState::Fire) return m_FireAnimations;
+    return (state == PowerState::Big) ? m_BigAnimations : m_SmallAnimations;
+}
+
 Animation& Mario::ActiveFlagAnimation() {
     return *m_FlagAnimations.at(m_PowerState);
 }
 
 const Animation& Mario::ActiveFlagAnimation() const {
     return *m_FlagAnimations.at(m_PowerState);
+}
+
+std::string Mario::CurrentAnimatedFramePath() const {
+    return ActiveAnimations().at(m_AnimState)->GetCurrentFramePath();
+}
+
+std::string Mario::FramePathForState(PowerState powerState, AnimState animState) const {
+    const auto& animations = AnimationsForPowerState(powerState);
+    AnimState resolvedState = animState;
+
+    if (animations.find(resolvedState) == animations.end()) {
+        resolvedState = AnimState::IDLE;
+    }
+    if (resolvedState == AnimState::CROUCH && powerState == PowerState::Small) {
+        resolvedState = AnimState::IDLE;
+    }
+
+    return animations.at(resolvedState)->GetCurrentFramePath();
+}
+
+std::string Mario::DisplayFramePathForBase(const std::string& basePath) const {
+    if (m_TransformType == TransformType::SmallBigTransition) {
+        const float elapsed = SMALL_BIG_TRANSITION_DURATION - m_TransformTimer;
+        const int phase = static_cast<int>(std::max(0.0f, elapsed) / SMALL_BIG_TRANSITION_FRAME_INTERVAL);
+        const bool showTargetFrame = (phase % 2) == 1;
+        const PowerState shownPowerState = showTargetFrame ? m_TargetPowerState : m_PowerState;
+        return FramePathForState(shownPowerState, m_TransformAnimState);
+    }
+
+    if (m_TransformType == TransformType::FireTransition) {
+        const float elapsed = FIRE_TRANSITION_DURATION - m_TransformTimer;
+        const PaletteVariant variant = FireTransitionPaletteVariant(std::max(0.0f, elapsed));
+        const std::string sourcePath = FramePathForState(m_PowerState, m_TransformAnimState);
+        const std::string flashingPath = ResolvePaletteFramePath(sourcePath, variant);
+        const int phase = static_cast<int>(elapsed / FIRE_TRANSITION_FRAME_INTERVAL);
+        const bool showFireFrame = (phase % 2) == 1;
+
+        if (showFireFrame && m_TargetPowerState == PowerState::Fire) {
+            return FramePathForState(PowerState::Fire, m_TransformAnimState);
+        }
+
+        return flashingPath;
+    }
+
+    if (m_TransformType == TransformType::StarTransition) {
+        const float elapsed = STAR_TRANSITION_DURATION - m_TransformTimer;
+        const PaletteVariant variant = StarTransitionPaletteVariant(std::max(0.0f, elapsed));
+        const std::string sourcePath = FramePathForState(m_PowerState, m_TransformAnimState);
+        if (m_PowerState == PowerState::Fire && !HasPaletteVariantForPath(sourcePath)) {
+            const std::string bigPath = FramePathForState(PowerState::Big, m_TransformAnimState);
+            const std::string flashingPath = ResolvePaletteFramePath(bigPath, variant);
+            const int phase = static_cast<int>(elapsed / STAR_TRANSITION_FRAME_INTERVAL);
+            return (phase % 2) == 0 ? sourcePath : flashingPath;
+        }
+        return ResolvePaletteFramePath(sourcePath, variant);
+    }
+
+    if (m_StarPowerTimer > 0.0f) {
+        const float elapsed = STAR_POWER_DURATION - m_StarPowerTimer;
+        const PaletteVariant variant = StarPaletteVariant(std::max(0.0f, elapsed));
+        if (m_PowerState == PowerState::Fire && !HasPaletteVariantForPath(basePath)) {
+            const std::string bigPath = FramePathForState(PowerState::Big, m_AnimState);
+            const std::string flashingPath = ResolvePaletteFramePath(bigPath, variant);
+            const int phase = static_cast<int>(elapsed / STAR_FLASH_FRAME_INTERVAL);
+            return (phase % 2) == 0 ? basePath : flashingPath;
+        }
+        return ResolvePaletteFramePath(basePath, variant);
+    }
+
+    return basePath;
 }
 
 void Mario::ResetAnimations() {
@@ -282,10 +526,25 @@ void Mario::BeginTransformation(PowerState targetState, TransformType transformT
     const float originalY = m_Transform.translation.y;
     m_TargetPowerState = targetState;
     m_TransformType = transformType;
-    m_TransformTimer = (transformType == TransformType::SmallBigTransition) ? 0.55f : 0.75f;
+    if (transformType == TransformType::SmallBigTransition) {
+        m_TransformTimer = SMALL_BIG_TRANSITION_DURATION;
+    } else if (transformType == TransformType::FireTransition) {
+        m_TransformTimer = FIRE_TRANSITION_DURATION;
+    } else {
+        m_TransformTimer = STAR_TRANSITION_DURATION;
+    }
     m_JumpTimer = 0.0f;
-    m_IsCrouching = false;
+    m_TransformAnimState = m_AnimState;
+    if (!m_OnGround) {
+        m_TransformAnimState = AnimState::JUMP;
+    } else if (m_IsCrouching) {
+        m_TransformAnimState = IsBig() ? AnimState::CROUCH : AnimState::IDLE;
+    }
     m_TransformShowBigFrame = false;
+    m_StoredVelocityX = m_VelocityX;
+    m_StoredVelocityY = m_VelocityY;
+    m_VelocityX = 0.0f;
+    m_VelocityY = 0.0f;
     SetVisible(true);
 
     if (transformType == TransformType::SmallBigTransition) {
@@ -297,14 +556,9 @@ void Mario::BeginTransformation(PowerState targetState, TransformType transformT
                 { BIG_HALF_WIDTH, BIG_HALF_HEIGHT }
             );
         }
-        m_Image->SetImage(m_SmallAnimations.at(AnimState::IDLE)->GetCurrentFramePath());
-    } else if (m_TransformAnimation) {
-        m_VelocityX = 0.0f;
-        m_VelocityY = 0.0f;
-        m_OnGround = true;
-        m_TransformAnimation->Reset();
-        m_Image->SetImage(m_TransformAnimation->GetCurrentFramePath());
     }
+
+    m_Image->SetImage(DisplayFramePathForBase(FramePathForState(m_PowerState, m_TransformAnimState)));
 }
 
 void Mario::SetPowerState(PowerState newState) {
@@ -328,13 +582,18 @@ void Mario::ActivateStarPower() {
     SetVisible(true);
 }
 
+void Mario::RestoreStoredMotion() {
+    m_VelocityX = m_StoredVelocityX;
+    m_VelocityY = m_StoredVelocityY;
+}
+
 void Mario::PowerUp(LootType type) {
     if (type == LootType::Coin) {
         return;
     }
 
     if (type == LootType::Star) {
-        ActivateStarPower();
+        BeginTransformation(m_PowerState, TransformType::StarTransition);
         return;
     }
 
@@ -387,40 +646,44 @@ void Mario::TakeEnemyHit() {
 void Mario::Update() {
     float dt = std::max(0.001f, Util::Time::GetDeltaTimeMs() / 1000.0f);
 
-    if (m_GoalSequenceState != GoalSequenceState::None) {
+    if (m_GoalSequenceState != GoalSequenceState::None &&
+        m_GoalSequenceState != GoalSequenceState::Finished) {
         const float standingY = m_GoalGroundY + GetHalfExtents().y;
+        const float poleExitX = m_GoalPoleX + POLE_EXIT_OFFSET_X;
         m_IsCrouching = false;
         m_VelocityX = 0.0f;
         m_VelocityY = 0.0f;
         m_OnGround = false;
-        m_Transform.scale.x = std::abs(m_Transform.scale.x);
+        if (m_GoalSequenceState == GoalSequenceState::SlideDownFlag) {
+            m_Transform.scale.x = std::abs(m_Transform.scale.x);
+        } else {
+            m_Transform.scale.x = -std::abs(m_Transform.scale.x);
+        }
         SetVisible(true);
 
         if (m_GoalSequenceState == GoalSequenceState::SlideDownFlag) {
-            m_Transform.translation.x = m_GoalPoleX + POLE_GRAB_OFFSET_X;
-            m_Transform.translation.y = std::max(standingY, m_Transform.translation.y - GOAL_SLIDE_SPEED * dt);
-            if (m_Transform.translation.y <= standingY + 0.5f) {
-                m_Transform.translation.y = standingY;
-                m_GoalSequenceState = GoalSequenceState::WalkToCastle;
+            m_Transform.translation.x = m_GoalFlagX + FLAG_SLIDE_OFFSET_X;
+            m_Transform.translation.y = std::max(m_GoalFlagBottomY, m_Transform.translation.y - GOAL_SLIDE_SPEED * dt);
+            if (m_Transform.translation.y <= m_GoalFlagBottomY + 0.5f) {
+                m_Transform.translation.y = m_GoalFlagBottomY;
+                m_GoalSequenceState = GoalSequenceState::CrossPole;
                 ActiveAnimations().at(AnimState::WALK)->Reset();
             }
-        } else if (m_GoalSequenceState == GoalSequenceState::WalkToCastle) {
-            m_OnGround = true;
-            m_Transform.translation.y = standingY;
-            m_Transform.translation.x += GOAL_WALK_SPEED * dt;
-            if (m_Transform.translation.x >= m_CastleDoorX) {
-                m_Transform.translation.x = m_CastleDoorX;
-                m_GoalSequenceState = GoalSequenceState::EnterCastle;
-                m_GoalEnterTimer = GOAL_ENTER_DURATION;
+        } else if (m_GoalSequenceState == GoalSequenceState::CrossPole) {
+            m_Transform.translation.y = m_GoalFlagBottomY;
+            m_Transform.translation.x = std::min(poleExitX, m_Transform.translation.x + GOAL_CROSS_POLE_SPEED * dt);
+            if (m_Transform.translation.x >= poleExitX - 0.5f) {
+                m_Transform.translation.x = poleExitX;
+                m_GoalSequenceState = GoalSequenceState::DropFromPole;
             }
-        } else if (m_GoalSequenceState == GoalSequenceState::EnterCastle) {
-            m_OnGround = true;
-            m_Transform.translation.y = standingY;
-            m_Transform.translation.x += GOAL_WALK_SPEED * dt;
-            m_GoalEnterTimer = std::max(0.0f, m_GoalEnterTimer - dt);
-            if (m_GoalEnterTimer <= 0.0f) {
-                SetVisible(false);
+        } else if (m_GoalSequenceState == GoalSequenceState::DropFromPole) {
+            m_Transform.translation.x = poleExitX;
+            m_Transform.translation.y = std::max(standingY, m_Transform.translation.y - GOAL_DROP_SPEED * dt);
+            if (m_Transform.translation.y <= standingY + 0.5f) {
+                m_Transform.translation.y = standingY;
                 m_GoalSequenceState = GoalSequenceState::Finished;
+                m_OnGround = true;
+                m_Transform.scale.x = -std::abs(m_Transform.scale.x);
             }
         }
 
@@ -454,27 +717,39 @@ void Mario::Update() {
 
     if (m_TransformType == TransformType::FireTransition) {
         m_TransformTimer = std::max(0.0f, m_TransformTimer - dt);
-        if (m_TransformAnimation) {
-            m_TransformAnimation->Update(dt);
-            m_Image->SetImage(m_TransformAnimation->GetCurrentFramePath());
-        }
+        m_Image->SetImage(DisplayFramePathForBase(FramePathForState(m_PowerState, m_TransformAnimState)));
 
         if (m_TransformTimer <= 0.0f) {
             m_TransformType = TransformType::None;
             SetPowerState(m_TargetPowerState);
+            RestoreStoredMotion();
         }
         return;
     }
 
     if (m_TransformType == TransformType::SmallBigTransition) {
         m_TransformTimer = std::max(0.0f, m_TransformTimer - dt);
-        const int flashIndex = static_cast<int>(m_TransformTimer / 0.08f);
+        const int flashIndex = static_cast<int>(m_TransformTimer / SMALL_BIG_TRANSITION_FRAME_INTERVAL);
         m_TransformShowBigFrame = (flashIndex % 2) == 0;
+        m_Image->SetImage(DisplayFramePathForBase(FramePathForState(m_PowerState, m_TransformAnimState)));
         if (m_TransformTimer <= 0.0f) {
             m_TransformType = TransformType::None;
             m_TransformShowBigFrame = true;
             SetPowerState(m_TargetPowerState);
+            RestoreStoredMotion();
         }
+        return;
+    }
+
+    if (m_TransformType == TransformType::StarTransition) {
+        m_TransformTimer = std::max(0.0f, m_TransformTimer - dt);
+        m_Image->SetImage(DisplayFramePathForBase(FramePathForState(m_PowerState, m_TransformAnimState)));
+        if (m_TransformTimer <= 0.0f) {
+            m_TransformType = TransformType::None;
+            ActivateStarPower();
+            RestoreStoredMotion();
+        }
+        return;
     }
 
     glm::vec2 snapHalfExtents = GetHalfExtents();
@@ -762,10 +1037,12 @@ void Mario::BounceAfterStomp() {
     m_JumpTimer = 0.0f;
 }
 
-void Mario::StartGoalSequence(float poleX, float groundY, float castleDoorX, float slideStartY) {
+void Mario::StartGoalSequence(float poleX, float flagX, float flagBottomY, float groundY, float castleDoorX, float slideStartY) {
     if (m_IsDead || m_GoalSequenceState != GoalSequenceState::None) return;
 
     m_GoalPoleX = poleX;
+    m_GoalFlagX = flagX;
+    m_GoalFlagBottomY = flagBottomY;
     m_GoalGroundY = groundY;
     m_CastleDoorX = castleDoorX;
     m_GoalSlideStartY = slideStartY;
@@ -782,7 +1059,7 @@ void Mario::StartGoalSequence(float poleX, float groundY, float castleDoorX, flo
     m_OnGround = false;
     m_GoalSequenceState = GoalSequenceState::SlideDownFlag;
     m_Transform.scale.x = std::abs(m_Transform.scale.x);
-    m_Transform.translation.x = m_GoalPoleX + POLE_GRAB_OFFSET_X;
+    m_Transform.translation.x = m_GoalFlagX + FLAG_SLIDE_OFFSET_X;
     const float standingY = m_GoalGroundY + GetHalfExtents().y;
     m_Transform.translation.y = std::max(m_GoalSlideStartY, standingY);
     ActiveFlagAnimation().Reset();
@@ -795,11 +1072,18 @@ void Mario::HandleAnimation(float dt) {
         return;
     }
 
-    if (m_GoalSequenceState != GoalSequenceState::None) {
+    if (m_GoalSequenceState != GoalSequenceState::None &&
+        m_GoalSequenceState != GoalSequenceState::Finished) {
         if (m_GoalSequenceState == GoalSequenceState::SlideDownFlag) {
             Animation& flagAnimation = ActiveFlagAnimation();
             flagAnimation.Update(dt);
             m_Image->SetImage(flagAnimation.GetCurrentFramePath());
+        } else if (m_GoalSequenceState == GoalSequenceState::DropFromPole) {
+            m_AnimState = AnimState::JUMP;
+            m_Image->SetImage(ActiveAnimations().at(m_AnimState)->GetCurrentFramePath());
+        } else if (m_GoalSequenceState == GoalSequenceState::Finished) {
+            m_AnimState = AnimState::IDLE;
+            m_Image->SetImage(ActiveAnimations().at(m_AnimState)->GetCurrentFramePath());
         } else {
             m_AnimState = AnimState::WALK;
             auto& animations = ActiveAnimations();
@@ -815,8 +1099,8 @@ void Mario::HandleAnimation(float dt) {
                 ? m_BigAnimations.at(AnimState::IDLE)->GetCurrentFramePath()
                 : m_SmallAnimations.at(AnimState::IDLE)->GetCurrentFramePath();
             m_Image->SetImage(path);
-        } else if (m_TransformAnimation) {
-            m_Image->SetImage(m_TransformAnimation->GetCurrentFramePath());
+        } else {
+            m_Image->SetImage(DisplayFramePathForBase(CurrentAnimatedFramePath()));
         }
         return;
     }
@@ -845,5 +1129,5 @@ void Mario::HandleAnimation(float dt) {
 
     animations[m_AnimState]->Update(dt);
 
-    m_Image->SetImage(animations[m_AnimState]->GetCurrentFramePath());
+    m_Image->SetImage(DisplayFramePathForBase(animations[m_AnimState]->GetCurrentFramePath()));
 }

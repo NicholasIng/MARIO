@@ -9,6 +9,9 @@
 extern std::unique_ptr<MapManager> g_MapManager;
 
 namespace {
+constexpr float FLIPPED_DEATH_GRAVITY = -1800.0f;
+constexpr float FLIPPED_DEATH_LAUNCH_Y = 520.0f;
+constexpr float FLIPPED_DEATH_CULL_MARGIN = 96.0f;
 
 bool IntersectsSolidTile(const glm::vec2& center, const glm::vec2& halfExtents) {
     if (!g_MapManager) return false;
@@ -85,7 +88,24 @@ void Enemy::Update() {
     const float dt = Util::Time::GetDeltaTimeMs() / 1000.0f;
 
     if (!m_Alive) {
+        if (m_FlippedDeath) {
+            m_VelocityY += FLIPPED_DEATH_GRAVITY * dt;
+            m_Transform.translation.x += m_VelocityX * dt;
+            m_Transform.translation.y += m_VelocityY * dt;
+
+            const float mapBottom = g_MapManager
+                ? -(g_MapManager->GetHeight() * g_MapManager->GetTileSize()) / 2.0f
+                : -1000.0f;
+            if (m_Transform.translation.y + GetHalfExtents().y < mapBottom - FLIPPED_DEATH_CULL_MARGIN) {
+                m_DeathFinished = true;
+            }
+            return;
+        }
+
         m_DeathTimer -= dt;
+        if (m_DeathTimer <= 0.0f) {
+            m_DeathFinished = true;
+        }
         return;
     }
 
@@ -180,8 +200,23 @@ void Enemy::Update() {
 
 void Enemy::Stomp() {
     m_Alive = false;
+    m_FlippedDeath = false;
+    m_DeathFinished = false;
+    m_VelocityX = 0.0f;
     m_DeathTimer = 0.5f;
     m_Image->SetImage(m_DeathPath);
+}
+
+void Enemy::KillFlipped(float horizontalVelocity) {
+    m_Alive = false;
+    m_FlippedDeath = true;
+    m_DeathFinished = false;
+    m_DeathTimer = 0.0f;
+    m_VelocityX = horizontalVelocity;
+    m_VelocityY = FLIPPED_DEATH_LAUNCH_Y;
+    m_Transform.scale.x = -std::abs(m_Transform.scale.x);
+    m_Transform.scale.y = -std::abs(m_Transform.scale.y);
+    m_Image->SetImage(m_UseLeftWalkFrame ? m_LeftPath : m_RightPath);
 }
 
 void Enemy::RefreshSprite() {

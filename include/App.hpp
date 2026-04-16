@@ -23,7 +23,7 @@ public:
     void End();
 
 private:
-    enum class GoalSequenceStage { None, Sliding, Walking, Entering, Finished };
+    enum class GoalSequenceStage { None, Sliding, PlayerControl, Entering, Finished };
     struct PendingEnemySpawn {
         glm::vec2 position;
         bool activated = false;
