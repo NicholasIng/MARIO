@@ -240,7 +240,7 @@ void ClampGrowthToAvailableHeadroom(glm::vec2& center, float originalY, const gl
 Mario::Mario()
     : m_VelocityX(0.0f),
       m_VelocityY(0.0f),
-      m_Acceleration(2000.0f),
+      m_Acceleration(1700.0f),
       m_MaxSpeed(350.0f),
       m_Friction(1000.0f),
       m_Gravity(-2200.0f),

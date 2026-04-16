@@ -83,6 +83,12 @@ Enemy::Enemy(float x, float y)
     m_ZIndex = 9.0f;
 }
 
+void Enemy::SetDirection(float direction) {
+    if (direction == 0.0f) return;
+    m_Direction = (direction > 0.0f) ? 1.0f : -1.0f;
+    RefreshSprite();
+}
+
 void Enemy::Update() {
     const float dt = Util::Time::GetDeltaTimeMs() / 1000.0f;
 
