@@ -53,6 +53,10 @@ private:
         glm::vec2 position;
     };
     std::queue<BrickBreakEvent> m_BrickBreakEvents;
+    struct CoinCollectEvent {
+        glm::vec2 position;
+    };
+    std::queue<CoinCollectEvent> m_CoinCollectEvents;
     bool m_HasGoal = false;
     float m_GoalX = 0.0f;
     float m_GoalGroundY = 0.0f;
@@ -473,6 +477,9 @@ public:
 
     bool CollectCoin(int x, int y) {
         if (GetCell(x, y) != Cell::Coin) return false;
+        const float worldX = GetWorldLeft() + x * TILE_SIZE + TILE_SIZE / 2.0f;
+        const float worldY = (m_Height * TILE_SIZE) / 2.0f - y * TILE_SIZE - TILE_SIZE / 2.0f;
+        m_CoinCollectEvents.push({ { worldX, worldY } });
         return ClearTile(x, y);
     }
 
@@ -534,6 +541,14 @@ public:
         if (m_BrickBreakEvents.empty()) return false;
         const auto event = m_BrickBreakEvents.front();
         m_BrickBreakEvents.pop();
+        position = event.position;
+        return true;
+    }
+
+    bool PollCoinCollectEvent(glm::vec2& position) {
+        if (m_CoinCollectEvents.empty()) return false;
+        const auto event = m_CoinCollectEvents.front();
+        m_CoinCollectEvents.pop();
         position = event.position;
         return true;
     }

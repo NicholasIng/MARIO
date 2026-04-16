@@ -10,6 +10,7 @@
 #include "Debris.hpp"
 #include "Util/GameObject.hpp"
 #include "Util/Image.hpp"
+#include "Util/Text.hpp"
 #include <memory>
 #include <vector>
 
@@ -24,12 +25,18 @@ public:
 
 private:
     enum class GoalSequenceStage { None, Sliding, PlayerControl, Entering, Finished };
+    enum class ScreenState { Title, LevelIntro, Gameplay };
     struct PendingEnemySpawn {
         glm::vec2 position;
         bool activated = false;
     };
+    struct HudText {
+        std::shared_ptr<Util::Text> drawable;
+        std::shared_ptr<Util::GameObject> object;
+    };
 
     State m_CurrentState = State::START;
+    ScreenState m_ScreenState = ScreenState::Title;
 
     std::unique_ptr<Mario> m_Mario;
     std::vector<std::unique_ptr<Enemy>> m_Enemies;
@@ -47,10 +54,59 @@ private:
     float m_GoalSequenceTimer = 0.0f;
     float m_CastleDoorX = 0.0f;
     float m_GoalFlagMarioOffsetY = 0.0f;
+    int m_Score = 0;
+    int m_TopScore = 0;
+    int m_Coins = 0;
+    int m_Lives = 3;
+    int m_World = 1;
+    int m_Level = 1;
+    float m_LevelTimer = 400.0f;
+    float m_LevelIntroTimer = 0.0f;
+    bool m_WasMarioDead = false;
+    std::string m_FontPath;
+    std::string m_PixelFontPath;
+    Util::Color m_SkyColor = Util::Color(90, 147, 235, 255);
+    std::shared_ptr<Util::GameObject> m_HudCoinIcon;
+    std::shared_ptr<Util::GameObject> m_TitleMountain;
+    std::shared_ptr<Util::GameObject> m_TitleBush;
+    std::shared_ptr<Util::GameObject> m_TitleMario;
+    std::shared_ptr<Util::GameObject> m_IntroMario;
+    HudText m_HudMarioLabel;
+    HudText m_HudScoreValue;
+    HudText m_HudWorldLabel;
+    HudText m_HudWorldValue;
+    HudText m_HudTimeLabel;
+    HudText m_HudTimeValue;
+    HudText m_HudCoinValue;
+    HudText m_TitleLogo;
+    HudText m_TitleCopyright;
+    HudText m_TitleOption1;
+    HudText m_TitleOption2;
+    HudText m_TitleTopScore;
+    HudText m_TitlePressStart;
+    HudText m_IntroWorldText;
+    HudText m_IntroLivesText;
 
     void StartGoalSequence();
     void UpdateGoalSequence(float dt);
     void ActivateNearbyEnemies();
+    void UpdateTitleScreen(float dt);
+    void UpdateLevelIntro(float dt);
+    void UpdateGameplay(float dt);
+    void RenderTitleScreen();
+    void RenderLevelIntro();
+    void RenderGameplay();
+    void InitializeUi();
+    HudText CreateTextObject(const std::string& text,
+                             int size,
+                             const glm::vec2& position,
+                             const Util::Color& color,
+                             const glm::vec2& scale = { 1.0f, 1.0f });
+    void DrawHud();
+    void DrawUiObject(const std::shared_ptr<Util::GameObject>& object) const;
+    void RefreshHudText();
+    void AddScore(int points);
+    void StartLevelIntro(float duration);
 };
 
 #endif

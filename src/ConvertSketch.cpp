@@ -490,9 +490,10 @@ bool convert_sketch(
             const int baseY = std::min(maxBaseY, poleBottomY + 1);
             const int flagX = std::max(0, minX - 1);
             const int flagY = std::min(poleBottomY, minY + 1);
+            const int clearTopY = std::max(0, minY - 3);
 
             for (int clearX = flagX; clearX <= maxX; ++clearX) {
-                for (int clearY = minY; clearY <= baseY; ++clearY) {
+                for (int clearY = clearTopY; clearY <= baseY; ++clearY) {
                     map.ClearTile(clearX, clearY);
                 }
             }

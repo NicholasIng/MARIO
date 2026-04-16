@@ -1009,6 +1009,12 @@ void Mario::Update() {
                 g_MapManager->CollectCoin(gx, gy);
             }
         }
+
+        const float mapBottom = -(g_MapManager->GetHeight() * tileSize) / 2.0f;
+        if (!m_IsDead && (m_Transform.translation.y + halfHeight) < mapBottom) {
+            Die();
+            return;
+        }
     }
 
     HandleAnimation(dt);

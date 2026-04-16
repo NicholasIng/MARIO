@@ -10,6 +10,9 @@
 #include "config.hpp"
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
+#include <iomanip>
+#include <sstream>
 
 // global pointer for Mario collision
 std::unique_ptr<MapManager> g_MapManager;
@@ -24,8 +27,21 @@ constexpr float CASTLE_OFFSET_TILES = 7.0f;
 constexpr float CASTLE_END_INSET_TILES = 1.0f;
 constexpr float GOAL_FINISH_DELAY = 0.55f;
 constexpr float ENEMY_SPAWN_RANGE_X = WINDOW_WIDTH * 0.75f;
+constexpr float LEVEL_INTRO_DURATION = 1.75f;
+constexpr int STARTING_TIMER = 400;
+constexpr int STARTING_LIVES = 3;
 
+std::string PadNumber(int value, int width) {
+    std::ostringstream stream;
+    stream << std::setw(width) << std::setfill('0') << std::max(0, value);
+    return stream.str();
 }
+
+std::string WorldLabel(int world, int level) {
+    return std::to_string(world) + "-" + std::to_string(level);
+}
+
+} // namespace
 
 void App::ActivateNearbyEnemies() {
     if (!m_Mario) return;
@@ -49,6 +65,7 @@ void App::StartGoalSequence() {
     m_GoalFlagMarioOffsetY = 0.0f;
     m_Fireballs.clear();
     m_FireballCooldown = 0.0f;
+    AddScore(static_cast<int>(std::max(0.0f, m_LevelTimer)) * 10);
 
     if (m_CastleObject != nullptr && m_CastleImage != nullptr) {
         const float targetHeight = g_MapManager->GetTileSize() * CASTLE_TARGET_HEIGHT_TILES;
@@ -120,6 +137,123 @@ void App::UpdateGoalSequence(float dt) {
     }
 }
 
+App::HudText App::CreateTextObject(const std::string& text,
+                                   int size,
+                                   const glm::vec2& position,
+                                   const Util::Color& color,
+                                   const glm::vec2& scale) {
+    auto drawable = std::make_shared<Util::Text>(m_PixelFontPath, size, text, color);
+    auto object = std::make_shared<Util::GameObject>();
+    object->SetDrawable(drawable);
+    object->m_Transform.translation = position;
+    object->m_Transform.scale = scale;
+    object->SetZIndex(1000.0f);
+    return { drawable, object };
+}
+
+void App::DrawUiObject(const std::shared_ptr<Util::GameObject>& object) const {
+    if (object != nullptr) {
+        object->Draw();
+    }
+}
+
+void App::InitializeUi() {
+    namespace fs = std::filesystem;
+
+    const fs::path root = AssetPaths::ResourceRoot().parent_path();
+    m_FontPath = (root / "PTSD" / "assets" / "fonts" / "Inter.ttf").string();
+    m_PixelFontPath = (root / "PTSD" / "lib" / "imgui" / "misc" / "fonts" / "ProggyClean.ttf").string();
+
+    m_HudCoinIcon = std::make_shared<Util::GameObject>();
+    m_HudCoinIcon->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("coin1.png")));
+    m_HudCoinIcon->m_Transform.scale = { 2.0f, 2.0f };
+    m_HudCoinIcon->SetZIndex(1000.0f);
+
+    m_TitleMountain = std::make_shared<Util::GameObject>();
+    m_TitleMountain->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("mountains.png")));
+    m_TitleMountain->m_Transform.translation = { -470.0f, -255.0f };
+    m_TitleMountain->m_Transform.scale = { 7.5f, 7.5f };
+    m_TitleMountain->SetZIndex(900.0f);
+
+    m_TitleBush = std::make_shared<Util::GameObject>();
+    m_TitleBush->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("Bush.png")));
+    m_TitleBush->m_Transform.translation = { 420.0f, -250.0f };
+    m_TitleBush->m_Transform.scale = { 6.0f, 6.0f };
+    m_TitleBush->SetZIndex(910.0f);
+
+    m_TitleMario = std::make_shared<Util::GameObject>();
+    m_TitleMario->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("Character/MarioIdle.png")));
+    m_TitleMario->m_Transform.translation = { -355.0f, -265.0f };
+    m_TitleMario->m_Transform.scale = { 4.5f, 4.5f };
+    m_TitleMario->SetZIndex(920.0f);
+
+    m_IntroMario = std::make_shared<Util::GameObject>();
+    m_IntroMario->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("Character/MarioIdle.png")));
+    m_IntroMario->m_Transform.translation = { -85.0f, -20.0f };
+    m_IntroMario->m_Transform.scale = { 5.0f, 5.0f };
+    m_IntroMario->SetZIndex(1000.0f);
+
+    const Util::Color white(255, 255, 255, 255);
+    const Util::Color peach(255, 205, 190, 255);
+
+    m_HudMarioLabel = CreateTextObject("MARIO", 28, { -520.0f, 328.0f }, white, { 2.2f, 2.2f });
+    m_HudScoreValue = CreateTextObject("000000", 28, { -520.0f, 286.0f }, white, { 2.2f, 2.2f });
+    m_HudWorldLabel = CreateTextObject("WORLD", 28, { 92.0f, 328.0f }, white, { 2.2f, 2.2f });
+    m_HudWorldValue = CreateTextObject("1-1", 28, { 140.0f, 286.0f }, white, { 2.2f, 2.2f });
+    m_HudTimeLabel = CreateTextObject("TIME", 28, { 415.0f, 328.0f }, white, { 2.2f, 2.2f });
+    m_HudTimeValue = CreateTextObject("400", 28, { 445.0f, 286.0f }, white, { 2.2f, 2.2f });
+    m_HudCoinValue = CreateTextObject("x00", 28, { -95.0f, 296.0f }, white, { 2.2f, 2.2f });
+
+    m_TitleLogo = CreateTextObject("SUPER\nMARIO BROS.", 44, { -320.0f, 110.0f }, peach, { 3.2f, 3.2f });
+    m_TitleCopyright = CreateTextObject("(C)1985 NINTENDO", 20, { -40.0f, -65.0f }, peach, { 2.6f, 2.6f });
+    m_TitleOption1 = CreateTextObject("1 PLAYER GAME", 24, { -160.0f, -150.0f }, white, { 2.5f, 2.5f });
+    m_TitleOption2 = CreateTextObject("2 PLAYER GAME", 24, { -160.0f, -210.0f }, white, { 2.5f, 2.5f });
+    m_TitleTopScore = CreateTextObject("TOP- 000000", 22, { -105.0f, -305.0f }, white, { 2.4f, 2.4f });
+    m_TitlePressStart = CreateTextObject("PRESS ENTER", 18, { -68.0f, -345.0f }, white, { 2.2f, 2.2f });
+
+    m_IntroWorldText = CreateTextObject("WORLD  1-1", 28, { -120.0f, 110.0f }, white, { 2.8f, 2.8f });
+    m_IntroLivesText = CreateTextObject("x 3", 28, { 35.0f, -18.0f }, white, { 2.8f, 2.8f });
+
+    RefreshHudText();
+}
+
+void App::RefreshHudText() {
+    if (m_HudScoreValue.drawable) {
+        m_HudScoreValue.drawable->SetText(PadNumber(m_Score, 6));
+    }
+    if (m_HudWorldValue.drawable) {
+        m_HudWorldValue.drawable->SetText(WorldLabel(m_World, m_Level));
+    }
+    if (m_HudTimeValue.drawable) {
+        m_HudTimeValue.drawable->SetText(PadNumber(static_cast<int>(std::floor(std::max(0.0f, m_LevelTimer))), 3));
+    }
+    if (m_HudCoinValue.drawable) {
+        m_HudCoinValue.drawable->SetText("x" + PadNumber(m_Coins, 2));
+    }
+    if (m_TitleTopScore.drawable) {
+        m_TitleTopScore.drawable->SetText("TOP- " + PadNumber(m_TopScore, 6));
+    }
+    if (m_IntroWorldText.drawable) {
+        m_IntroWorldText.drawable->SetText("WORLD  " + WorldLabel(m_World, m_Level));
+    }
+    if (m_IntroLivesText.drawable) {
+        m_IntroLivesText.drawable->SetText("x " + std::to_string(std::max(0, m_Lives)));
+    }
+}
+
+void App::AddScore(int points) {
+    if (points <= 0) return;
+    m_Score += points;
+    m_TopScore = std::max(m_TopScore, m_Score);
+    RefreshHudText();
+}
+
+void App::StartLevelIntro(float duration) {
+    m_LevelIntroTimer = duration;
+    m_ScreenState = ScreenState::LevelIntro;
+    RefreshHudText();
+}
+
 void App::Start() {
     LOG_TRACE("Start");
 
@@ -134,29 +268,36 @@ void App::Start() {
     m_GoalSequenceStage = GoalSequenceStage::None;
     m_GoalSequenceTimer = 0.0f;
     m_CastleDoorX = 0.0f;
-
-    Util::Color bg(
+    m_GoalFlagMarioOffsetY = 0.0f;
+    m_Score = 0;
+    m_Coins = 0;
+    m_Lives = STARTING_LIVES;
+    m_World = 1;
+    m_Level = 1;
+    m_LevelTimer = STARTING_TIMER;
+    m_WasMarioDead = false;
+    m_SkyColor = Util::Color(
         static_cast<unsigned char>(SKY_BLUE_R),
         static_cast<unsigned char>(SKY_BLUE_G),
         static_cast<unsigned char>(SKY_BLUE_B),
         255
     );
+
     std::vector<glm::vec2> enemySpawns;
     bool foundSpawn = convert_sketch(
         AssetPaths::Image("LevelSketch0.png"),
         *g_MapManager,
         *m_Mario,
-        bg,
+        m_SkyColor,
         &enemySpawns
     );
 
-    glClearColor(bg.r / 255.0f, bg.g / 255.0f, bg.b / 255.0f, 1.0f);
+    glClearColor(m_SkyColor.r / 255.0f, m_SkyColor.g / 255.0f, m_SkyColor.b / 255.0f, 1.0f);
 
     for (const auto& spawn : enemySpawns) {
         m_PendingEnemySpawns.push_back({ spawn, false });
     }
 
-    // fallback if red spawn pixel is missing
     if (!foundSpawn) {
         m_Mario->m_Transform.translation = { 0.0f, -200.0f };
     }
@@ -191,30 +332,148 @@ void App::Start() {
         m_CastleDoorX = castleX;
     }
 
+    InitializeUi();
+
     LOG_TRACE("Map size = {} x {}", g_MapManager->GetWidth(), g_MapManager->GetHeight());
     LOG_TRACE("Mario start pos = {}, {}",
         m_Mario->m_Transform.translation.x,
         m_Mario->m_Transform.translation.y);
 
-    ActivateNearbyEnemies();
-
+    m_ScreenState = ScreenState::Title;
     m_CurrentState = State::UPDATE;
 }
 
-void App::Update() {
-    const float dt = std::max(0.001f, Util::Time::GetDeltaTimeMs() / 1000.0f);
+void App::DrawHud() {
+    m_HudCoinIcon->m_Transform.translation = { -150.0f, 304.0f };
+    DrawUiObject(m_HudMarioLabel.object);
+    DrawUiObject(m_HudScoreValue.object);
+    DrawUiObject(m_HudWorldLabel.object);
+    DrawUiObject(m_HudWorldValue.object);
+    DrawUiObject(m_HudTimeLabel.object);
+    DrawUiObject(m_HudTimeValue.object);
+    DrawUiObject(m_HudCoinIcon);
+    DrawUiObject(m_HudCoinValue.object);
+}
+
+void App::RenderTitleScreen() {
+    glClearColor(m_SkyColor.r / 255.0f, m_SkyColor.g / 255.0f, m_SkyColor.b / 255.0f, 1.0f);
+    m_HudCoinIcon->m_Transform.translation = { -150.0f, 304.0f };
+    DrawUiObject(m_HudMarioLabel.object);
+    DrawUiObject(m_HudScoreValue.object);
+    DrawUiObject(m_HudWorldLabel.object);
+    DrawUiObject(m_HudWorldValue.object);
+    DrawUiObject(m_HudTimeLabel.object);
+    DrawUiObject(m_HudCoinIcon);
+    DrawUiObject(m_HudCoinValue.object);
+    DrawUiObject(m_TitleMountain);
+    DrawUiObject(m_TitleBush);
+    DrawUiObject(m_TitleMario);
+    DrawUiObject(m_TitleLogo.object);
+    DrawUiObject(m_TitleCopyright.object);
+    DrawUiObject(m_TitleOption1.object);
+    DrawUiObject(m_TitleOption2.object);
+    DrawUiObject(m_TitleTopScore.object);
+    DrawUiObject(m_TitlePressStart.object);
+}
+
+void App::RenderLevelIntro() {
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    m_HudCoinIcon->m_Transform.translation = { -150.0f, 304.0f };
+    DrawUiObject(m_HudMarioLabel.object);
+    DrawUiObject(m_HudScoreValue.object);
+    DrawUiObject(m_HudWorldLabel.object);
+    DrawUiObject(m_HudWorldValue.object);
+    DrawUiObject(m_HudTimeLabel.object);
+    DrawUiObject(m_HudCoinIcon);
+    DrawUiObject(m_HudCoinValue.object);
+    DrawUiObject(m_IntroWorldText.object);
+    DrawUiObject(m_IntroMario);
+    DrawUiObject(m_IntroLivesText.object);
+}
+
+void App::RenderGameplay() {
+    glClearColor(m_SkyColor.r / 255.0f, m_SkyColor.g / 255.0f, m_SkyColor.b / 255.0f, 1.0f);
+
+    if (g_MapManager) {
+        g_MapManager->Draw(m_ViewX);
+    }
+
+    if (m_CastleObject != nullptr &&
+        g_MapManager != nullptr) {
+        const glm::vec2 oldPos = m_CastleObject->m_Transform.translation;
+        m_CastleObject->m_Transform.translation.x -= m_ViewX;
+        m_CastleObject->Draw();
+        m_CastleObject->m_Transform.translation = oldPos;
+    }
+    if (m_Mario) {
+        const glm::vec2 oldPos = m_Mario->m_Transform.translation;
+        m_Mario->m_Transform.translation.x -= m_ViewX;
+        m_Mario->m_Transform.translation.y += m_Mario->GetRenderOffsetY();
+        m_Mario->Draw();
+        m_Mario->m_Transform.translation = oldPos;
+    }
+    for (auto& enemy : m_Enemies) {
+        const glm::vec2 oldPos = enemy->m_Transform.translation;
+        enemy->m_Transform.translation.x -= m_ViewX;
+        enemy->Draw();
+        enemy->m_Transform.translation = oldPos;
+    }
+    for (auto& fireball : m_Fireballs) {
+        const glm::vec2 oldPos = fireball->m_Transform.translation;
+        fireball->m_Transform.translation.x -= m_ViewX;
+        fireball->Draw();
+        fireball->m_Transform.translation = oldPos;
+    }
+    for (auto& pickup : m_Pickups) {
+        const glm::vec2 oldPos = pickup->m_Transform.translation;
+        pickup->m_Transform.translation.x -= m_ViewX;
+        pickup->Draw();
+        pickup->m_Transform.translation = oldPos;
+    }
+    for (auto& debris : m_Debris) {
+        const glm::vec2 oldPos = debris->m_Transform.translation;
+        debris->m_Transform.translation.x -= m_ViewX;
+        debris->Draw();
+        debris->m_Transform.translation = oldPos;
+    }
+
+    DrawHud();
+}
+
+void App::UpdateTitleScreen(float) {
+    if (Util::Input::IsKeyPressed(Util::Keycode::RETURN) ||
+        Util::Input::IsKeyPressed(Util::Keycode::SPACE)) {
+        StartLevelIntro(LEVEL_INTRO_DURATION);
+    }
+
+    RenderTitleScreen();
+}
+
+void App::UpdateLevelIntro(float dt) {
+    m_LevelIntroTimer = std::max(0.0f, m_LevelIntroTimer - dt);
+    if (m_LevelIntroTimer <= 0.0f) {
+        m_ScreenState = ScreenState::Gameplay;
+    }
+
+    RenderLevelIntro();
+}
+
+void App::UpdateGameplay(float dt) {
     const bool powerupFreezeActive = m_Mario && m_Mario->IsTransforming();
     if (g_MapManager && !powerupFreezeActive) {
         g_MapManager->Update();
     }
+
     if (!powerupFreezeActive) {
         LootType lootType;
         glm::vec2 lootPos;
         while (g_MapManager && g_MapManager->PollSpawnEvent(lootType, lootPos)) {
             m_Pickups.push_back(std::make_unique<Pickup>(lootType, lootPos.x, lootPos.y));
         }
+
         glm::vec2 breakPos;
         while (g_MapManager && g_MapManager->PollBrickBreakEvent(breakPos)) {
+            AddScore(50);
             m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::TopLeft));
             m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::TopRight));
             m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::BottomLeft));
@@ -236,10 +495,18 @@ void App::Update() {
                     const float horizontalKnockback =
                         (enemy->m_Transform.translation.x >= breakPos.x) ? 80.0f : -80.0f;
                     enemy->KillFlipped(horizontalKnockback);
+                    AddScore(100);
                 }
             }
         }
+
+        glm::vec2 coinPos;
+        while (g_MapManager && g_MapManager->PollCoinCollectEvent(coinPos)) {
+            ++m_Coins;
+            AddScore(100);
+        }
     }
+
     const bool goalSequenceActive = m_GoalSequenceStage != GoalSequenceStage::None;
     const bool manualGoalControl = m_GoalSequenceStage == GoalSequenceStage::PlayerControl;
     const bool autoGoalSequence = goalSequenceActive && !manualGoalControl;
@@ -265,6 +532,19 @@ void App::Update() {
             }
         }
     }
+
+    if (!autoGoalSequence && !powerupFreezeActive && m_Mario && !m_Mario->IsDead()) {
+        m_LevelTimer = std::max(0.0f, m_LevelTimer - dt);
+        if (m_LevelTimer <= 0.0f) {
+            m_Mario->Die();
+        }
+    }
+
+    if (!m_WasMarioDead && m_Mario && m_Mario->IsDead()) {
+        m_Lives = std::max(0, m_Lives - 1);
+        RefreshHudText();
+    }
+    m_WasMarioDead = m_Mario && m_Mario->IsDead();
 
     if (!powerupFreezeActive) {
         m_FireballCooldown = std::max(0.0f, m_FireballCooldown - dt);
@@ -318,9 +598,11 @@ void App::Update() {
 
             if (m_Mario->HasStarPower()) {
                 enemy->KillFlipped(110.0f * m_Mario->GetFacingDirection());
+                AddScore(100);
             } else if (stomped) {
                 enemy->Stomp();
                 m_Mario->BounceAfterStomp();
+                AddScore(100);
             } else if (!m_Mario->IsInvulnerable()) {
                 m_Mario->TakeEnemyHit();
                 break;
@@ -341,8 +623,19 @@ void App::Update() {
             const bool overlapX = marioRight > pickupLeft && marioLeft < pickupRight;
             const bool overlapY = marioTop > pickupBottom && marioBottom < pickupTop;
             if (overlapX && overlapY) {
-                m_Mario->PowerUp(pickup->GetType());
+                const LootType type = pickup->GetType();
+                m_Mario->PowerUp(type);
+                if (type == LootType::Coin) {
+                    ++m_Coins;
+                    AddScore(100);
+                } else if (type == LootType::GreenMushroom) {
+                    ++m_Lives;
+                    AddScore(1000);
+                } else {
+                    AddScore(1000);
+                }
                 pickup->Collect();
+                RefreshHudText();
             }
         }
 
@@ -370,6 +663,7 @@ void App::Update() {
 
                 enemy->Stomp();
                 fireball->Explode();
+                AddScore(100);
                 break;
             }
         }
@@ -410,71 +704,38 @@ void App::Update() {
     );
 
     if (m_Mario && g_MapManager) {
-        // follow Mario like the youtuber's i_view_x
         m_ViewX = m_Mario->m_Transform.translation.x;
 
-        // clamp camera so it does not scroll beyond level edges
         float mapLeft = g_MapManager->GetWorldLeft();
         float mapRight = g_MapManager->GetWorldRight();
-
         float halfScreen = WINDOW_WIDTH / 2.0f;
-
         float minViewX = mapLeft + halfScreen;
         float maxViewX = mapRight - halfScreen;
 
-        // if level is narrower than the screen, keep camera centered
         if (minViewX > maxViewX) {
             m_ViewX = 0.0f;
-        }
-        else {
+        } else {
             m_ViewX = std::clamp(m_ViewX, minViewX, maxViewX);
         }
     }
 
-    if (g_MapManager) {
-        g_MapManager->Draw(m_ViewX);
-    }
+    RefreshHudText();
+    RenderGameplay();
+}
 
-    if (m_CastleObject != nullptr &&
-        g_MapManager != nullptr) {
-        const glm::vec2 oldPos = m_CastleObject->m_Transform.translation;
-        m_CastleObject->m_Transform.translation.x -= m_ViewX;
-        m_CastleObject->Draw();
-        m_CastleObject->m_Transform.translation = oldPos;
-    }
-    if (m_Mario) {
-        // draw Mario relative to camera, but keep real position for physics
-        const glm::vec2 oldPos = m_Mario->m_Transform.translation;
-        m_Mario->m_Transform.translation.x -= m_ViewX;
-        m_Mario->m_Transform.translation.y += m_Mario->GetRenderOffsetY();
+void App::Update() {
+    const float dt = std::max(0.001f, Util::Time::GetDeltaTimeMs() / 1000.0f);
 
-        m_Mario->Draw();
-
-        m_Mario->m_Transform.translation = oldPos;
-    }
-    for (auto& enemy : m_Enemies) {
-        const glm::vec2 oldPos = enemy->m_Transform.translation;
-        enemy->m_Transform.translation.x -= m_ViewX;
-        enemy->Draw();
-        enemy->m_Transform.translation = oldPos;
-    }
-    for (auto& fireball : m_Fireballs) {
-        const glm::vec2 oldPos = fireball->m_Transform.translation;
-        fireball->m_Transform.translation.x -= m_ViewX;
-        fireball->Draw();
-        fireball->m_Transform.translation = oldPos;
-    }
-    for (auto& pickup : m_Pickups) {
-        const glm::vec2 oldPos = pickup->m_Transform.translation;
-        pickup->m_Transform.translation.x -= m_ViewX;
-        pickup->Draw();
-        pickup->m_Transform.translation = oldPos;
-    }
-    for (auto& debris : m_Debris) {
-        const glm::vec2 oldPos = debris->m_Transform.translation;
-        debris->m_Transform.translation.x -= m_ViewX;
-        debris->Draw();
-        debris->m_Transform.translation = oldPos;
+    switch (m_ScreenState) {
+    case ScreenState::Title:
+        UpdateTitleScreen(dt);
+        break;
+    case ScreenState::LevelIntro:
+        UpdateLevelIntro(dt);
+        break;
+    case ScreenState::Gameplay:
+        UpdateGameplay(dt);
+        break;
     }
 
     if (Util::Input::IsKeyUp(Util::Keycode::ESCAPE) || Util::Input::IfExit()) {
