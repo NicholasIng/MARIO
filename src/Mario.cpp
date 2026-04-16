@@ -240,7 +240,7 @@ void ClampGrowthToAvailableHeadroom(glm::vec2& center, float originalY, const gl
 Mario::Mario()
     : m_VelocityX(0.0f),
       m_VelocityY(0.0f),
-      m_Acceleration(1500.0f),
+      m_Acceleration(2000.0f),
       m_MaxSpeed(350.0f),
       m_Friction(1000.0f),
       m_Gravity(-2200.0f),
@@ -315,33 +315,33 @@ Mario::Mario()
 
     m_FireAnimations[AnimState::IDLE] = std::make_unique<Animation>(
         std::vector<std::string>{
-        AssetPaths::Image("character/mario_fire_idle.png")
+        AssetPaths::Image("character/bigmarioidle_fire.png")
     }, 1.0f
     );
 
     m_FireAnimations[AnimState::WALK] = std::make_unique<Animation>(
         std::vector<std::string>{
-        AssetPaths::Image("character/mario_fire_walk1.png"),
-            AssetPaths::Image("character/mario_fire_walk2.png"),
-            AssetPaths::Image("character/mario_fire_walk3.png")
+        AssetPaths::Image("character/bigmariowalk1_fire.png"),
+            AssetPaths::Image("character/bigmariowalk2_fire.png"),
+            AssetPaths::Image("character/bigmariowalk3_fire.png")
     }, 0.07f
     );
 
     m_FireAnimations[AnimState::JUMP] = std::make_unique<Animation>(
         std::vector<std::string>{
-        AssetPaths::Image("character/mario_fire_jump.png")
+        AssetPaths::Image("character/bigmariojump_fire.png")
     }, 1.0f
     );
 
     m_FireAnimations[AnimState::BRAKE] = std::make_unique<Animation>(
         std::vector<std::string>{
-        AssetPaths::Image("character/mario_fire_brake.png")
+        AssetPaths::Image("character/bigmariobrake_fire.png")
     }, 1.0f
     );
 
     m_FireAnimations[AnimState::CROUCH] = std::make_unique<Animation>(
         std::vector<std::string>{
-        AssetPaths::Image("character/mario_fire_crouch.png")
+        AssetPaths::Image("character/bigmariocrouch_fire.png")
     }, 1.0f
     );
 
@@ -359,8 +359,8 @@ Mario::Mario()
     );
     m_FlagAnimations[PowerState::Fire] = std::make_unique<Animation>(
         std::vector<std::string>{
-            AssetPaths::Image("character/mario_fire_flag1.png"),
-            AssetPaths::Image("character/mario_fire_flag2.png")
+            AssetPaths::Image("character/bigmarioflag1_fire.png"),
+            AssetPaths::Image("character/bigmarioflag2_fire.png")
         }, 0.12f
     );
 
@@ -385,6 +385,9 @@ Mario::Mario()
 }
 
 glm::vec2 Mario::GetHalfExtents() const {
+    if (m_IsCrouching && IsBig()) {
+        return { BIG_HALF_WIDTH, CROUCH_HALF_HEIGHT };
+    }
     if (IsBig() || m_TransformType == TransformType::SmallBigTransition) {
         return { BIG_HALF_WIDTH, BIG_HALF_HEIGHT };
     }
@@ -393,13 +396,12 @@ glm::vec2 Mario::GetHalfExtents() const {
 
 float Mario::GetRenderOffsetY() const {
     if (m_TransformType == TransformType::SmallBigTransition) {
-        return m_TransformShowBigFrame ? 5.0f : -16.0f;
+        return m_TransformShowBigFrame ? BIG_RENDER_OFFSET_Y : -16.0f;
     }
-    if (m_IsCrouching) {
-        if (m_PowerState == PowerState::Fire) return 16.0f;
-        if (m_PowerState == PowerState::Big) return 9.0f;
+    if (m_IsCrouching && IsBig()) {
+        return BIG_RENDER_OFFSET_Y + (BIG_HALF_HEIGHT - CROUCH_HALF_HEIGHT);
     }
-    return IsBig() ? 5.0f : 0.0f;
+    return IsBig() ? BIG_RENDER_OFFSET_Y : 0.0f;
 }
 
 glm::vec2 Mario::GetFireballSpawnPosition() const {
@@ -564,7 +566,7 @@ void Mario::BeginTransformation(PowerState targetState, TransformType transformT
 void Mario::SetPowerState(PowerState newState) {
     if (m_PowerState == newState) return;
 
-    const float oldHalfHeight = (m_IsCrouching && IsBig()) ? SMALL_HALF_HEIGHT : GetHalfExtents().y;
+    const float oldHalfHeight = GetHalfExtents().y;
     if (newState == PowerState::Small) {
         m_IsCrouching = false;
     }
@@ -752,11 +754,7 @@ void Mario::Update() {
         return;
     }
 
-    glm::vec2 snapHalfExtents = GetHalfExtents();
-    if (m_IsCrouching && IsBig()) {
-        snapHalfExtents.y = SMALL_HALF_HEIGHT;
-    }
-    SnapUpOutOfGround(m_Transform.translation, snapHalfExtents);
+    SnapUpOutOfGround(m_Transform.translation, GetHalfExtents());
 
     if (m_PowerDownLockTimer > 0.0f) {
         m_PowerDownLockTimer = std::max(0.0f, m_PowerDownLockTimer - dt);
@@ -815,7 +813,7 @@ void Mario::Update() {
         m_IsCrouching = false;
     }
     if (IsBig() && wasCrouching != m_IsCrouching) {
-        const float delta = BIG_HALF_HEIGHT - SMALL_HALF_HEIGHT;
+        const float delta = BIG_HALF_HEIGHT - CROUCH_HALF_HEIGHT;
         m_Transform.translation.y += m_IsCrouching ? -delta : delta;
     }
 
@@ -883,9 +881,6 @@ void Mario::Update() {
 
     // player extents (half sizes) in world units
     glm::vec2 halfExtents = GetHalfExtents();
-    if (m_IsCrouching && IsBig()) {
-        halfExtents.y = SMALL_HALF_HEIGHT;
-    }
     float halfWidth = halfExtents.x;
     float halfHeight = halfExtents.y;
 
@@ -1037,16 +1032,14 @@ void Mario::BounceAfterStomp() {
     m_JumpTimer = 0.0f;
 }
 
-void Mario::StartGoalSequence(float poleX, float flagX, float flagBottomY, float groundY, float castleDoorX, float slideStartY) {
+void Mario::StartGoalSequence(float poleX, float flagX, float flagBottomY, float groundY, float slideStartY) {
     if (m_IsDead || m_GoalSequenceState != GoalSequenceState::None) return;
 
     m_GoalPoleX = poleX;
     m_GoalFlagX = flagX;
     m_GoalFlagBottomY = flagBottomY;
     m_GoalGroundY = groundY;
-    m_CastleDoorX = castleDoorX;
     m_GoalSlideStartY = slideStartY;
-    m_GoalEnterTimer = 0.0f;
     m_TransformType = TransformType::None;
     m_TransformTimer = 0.0f;
     m_TargetPowerState = m_PowerState;

@@ -17,7 +17,6 @@ public:
 
 private:
     std::shared_ptr<Util::Image> m_Image;
-    float m_StartX = 0.0f;
     float m_Direction = -1.0f;
     float m_Speed = 40.0f;
     float m_VelocityY = 0.0f;

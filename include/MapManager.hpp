@@ -150,7 +150,6 @@ public:
         if (!req.filename().empty()) {
             std::string found = FindImageByFilename(imageRoot, req.filename().string());
             if (!found.empty()) {
-                LOG_WARN("Requested tile '{}' not found; using '{}'", requested, found);
                 return found;
             }
         }
@@ -203,7 +202,6 @@ public:
         if (!req.filename().empty()) {
             std::string found = FindImageByFilename(imageRoot, req.filename().string());
             if (!found.empty()) {
-                LOG_WARN("Requested background '{}' not found; using '{}'", requested, found);
                 return found;
             }
         }

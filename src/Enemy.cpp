@@ -73,8 +73,7 @@ void SnapUpOutOfGround(glm::vec2& center, const glm::vec2& halfExtents) {
 } // namespace
 
 Enemy::Enemy(float x, float y)
-    : m_StartX(x),
-      m_LeftPath(AssetPaths::Image("Goomba_l.png")),
+    : m_LeftPath(AssetPaths::Image("Goomba_l.png")),
       m_RightPath(AssetPaths::Image("Goomba_r.png")),
       m_DeathPath(AssetPaths::Image("Goombadeath.png")) {
     m_Image = std::make_shared<Util::Image>(m_LeftPath);

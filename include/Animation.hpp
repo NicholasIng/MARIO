@@ -11,15 +11,16 @@ public:
     }
 
     std::string GetCurrentFramePath() const {
+        if (m_Paths.empty()) return {};
         return m_Paths[m_CurrentFrame];
     }
 
     void Update(float dt) {
-        if (m_Paths.size() <= 1) return; // Don't tick for single-frame animations
+        if (m_Paths.size() <= 1 || m_FrameInterval <= 0.0f) return; // Don't tick for invalid or single-frame animations
 
         m_Timer += dt;
-        if (m_Timer >= m_FrameInterval) {
-            m_Timer = 0.0f;
+        while (m_Timer >= m_FrameInterval) {
+            m_Timer -= m_FrameInterval;
             m_CurrentFrame = (m_CurrentFrame + 1) % m_Paths.size();
         }
     }

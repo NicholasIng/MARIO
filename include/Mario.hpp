@@ -22,7 +22,7 @@ public:
     void TakeEnemyHit();
     void Die();
     void BounceAfterStomp();
-    void StartGoalSequence(float poleX, float flagX, float flagBottomY, float groundY, float castleDoorX, float slideStartY);
+    void StartGoalSequence(float poleX, float flagX, float flagBottomY, float groundY, float slideStartY);
     bool IsGoalSequenceActive() const {
         return m_GoalSequenceState != GoalSequenceState::None &&
                m_GoalSequenceState != GoalSequenceState::Finished;
@@ -46,6 +46,8 @@ private:
     static constexpr float SMALL_HALF_HEIGHT = 24.0f;
     static constexpr float BIG_HALF_WIDTH = 18.0f;
     static constexpr float BIG_HALF_HEIGHT = 40.0f;
+    static constexpr float CROUCH_HALF_HEIGHT = BIG_HALF_HEIGHT * (22.0f / 32.0f);
+    static constexpr float BIG_RENDER_OFFSET_Y = 5.0f;
     static constexpr float INVULNERABILITY_DURATION = 3.0f;
 
     float m_VelocityX, m_VelocityY;
@@ -72,9 +74,7 @@ private:
     float m_GoalFlagX = 0.0f;
     float m_GoalFlagBottomY = 0.0f;
     float m_GoalGroundY = 0.0f;
-    float m_CastleDoorX = 0.0f;
     float m_GoalSlideStartY = 0.0f;
-    float m_GoalEnterTimer = 0.0f;
 
     AnimState m_AnimState = AnimState::IDLE;
     std::map<AnimState, std::unique_ptr<Animation>> m_SmallAnimations;

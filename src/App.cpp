@@ -88,7 +88,6 @@ void App::StartGoalSequence() {
         g_MapManager->GetFlagX(),
         g_MapManager->GetFlagBottomY(),
         g_MapManager->GetGoalGroundY(),
-        m_CastleDoorX,
         touchY
     );
     m_GoalFlagMarioOffsetY = touchY - m_Mario->m_Transform.translation.y;
@@ -165,7 +164,7 @@ void App::Start() {
 
     m_ViewX = 0.0f;
     m_CastleObject = std::make_shared<Util::GameObject>();
-        m_CastleImage = std::make_shared<Util::Image>(AssetPaths::Image("castle1.png"));
+    m_CastleImage = std::make_shared<Util::Image>(AssetPaths::Image("castle1.png"));
     m_CastleObject->SetDrawable(m_CastleImage);
     m_CastleObject->SetZIndex(5.0f);
     if (g_MapManager && g_MapManager->HasGoal() && m_CastleImage != nullptr) {
@@ -376,13 +375,6 @@ void App::Update() {
         }
 
         if (g_MapManager && g_MapManager->HasGoal() &&
-            m_GoalSequenceStage == GoalSequenceStage::PlayerControl &&
-            m_Mario->m_Transform.translation.x >= m_CastleDoorX) {
-            m_Mario->m_Transform.translation.x = m_CastleDoorX;
-            m_Mario->SetVisible(false);
-            m_GoalSequenceStage = GoalSequenceStage::Entering;
-            m_GoalSequenceTimer = GOAL_FINISH_DELAY;
-        } else if (g_MapManager && g_MapManager->HasGoal() &&
             m_GoalSequenceStage == GoalSequenceStage::None &&
             m_Mario->m_Transform.translation.x >= g_MapManager->GetGoalX()) {
             StartGoalSequence();
@@ -390,6 +382,9 @@ void App::Update() {
     }
 
     if (m_GoalSequenceStage == GoalSequenceStage::Entering) {
+        UpdateGoalSequence(dt);
+    }
+    if (m_GoalSequenceStage == GoalSequenceStage::PlayerControl) {
         UpdateGoalSequence(dt);
     }
 

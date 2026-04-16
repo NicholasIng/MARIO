@@ -240,7 +240,6 @@ bool convert_sketch(
     std::vector<std::vector<char>> cloudMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> flagMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> goombaMask(width, std::vector<char>(layerHeight, 0));
-    std::vector<std::vector<char>> isHard(width, std::vector<char>(layerHeight, 0));
 
     for (int x = 0; x < width; ++x) {
         for (int y = 0; y < layerHeight; ++y) {
@@ -622,7 +621,6 @@ bool convert_sketch(
 
                 for (const auto& p : comp) {
                     map.AddTile(p.first, p.second, Cell::Brick, hardBlockPath);
-                    isHard[p.first][p.second] = 1;
                 }
             }
         }
