@@ -53,6 +53,7 @@ private:
     float m_VelocityX, m_VelocityY;
     float m_Acceleration, m_MaxSpeed, m_Friction, m_Gravity, m_JumpForce;
     bool m_OnGround;
+    bool m_IsBraking = false;
     bool m_IsCrouching = false;
     bool m_IsDead = false;
     float m_JumpTimer, m_MaxJumpTime;

@@ -45,9 +45,16 @@ Pickup::Pickup(LootType type, float x, float y)
     );
     SetDrawable(m_Image);
     m_Transform.translation = { x, y };
+    m_SpawnStartX = x;
     m_SpawnStartY = y;
     m_Transform.scale = { BASE_SCALE, 0.01f };
     m_ZIndex = 8.0f;
+}
+
+bool Pickup::ConsumeAutoAward() {
+    if (!m_AutoAwardPending) return false;
+    m_AutoAwardPending = false;
+    return true;
 }
 
 void Pickup::Update() {
@@ -59,13 +66,13 @@ void Pickup::Update() {
         m_Image->SetImage(m_Animation->GetCurrentFramePath());
     }
 
-    UpdateRise(dt);
-    if (m_RiseElapsed < RISE_DURATION) {
+    if (m_Type == LootType::Coin) {
+        UpdateCoinPop(dt);
         return;
     }
 
-    if (m_Type == LootType::Coin) {
-        Collect();
+    UpdateRise(dt);
+    if (m_RiseElapsed < RISE_DURATION) {
         return;
     }
 
@@ -153,8 +160,17 @@ void Pickup::Update() {
     }
 
     const float candidateX = m_Transform.translation.x + m_HorizontalDirection * moveSpeed * dt;
-    const int topGridY = std::max(0, worldToGridY(m_Transform.translation.y + half.y - eps));
-    const int bottomGridY = std::min(mapHeight - 1, worldToGridY(m_Transform.translation.y - half.y + eps));
+
+    // When the pickup is standing on top of blocks, the support row should
+    // not count as a side wall. That lets mushrooms and stars slide across
+    // block tops naturally and only fall once the support disappears.
+    int topGridY = worldToGridY(m_Transform.translation.y + half.y - 4.0f);
+    int supportGridY = worldToGridY(m_Transform.translation.y - half.y - 1.0f);
+    if (topGridY > supportGridY) {
+        std::swap(topGridY, supportGridY);
+    }
+    topGridY = std::clamp(topGridY, 0, mapHeight - 1);
+    supportGridY = std::clamp(supportGridY, 0, mapHeight - 1);
 
     if (m_HorizontalDirection > 0.0f) {
         const int gridX = worldToGridX(candidateX + half.x - eps);
@@ -163,7 +179,7 @@ void Pickup::Update() {
             return;
         }
         if (gridX >= 0) {
-            for (int gy = topGridY; gy <= bottomGridY; ++gy) {
+            for (int gy = topGridY; gy < supportGridY; ++gy) {
                 if (g_MapManager->IsSolidAt(gridX, gy)) {
                     m_HorizontalDirection = -1.0f;
                     return;
@@ -177,7 +193,7 @@ void Pickup::Update() {
             return;
         }
         if (gridX < mapWidth) {
-            for (int gy = topGridY; gy <= bottomGridY; ++gy) {
+            for (int gy = topGridY; gy < supportGridY; ++gy) {
                 if (g_MapManager->IsSolidAt(gridX, gy)) {
                     m_HorizontalDirection = 1.0f;
                     return;
@@ -197,5 +213,28 @@ void Pickup::UpdateRise(float dt) {
     // from inside the block instead of teleporting above it.
     const float visibleScaleY = std::max(0.01f, BASE_SCALE * progress);
     m_Transform.scale = { BASE_SCALE, visibleScaleY };
+    if (m_Type == LootType::RedMushroom ||
+        m_Type == LootType::GreenMushroom ||
+        m_Type == LootType::Star) {
+        m_Transform.translation.x = m_SpawnStartX + SPAWN_SLIDE_DISTANCE * progress;
+    }
     m_Transform.translation.y = m_SpawnStartY + RISE_DISTANCE * progress * 0.5f;
+}
+
+void Pickup::UpdateCoinPop(float dt) {
+    m_CoinPopElapsed = std::min(COIN_POP_DURATION, m_CoinPopElapsed + dt);
+    const float progress = std::clamp(m_CoinPopElapsed / COIN_POP_DURATION, 0.0f, 1.0f);
+
+    // SMB3 reward coins launch directly from the block mouth, reach a high
+    // peak, then drop back into the same spot before disappearing.
+    const float blockMouthY = m_SpawnStartY + 6.0f;
+    const float arc = 4.0f * progress * (1.0f - progress);
+    m_Transform.scale = { BASE_SCALE, BASE_SCALE };
+    m_Transform.translation.y = blockMouthY + COIN_POP_HEIGHT * arc;
+
+    if (progress >= 1.0f) {
+        m_Transform.translation.y = blockMouthY;
+        m_AutoAwardPending = true;
+        Collect();
+    }
 }

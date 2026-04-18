@@ -9,6 +9,7 @@
 #include "AssetPaths.hpp"
 #include "config.hpp"
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <filesystem>
 #include <iomanip>
@@ -28,8 +29,21 @@ constexpr float CASTLE_END_INSET_TILES = 1.0f;
 constexpr float GOAL_FINISH_DELAY = 0.55f;
 constexpr float ENEMY_SPAWN_RANGE_X = WINDOW_WIDTH * 0.75f;
 constexpr float LEVEL_INTRO_DURATION = 1.75f;
+constexpr float FONT_GLYPH_SIZE = 8.0f;
 constexpr int STARTING_TIMER = 400;
 constexpr int STARTING_LIVES = 3;
+constexpr float HUD_TEXT_SCALE = 3.0f;
+constexpr float TITLE_TEXT_SCALE = 4.0f;
+constexpr float TITLE_LOGO_SCALE = 5.0f;
+constexpr float INTRO_TEXT_SCALE = 4.0f;
+constexpr float COIN_FRAME_DURATION = 0.09f;
+constexpr float TITLE_CURSOR_BLINK_DURATION = 0.18f;
+constexpr float TITLE_BG_R = 164.0f;
+constexpr float TITLE_BG_G = 160.0f;
+constexpr float TITLE_BG_B = 252.0f;
+constexpr float UI_Z = 50.0f;
+constexpr float TITLE_DECOR_Z = 30.0f;
+constexpr float TITLE_GROUND_Z = 20.0f;
 
 std::string PadNumber(int value, int width) {
     std::ostringstream stream;
@@ -39,6 +53,18 @@ std::string PadNumber(int value, int width) {
 
 std::string WorldLabel(int world, int level) {
     return std::to_string(world) + "-" + std::to_string(level);
+}
+
+std::vector<std::string> CoinFramePaths() {
+    return {
+        AssetPaths::Image("homescreen/coins1.png"),
+        AssetPaths::Image("homescreen/coins2.png"),
+        AssetPaths::Image("homescreen/coins3.png"),
+        AssetPaths::Image("homescreen/coins4.png"),
+        AssetPaths::Image("homescreen/coins5.png"),
+        AssetPaths::Image("homescreen/coins6.png"),
+        AssetPaths::Image("homescreen/coins7.png"),
+    };
 }
 
 } // namespace
@@ -137,18 +163,132 @@ void App::UpdateGoalSequence(float dt) {
     }
 }
 
-App::HudText App::CreateTextObject(const std::string& text,
-                                   int size,
+void App::InitializeAnimatedSprite(AnimatedSprite& sprite,
+                                   const std::vector<std::string>& framePaths,
                                    const glm::vec2& position,
-                                   const Util::Color& color,
-                                   const glm::vec2& scale) {
-    auto drawable = std::make_shared<Util::Text>(m_PixelFontPath, size, text, color);
+                                   const glm::vec2& scale,
+                                   float zIndex,
+                                   float frameDuration) {
+    sprite.frames.clear();
+    for (const auto& framePath : framePaths) {
+        sprite.frames.push_back(std::make_shared<Util::Image>(framePath));
+    }
+
     auto object = std::make_shared<Util::GameObject>();
-    object->SetDrawable(drawable);
+    if (!sprite.frames.empty()) {
+        object->SetDrawable(sprite.frames.front());
+    }
     object->m_Transform.translation = position;
     object->m_Transform.scale = scale;
-    object->SetZIndex(1000.0f);
-    return { drawable, object };
+    object->SetZIndex(zIndex);
+
+    sprite.object = object;
+    sprite.frameDuration = frameDuration;
+    sprite.timer = 0.0f;
+    sprite.frameIndex = 0;
+}
+
+void App::AdvanceAnimatedSprite(AnimatedSprite& sprite, float dt) {
+    if (sprite.object == nullptr || sprite.frames.size() <= 1) return;
+
+    sprite.timer += dt;
+    while (sprite.timer >= sprite.frameDuration) {
+        sprite.timer -= sprite.frameDuration;
+        sprite.frameIndex = (sprite.frameIndex + 1) % sprite.frames.size();
+        sprite.object->SetDrawable(sprite.frames[sprite.frameIndex]);
+    }
+}
+
+void App::ConfigureSpriteText(SpriteText& spriteText,
+                              const glm::vec2& position,
+                              const glm::vec2& scale,
+                              float spacing,
+                              float lineHeight,
+                              float zIndex) {
+    spriteText.position = position;
+    spriteText.scale = scale;
+    spriteText.spacing = spacing;
+    spriteText.lineHeight = lineHeight;
+    spriteText.zIndex = zIndex;
+}
+
+std::string App::GetFontSpritePath(char character) const {
+    switch (character) {
+    case '0': case '1': case '2': case '3': case '4':
+    case '5': case '6': case '7': case '8': case '9':
+        return AssetPaths::Image(std::string("Font/") + character + ".png");
+    case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G':
+    case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N':
+    case 'O': case 'P': case 'Q': case 'R': case 'S': case 'T': case 'U':
+    case 'V': case 'W': case 'X': case 'Y': case 'Z':
+        return AssetPaths::Image(std::string("Font/") + character + ".png");
+    case '-':
+        return AssetPaths::Image("Font/strip.png");
+    case '.':
+        return AssetPaths::Image("Font/dot.png");
+    case '!':
+        return AssetPaths::Image("Font/exclamation.png");
+    case 'x':
+        return AssetPaths::Image("Font/times.png");
+    case '~':
+        return AssetPaths::Image("Font/circled_c.png");
+    default:
+        return "";
+    }
+}
+
+void App::SetSpriteText(SpriteText& spriteText, const std::string& text) {
+    spriteText.glyphs.clear();
+
+    const float advanceX = FONT_GLYPH_SIZE * spriteText.scale.x + spriteText.spacing;
+    const float advanceY = (spriteText.lineHeight > 0.0f)
+        ? spriteText.lineHeight
+        : FONT_GLYPH_SIZE * spriteText.scale.y + spriteText.spacing;
+
+    float currentX = spriteText.position.x;
+    float currentY = spriteText.position.y;
+
+    for (char rawCharacter : text) {
+        if (rawCharacter == '\n') {
+            currentX = spriteText.position.x;
+            currentY -= advanceY;
+            continue;
+        }
+
+        if (rawCharacter == ' ') {
+            currentX += advanceX;
+            continue;
+        }
+
+        char lookupCharacter = rawCharacter;
+        if (lookupCharacter != 'x' && lookupCharacter != '~') {
+            lookupCharacter = static_cast<char>(
+                std::toupper(static_cast<unsigned char>(lookupCharacter))
+            );
+        }
+        const std::string spritePath = GetFontSpritePath(lookupCharacter);
+        if (spritePath.empty()) {
+            currentX += advanceX;
+            continue;
+        }
+
+        auto glyph = std::make_shared<Util::GameObject>();
+        glyph->SetDrawable(std::make_shared<Util::Image>(spritePath));
+        glyph->m_Transform.translation = {
+            currentX + FONT_GLYPH_SIZE * spriteText.scale.x * 0.5f,
+            currentY
+        };
+        glyph->m_Transform.scale = spriteText.scale;
+        glyph->SetZIndex(spriteText.zIndex);
+        spriteText.glyphs.push_back(glyph);
+        currentX += advanceX;
+    }
+}
+
+void App::DrawSpriteText(const SpriteText& spriteText) const {
+    for (const auto& glyph : spriteText.glyphs) {
+        DrawUiObject(glyph);
+    }
 }
 
 void App::DrawUiObject(const std::shared_ptr<Util::GameObject>& object) const {
@@ -158,87 +298,102 @@ void App::DrawUiObject(const std::shared_ptr<Util::GameObject>& object) const {
 }
 
 void App::InitializeUi() {
-    namespace fs = std::filesystem;
-
-    const fs::path root = AssetPaths::ResourceRoot().parent_path();
-    m_FontPath = (root / "PTSD" / "assets" / "fonts" / "Inter.ttf").string();
-    m_PixelFontPath = (root / "PTSD" / "lib" / "imgui" / "misc" / "fonts" / "ProggyClean.ttf").string();
-
-    m_HudCoinIcon = std::make_shared<Util::GameObject>();
-    m_HudCoinIcon->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("coin1.png")));
-    m_HudCoinIcon->m_Transform.scale = { 2.0f, 2.0f };
-    m_HudCoinIcon->SetZIndex(1000.0f);
+    InitializeAnimatedSprite(
+        m_HudCoinIcon,
+        CoinFramePaths(),
+        { -116.0f, 304.0f },
+        { 3.0f, 3.0f },
+        UI_Z,
+        COIN_FRAME_DURATION
+    );
+    InitializeAnimatedSprite(
+        m_TitleCoinIcon,
+        CoinFramePaths(),
+        { -116.0f, 304.0f },
+        { 3.0f, 3.0f },
+        UI_Z,
+        COIN_FRAME_DURATION
+    );
 
     m_TitleMountain = std::make_shared<Util::GameObject>();
     m_TitleMountain->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("mountains.png")));
-    m_TitleMountain->m_Transform.translation = { -470.0f, -255.0f };
-    m_TitleMountain->m_Transform.scale = { 7.5f, 7.5f };
-    m_TitleMountain->SetZIndex(900.0f);
+    m_TitleMountain->m_Transform.translation = { -268.0f, -320.0f };
+    m_TitleMountain->m_Transform.scale = { 0.22f, 0.22f };
+    m_TitleMountain->SetZIndex(TITLE_DECOR_Z);
 
     m_TitleBush = std::make_shared<Util::GameObject>();
     m_TitleBush->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("Bush.png")));
-    m_TitleBush->m_Transform.translation = { 420.0f, -250.0f };
-    m_TitleBush->m_Transform.scale = { 6.0f, 6.0f };
-    m_TitleBush->SetZIndex(910.0f);
+    m_TitleBush->m_Transform.translation = { 278.0f, -322.0f };
+    m_TitleBush->m_Transform.scale = { 4.4f, 4.4f };
+    m_TitleBush->SetZIndex(TITLE_DECOR_Z + 1.0f);
 
     m_TitleMario = std::make_shared<Util::GameObject>();
     m_TitleMario->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("Character/MarioIdle.png")));
-    m_TitleMario->m_Transform.translation = { -355.0f, -265.0f };
-    m_TitleMario->m_Transform.scale = { 4.5f, 4.5f };
-    m_TitleMario->SetZIndex(920.0f);
+    m_TitleMario->m_Transform.translation = { -255.0f, -324.0f };
+    m_TitleMario->m_Transform.scale = { 4.0f, 4.0f };
+    m_TitleMario->SetZIndex(TITLE_DECOR_Z + 2.0f);
+
+    m_TitleCursor = std::make_shared<Util::GameObject>();
+    m_TitleCursor->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("homescreen/cursor.png")));
+    m_TitleCursor->m_Transform.scale = { 3.5f, 3.5f };
+    m_TitleCursor->SetZIndex(UI_Z);
 
     m_IntroMario = std::make_shared<Util::GameObject>();
     m_IntroMario->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("Character/MarioIdle.png")));
-    m_IntroMario->m_Transform.translation = { -85.0f, -20.0f };
+    m_IntroMario->m_Transform.translation = { -75.0f, -24.0f };
     m_IntroMario->m_Transform.scale = { 5.0f, 5.0f };
-    m_IntroMario->SetZIndex(1000.0f);
+    m_IntroMario->SetZIndex(UI_Z);
 
-    const Util::Color white(255, 255, 255, 255);
-    const Util::Color peach(255, 205, 190, 255);
+    ConfigureSpriteText(m_HudMarioLabel, { -358.0f, 326.0f }, { HUD_TEXT_SCALE, HUD_TEXT_SCALE }, 3.0f, 0.0f, UI_Z);
+    ConfigureSpriteText(m_HudScoreValue, { -358.0f, 288.0f }, { HUD_TEXT_SCALE, HUD_TEXT_SCALE }, 3.0f, 0.0f, UI_Z);
+    ConfigureSpriteText(m_HudWorldLabel, { 74.0f, 326.0f }, { HUD_TEXT_SCALE, HUD_TEXT_SCALE }, 3.0f, 0.0f, UI_Z);
+    ConfigureSpriteText(m_HudWorldValue, { 116.0f, 288.0f }, { HUD_TEXT_SCALE, HUD_TEXT_SCALE }, 3.0f, 0.0f, UI_Z);
+    ConfigureSpriteText(m_HudTimeLabel, { 244.0f, 326.0f }, { HUD_TEXT_SCALE, HUD_TEXT_SCALE }, 3.0f, 0.0f, UI_Z);
+    ConfigureSpriteText(m_HudTimeValue, { 274.0f, 288.0f }, { HUD_TEXT_SCALE, HUD_TEXT_SCALE }, 3.0f, 0.0f, UI_Z);
+    ConfigureSpriteText(m_HudCoinValue, { -74.0f, 294.0f }, { HUD_TEXT_SCALE, HUD_TEXT_SCALE }, 3.0f, 0.0f, UI_Z);
 
-    m_HudMarioLabel = CreateTextObject("MARIO", 28, { -520.0f, 328.0f }, white, { 2.2f, 2.2f });
-    m_HudScoreValue = CreateTextObject("000000", 28, { -520.0f, 286.0f }, white, { 2.2f, 2.2f });
-    m_HudWorldLabel = CreateTextObject("WORLD", 28, { 92.0f, 328.0f }, white, { 2.2f, 2.2f });
-    m_HudWorldValue = CreateTextObject("1-1", 28, { 140.0f, 286.0f }, white, { 2.2f, 2.2f });
-    m_HudTimeLabel = CreateTextObject("TIME", 28, { 415.0f, 328.0f }, white, { 2.2f, 2.2f });
-    m_HudTimeValue = CreateTextObject("400", 28, { 445.0f, 286.0f }, white, { 2.2f, 2.2f });
-    m_HudCoinValue = CreateTextObject("x00", 28, { -95.0f, 296.0f }, white, { 2.2f, 2.2f });
+    ConfigureSpriteText(m_TitleLogoShadow, { -210.0f, 118.0f }, { TITLE_LOGO_SCALE, TITLE_LOGO_SCALE }, 4.0f, 60.0f, UI_Z - 2.0f);
+    ConfigureSpriteText(m_TitleLogo, { -222.0f, 128.0f }, { TITLE_LOGO_SCALE, TITLE_LOGO_SCALE }, 4.0f, 60.0f, UI_Z - 1.0f);
+    ConfigureSpriteText(m_TitleOption1, { -72.0f, -138.0f }, { TITLE_TEXT_SCALE, TITLE_TEXT_SCALE }, 3.0f, 0.0f, UI_Z);
+    ConfigureSpriteText(m_TitleOption2, { -72.0f, -194.0f }, { TITLE_TEXT_SCALE, TITLE_TEXT_SCALE }, 3.0f, 0.0f, UI_Z);
+    ConfigureSpriteText(m_TitleTopScore, { -120.0f, -272.0f }, { TITLE_TEXT_SCALE, TITLE_TEXT_SCALE }, 3.0f, 0.0f, UI_Z);
 
-    m_TitleLogo = CreateTextObject("SUPER\nMARIO BROS.", 44, { -320.0f, 110.0f }, peach, { 3.2f, 3.2f });
-    m_TitleCopyright = CreateTextObject("(C)1985 NINTENDO", 20, { -40.0f, -65.0f }, peach, { 2.6f, 2.6f });
-    m_TitleOption1 = CreateTextObject("1 PLAYER GAME", 24, { -160.0f, -150.0f }, white, { 2.5f, 2.5f });
-    m_TitleOption2 = CreateTextObject("2 PLAYER GAME", 24, { -160.0f, -210.0f }, white, { 2.5f, 2.5f });
-    m_TitleTopScore = CreateTextObject("TOP- 000000", 22, { -105.0f, -305.0f }, white, { 2.4f, 2.4f });
-    m_TitlePressStart = CreateTextObject("PRESS ENTER", 18, { -68.0f, -345.0f }, white, { 2.2f, 2.2f });
+    ConfigureSpriteText(m_IntroWorldText, { -116.0f, 86.0f }, { INTRO_TEXT_SCALE, INTRO_TEXT_SCALE }, 3.0f, 0.0f, UI_Z);
+    ConfigureSpriteText(m_IntroLivesText, { 6.0f, -24.0f }, { INTRO_TEXT_SCALE, INTRO_TEXT_SCALE }, 3.0f, 0.0f, UI_Z);
 
-    m_IntroWorldText = CreateTextObject("WORLD  1-1", 28, { -120.0f, 110.0f }, white, { 2.8f, 2.8f });
-    m_IntroLivesText = CreateTextObject("x 3", 28, { 35.0f, -18.0f }, white, { 2.8f, 2.8f });
+    m_TitleGroundTiles.clear();
+    const float titleGroundScale = 6.0f;
+    const float tileSize = 16.0f * titleGroundScale;
+    const float startX = -static_cast<float>(WINDOW_WIDTH) * 0.5f + tileSize * 0.5f;
+    const float groundY = -static_cast<float>(WINDOW_HEIGHT) * 0.5f + tileSize * 0.5f - 2.0f;
+    const int tileCount = static_cast<int>(std::ceil(static_cast<float>(WINDOW_WIDTH) / tileSize)) + 2;
+    for (int i = 0; i < tileCount; ++i) {
+        auto tile = std::make_shared<Util::GameObject>();
+        tile->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("Brick.png")));
+        tile->m_Transform.translation = { startX + tileSize * static_cast<float>(i), groundY };
+        tile->m_Transform.scale = { titleGroundScale, titleGroundScale };
+        tile->SetZIndex(TITLE_GROUND_Z);
+        m_TitleGroundTiles.push_back(tile);
+    }
 
     RefreshHudText();
 }
 
 void App::RefreshHudText() {
-    if (m_HudScoreValue.drawable) {
-        m_HudScoreValue.drawable->SetText(PadNumber(m_Score, 6));
-    }
-    if (m_HudWorldValue.drawable) {
-        m_HudWorldValue.drawable->SetText(WorldLabel(m_World, m_Level));
-    }
-    if (m_HudTimeValue.drawable) {
-        m_HudTimeValue.drawable->SetText(PadNumber(static_cast<int>(std::floor(std::max(0.0f, m_LevelTimer))), 3));
-    }
-    if (m_HudCoinValue.drawable) {
-        m_HudCoinValue.drawable->SetText("x" + PadNumber(m_Coins, 2));
-    }
-    if (m_TitleTopScore.drawable) {
-        m_TitleTopScore.drawable->SetText("TOP- " + PadNumber(m_TopScore, 6));
-    }
-    if (m_IntroWorldText.drawable) {
-        m_IntroWorldText.drawable->SetText("WORLD  " + WorldLabel(m_World, m_Level));
-    }
-    if (m_IntroLivesText.drawable) {
-        m_IntroLivesText.drawable->SetText("x " + std::to_string(std::max(0, m_Lives)));
-    }
+    SetSpriteText(m_HudMarioLabel, "MARIO");
+    SetSpriteText(m_HudScoreValue, PadNumber(m_Score, 6));
+    SetSpriteText(m_HudWorldLabel, "WORLD");
+    SetSpriteText(m_HudWorldValue, WorldLabel(m_World, m_Level));
+    SetSpriteText(m_HudTimeLabel, "TIME");
+    SetSpriteText(m_HudTimeValue, PadNumber(static_cast<int>(std::floor(std::max(0.0f, m_LevelTimer))), 3));
+    SetSpriteText(m_HudCoinValue, "x" + PadNumber(m_Coins, 2));
+
+    SetSpriteText(m_TitleOption1, "1 PLAYER GAME");
+    SetSpriteText(m_TitleOption2, "2 PLAYER GAME");
+    SetSpriteText(m_TitleTopScore, "TOP-" + PadNumber(m_TopScore, 6));
+
+    SetSpriteText(m_IntroWorldText, "WORLD " + WorldLabel(m_World, m_Level));
+    SetSpriteText(m_IntroLivesText, "x " + std::to_string(std::max(0, m_Lives)));
 }
 
 void App::AddScore(int points) {
@@ -246,6 +401,59 @@ void App::AddScore(int points) {
     m_Score += points;
     m_TopScore = std::max(m_TopScore, m_Score);
     RefreshHudText();
+}
+
+void App::AwardPoints(int points, const glm::vec2& worldPosition, const std::string& popupText) {
+    if (points <= 0 && popupText.empty()) return;
+    if (points > 0) {
+        AddScore(points);
+    }
+    const std::string text = popupText.empty() ? std::to_string(points) : popupText;
+    if (!text.empty()) {
+        SpawnFloatingText(text, worldPosition);
+    }
+}
+
+void App::SpawnFloatingText(const std::string& text, const glm::vec2& worldPosition) {
+    FloatingText floatingText;
+    floatingText.value = text;
+    floatingText.worldPosition = worldPosition;
+    floatingText.lifetime = 0.85f;
+    floatingText.riseSpeed = 44.0f;
+    ConfigureSpriteText(
+        floatingText.text,
+        { worldPosition.x - m_ViewX, worldPosition.y + 28.0f },
+        { 2.5f, 2.5f },
+        2.0f,
+        0.0f,
+        UI_Z - 1.0f
+    );
+    SetSpriteText(floatingText.text, text);
+    m_FloatingTexts.push_back(std::move(floatingText));
+}
+
+void App::UpdateFloatingTexts(float dt) {
+    for (auto& floatingText : m_FloatingTexts) {
+        floatingText.lifetime = std::max(0.0f, floatingText.lifetime - dt);
+        floatingText.worldPosition.y += floatingText.riseSpeed * dt;
+        floatingText.text.position = { floatingText.worldPosition.x - m_ViewX, floatingText.worldPosition.y };
+        SetSpriteText(floatingText.text, floatingText.value);
+    }
+
+    m_FloatingTexts.erase(
+        std::remove_if(
+            m_FloatingTexts.begin(),
+            m_FloatingTexts.end(),
+            [](const FloatingText& floatingText) { return floatingText.lifetime <= 0.0f; }
+        ),
+        m_FloatingTexts.end()
+    );
+}
+
+void App::DrawFloatingTexts() {
+    for (const auto& floatingText : m_FloatingTexts) {
+        DrawSpriteText(floatingText.text);
+    }
 }
 
 void App::StartLevelIntro(float duration) {
@@ -264,6 +472,7 @@ void App::Start() {
     m_Fireballs.clear();
     m_Pickups.clear();
     m_Debris.clear();
+    m_FloatingTexts.clear();
     m_FireballCooldown = 0.0f;
     m_GoalSequenceStage = GoalSequenceStage::None;
     m_GoalSequenceTimer = 0.0f;
@@ -276,6 +485,8 @@ void App::Start() {
     m_Level = 1;
     m_LevelTimer = STARTING_TIMER;
     m_WasMarioDead = false;
+    m_TitleBlinkTimer = 0.0f;
+    m_TitleSelection = 0;
     m_SkyColor = Util::Color(
         static_cast<unsigned char>(SKY_BLUE_R),
         static_cast<unsigned char>(SKY_BLUE_G),
@@ -344,55 +555,82 @@ void App::Start() {
 }
 
 void App::DrawHud() {
-    m_HudCoinIcon->m_Transform.translation = { -150.0f, 304.0f };
-    DrawUiObject(m_HudMarioLabel.object);
-    DrawUiObject(m_HudScoreValue.object);
-    DrawUiObject(m_HudWorldLabel.object);
-    DrawUiObject(m_HudWorldValue.object);
-    DrawUiObject(m_HudTimeLabel.object);
-    DrawUiObject(m_HudTimeValue.object);
-    DrawUiObject(m_HudCoinIcon);
-    DrawUiObject(m_HudCoinValue.object);
+    if (m_HudCoinIcon.object != nullptr) {
+        m_HudCoinIcon.object->m_Transform.translation = {
+            m_HudCoinValue.position.x - 20.0f,
+            m_HudCoinValue.position.y + 2.0f
+        };
+    }
+    DrawSpriteText(m_HudMarioLabel);
+    DrawSpriteText(m_HudScoreValue);
+    DrawSpriteText(m_HudWorldLabel);
+    DrawSpriteText(m_HudWorldValue);
+    DrawSpriteText(m_HudTimeLabel);
+    DrawSpriteText(m_HudTimeValue);
+    DrawUiObject(m_HudCoinIcon.object);
+    DrawSpriteText(m_HudCoinValue);
 }
 
 void App::RenderTitleScreen() {
-    glClearColor(m_SkyColor.r / 255.0f, m_SkyColor.g / 255.0f, m_SkyColor.b / 255.0f, 1.0f);
-    m_HudCoinIcon->m_Transform.translation = { -150.0f, 304.0f };
-    DrawUiObject(m_HudMarioLabel.object);
-    DrawUiObject(m_HudScoreValue.object);
-    DrawUiObject(m_HudWorldLabel.object);
-    DrawUiObject(m_HudWorldValue.object);
-    DrawUiObject(m_HudTimeLabel.object);
-    DrawUiObject(m_HudCoinIcon);
-    DrawUiObject(m_HudCoinValue.object);
+    glClearColor(
+        TITLE_BG_R / 255.0f,
+        TITLE_BG_G / 255.0f,
+        TITLE_BG_B / 255.0f,
+        1.0f
+    );
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    if (m_TitleCoinIcon.object != nullptr) {
+        m_TitleCoinIcon.object->m_Transform.translation = {
+            m_HudCoinValue.position.x - 20.0f,
+            m_HudCoinValue.position.y + 2.0f
+        };
+    }
+
+    DrawSpriteText(m_HudMarioLabel);
+    DrawSpriteText(m_HudScoreValue);
+    DrawSpriteText(m_HudWorldLabel);
+    DrawSpriteText(m_HudWorldValue);
+    DrawSpriteText(m_HudTimeLabel);
+    DrawUiObject(m_TitleCoinIcon.object);
+    DrawSpriteText(m_HudCoinValue);
+
+    for (const auto& tile : m_TitleGroundTiles) {
+        DrawUiObject(tile);
+    }
     DrawUiObject(m_TitleMountain);
     DrawUiObject(m_TitleBush);
     DrawUiObject(m_TitleMario);
-    DrawUiObject(m_TitleLogo.object);
-    DrawUiObject(m_TitleCopyright.object);
-    DrawUiObject(m_TitleOption1.object);
-    DrawUiObject(m_TitleOption2.object);
-    DrawUiObject(m_TitleTopScore.object);
-    DrawUiObject(m_TitlePressStart.object);
+    DrawSpriteText(m_TitleOption1);
+    DrawSpriteText(m_TitleOption2);
+    DrawSpriteText(m_TitleTopScore);
+    DrawUiObject(m_TitleCursor);
 }
 
 void App::RenderLevelIntro() {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    m_HudCoinIcon->m_Transform.translation = { -150.0f, 304.0f };
-    DrawUiObject(m_HudMarioLabel.object);
-    DrawUiObject(m_HudScoreValue.object);
-    DrawUiObject(m_HudWorldLabel.object);
-    DrawUiObject(m_HudWorldValue.object);
-    DrawUiObject(m_HudTimeLabel.object);
-    DrawUiObject(m_HudCoinIcon);
-    DrawUiObject(m_HudCoinValue.object);
-    DrawUiObject(m_IntroWorldText.object);
+    glClear(GL_COLOR_BUFFER_BIT);
+    if (m_HudCoinIcon.object != nullptr) {
+        m_HudCoinIcon.object->m_Transform.translation = {
+            m_HudCoinValue.position.x - 20.0f,
+            m_HudCoinValue.position.y + 2.0f
+        };
+    }
+    DrawSpriteText(m_HudMarioLabel);
+    DrawSpriteText(m_HudScoreValue);
+    DrawSpriteText(m_HudWorldLabel);
+    DrawSpriteText(m_HudWorldValue);
+    DrawSpriteText(m_HudTimeLabel);
+    DrawUiObject(m_HudCoinIcon.object);
+    DrawSpriteText(m_HudCoinValue);
+    DrawSpriteText(m_IntroWorldText);
     DrawUiObject(m_IntroMario);
-    DrawUiObject(m_IntroLivesText.object);
+    DrawSpriteText(m_IntroLivesText);
 }
 
 void App::RenderGameplay() {
     glClearColor(m_SkyColor.r / 255.0f, m_SkyColor.g / 255.0f, m_SkyColor.b / 255.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
 
     if (g_MapManager) {
         g_MapManager->Draw(m_ViewX);
@@ -437,10 +675,28 @@ void App::RenderGameplay() {
         debris->m_Transform.translation = oldPos;
     }
 
+    DrawFloatingTexts();
+
     DrawHud();
 }
 
-void App::UpdateTitleScreen(float) {
+void App::UpdateTitleScreen(float dt) {
+    AdvanceAnimatedSprite(m_TitleCoinIcon, dt);
+    m_TitleBlinkTimer += dt;
+
+    if (Util::Input::IsKeyPressed(Util::Keycode::UP) ||
+        Util::Input::IsKeyPressed(Util::Keycode::DOWN) ||
+        Util::Input::IsKeyPressed(Util::Keycode::W) ||
+        Util::Input::IsKeyPressed(Util::Keycode::S)) {
+        m_TitleSelection = 1 - m_TitleSelection;
+    }
+
+    const float cursorY = (m_TitleSelection == 0) ? -138.0f : -194.0f;
+    if (m_TitleCursor != nullptr) {
+        m_TitleCursor->m_Transform.translation = { -166.0f, cursorY };
+        m_TitleCursor->SetVisible(std::fmod(m_TitleBlinkTimer, TITLE_CURSOR_BLINK_DURATION * 2.0f) < TITLE_CURSOR_BLINK_DURATION);
+    }
+
     if (Util::Input::IsKeyPressed(Util::Keycode::RETURN) ||
         Util::Input::IsKeyPressed(Util::Keycode::SPACE)) {
         StartLevelIntro(LEVEL_INTRO_DURATION);
@@ -450,6 +706,7 @@ void App::UpdateTitleScreen(float) {
 }
 
 void App::UpdateLevelIntro(float dt) {
+    AdvanceAnimatedSprite(m_HudCoinIcon, dt);
     m_LevelIntroTimer = std::max(0.0f, m_LevelIntroTimer - dt);
     if (m_LevelIntroTimer <= 0.0f) {
         m_ScreenState = ScreenState::Gameplay;
@@ -459,6 +716,8 @@ void App::UpdateLevelIntro(float dt) {
 }
 
 void App::UpdateGameplay(float dt) {
+    AdvanceAnimatedSprite(m_HudCoinIcon, dt);
+    UpdateFloatingTexts(dt);
     const bool powerupFreezeActive = m_Mario && m_Mario->IsTransforming();
     if (g_MapManager && !powerupFreezeActive) {
         g_MapManager->Update();
@@ -473,7 +732,7 @@ void App::UpdateGameplay(float dt) {
 
         glm::vec2 breakPos;
         while (g_MapManager && g_MapManager->PollBrickBreakEvent(breakPos)) {
-            AddScore(50);
+            AwardPoints(50, breakPos + glm::vec2(0.0f, 52.0f));
             m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::TopLeft));
             m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::TopRight));
             m_Debris.push_back(std::make_unique<Debris>(breakPos.x, breakPos.y, Debris::Piece::BottomLeft));
@@ -495,7 +754,7 @@ void App::UpdateGameplay(float dt) {
                     const float horizontalKnockback =
                         (enemy->m_Transform.translation.x >= breakPos.x) ? 80.0f : -80.0f;
                     enemy->KillFlipped(horizontalKnockback);
-                    AddScore(100);
+                    AwardPoints(100, enemy->m_Transform.translation);
                 }
             }
         }
@@ -503,7 +762,7 @@ void App::UpdateGameplay(float dt) {
         glm::vec2 coinPos;
         while (g_MapManager && g_MapManager->PollCoinCollectEvent(coinPos)) {
             ++m_Coins;
-            AddScore(100);
+            AwardPoints(100, coinPos);
         }
     }
 
@@ -568,6 +827,10 @@ void App::UpdateGameplay(float dt) {
             }
             for (auto& pickup : m_Pickups) {
                 pickup->Update();
+                if (pickup->GetType() == LootType::Coin && pickup->ConsumeAutoAward()) {
+                    ++m_Coins;
+                    AwardPoints(200, pickup->m_Transform.translation + glm::vec2(0.0f, 42.0f));
+                }
             }
             for (auto& debris : m_Debris) {
                 debris->Update();
@@ -640,11 +903,11 @@ void App::UpdateGameplay(float dt) {
 
             if (m_Mario->HasStarPower()) {
                 enemy->KillFlipped(110.0f * m_Mario->GetFacingDirection());
-                AddScore(100);
+                AwardPoints(100, enemy->m_Transform.translation);
             } else if (stomped) {
                 enemy->Stomp();
                 m_Mario->BounceAfterStomp();
-                AddScore(100);
+                AwardPoints(100, enemy->m_Transform.translation);
             } else if (!m_Mario->IsInvulnerable()) {
                 m_Mario->TakeEnemyHit();
                 break;
@@ -666,15 +929,16 @@ void App::UpdateGameplay(float dt) {
             const bool overlapY = marioTop > pickupBottom && marioBottom < pickupTop;
             if (overlapX && overlapY) {
                 const LootType type = pickup->GetType();
+                const glm::vec2 rewardPos = pickup->m_Transform.translation;
                 m_Mario->PowerUp(type);
                 if (type == LootType::Coin) {
                     ++m_Coins;
-                    AddScore(100);
+                    AwardPoints(100, rewardPos);
                 } else if (type == LootType::GreenMushroom) {
                     ++m_Lives;
-                    AddScore(1000);
+                    AwardPoints(1000, rewardPos, "1UP");
                 } else {
-                    AddScore(1000);
+                    AwardPoints(1000, rewardPos);
                 }
                 pickup->Collect();
                 RefreshHudText();
@@ -705,7 +969,7 @@ void App::UpdateGameplay(float dt) {
 
                 enemy->Stomp();
                 fireball->Explode();
-                AddScore(100);
+                AwardPoints(100, enemy->m_Transform.translation);
                 break;
             }
         }

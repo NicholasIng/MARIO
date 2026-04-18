@@ -29,6 +29,15 @@ constexpr float STAR_TRANSITION_DURATION = 0.5f;
 constexpr float STAR_TRANSITION_FRAME_INTERVAL = 0.06f;
 constexpr float STAR_POWER_DURATION = 10.0f;
 constexpr float STAR_FLASH_FRAME_INTERVAL = 0.08f;
+constexpr float SMB3_WALK_SPEED = 200.0f;
+constexpr float SMB3_RUN_SPEED = 400.0f;
+constexpr float SMB3_STAR_RUN_SPEED = 500.0f;
+constexpr float SMB3_GROUND_ACCEL = 1750.0f;
+constexpr float SMB3_GROUND_RUN_ACCEL = 1150.0f;
+constexpr float SMB3_AIR_ACCEL = 900.0f;
+constexpr float SMB3_STAR_ACCEL = 3000.0f;
+constexpr float SMB3_RELEASE_FRICTION = 1750.0f;
+constexpr float SMB3_TURN_BRAKE_DECEL = 2000.0f;
 
 enum class PaletteVariant {
     Normal,
@@ -240,14 +249,14 @@ void ClampGrowthToAvailableHeadroom(glm::vec2& center, float originalY, const gl
 Mario::Mario()
     : m_VelocityX(0.0f),
       m_VelocityY(0.0f),
-      m_Acceleration(1700.0f),
-      m_MaxSpeed(350.0f),
-      m_Friction(1000.0f),
-      m_Gravity(-2200.0f),
-      m_JumpForce(700.0f),
+      m_Acceleration(SMB3_GROUND_ACCEL),
+      m_MaxSpeed(SMB3_RUN_SPEED),
+      m_Friction(SMB3_RELEASE_FRICTION),
+      m_Gravity(-2250.0f),
+      m_JumpForce(720.0f),
       m_OnGround(false),
       m_JumpTimer(0.0f),
-      m_MaxJumpTime(0.25f) {
+      m_MaxJumpTime(0.22f) {
 
     m_SmallAnimations[AnimState::IDLE] = std::make_unique<Animation>(
         std::vector<std::string>{
@@ -817,26 +826,51 @@ void Mario::Update() {
         m_Transform.translation.y += m_IsCrouching ? -delta : delta;
     }
 
-    bool isMoving = false;
-    if (!m_IsCrouching) {
-        if (moveLeft && !moveRight) {
-            m_VelocityX -= m_Acceleration * dt;
-            isMoving = true;
-            m_Transform.scale.x = -std::abs(m_Transform.scale.x);
+    const float inputDirection =
+        (!m_IsCrouching && moveLeft && !moveRight) ? -1.0f :
+        (!m_IsCrouching && moveRight && !moveLeft) ? 1.0f :
+        0.0f;
+    const bool hasDirectionalInput = inputDirection != 0.0f;
+    const bool starSpeedActive = HasStarPower();
+    const float activeWalkSpeed = starSpeedActive ? SMB3_WALK_SPEED + 20.0f : SMB3_WALK_SPEED;
+    const float activeRunSpeed = starSpeedActive ? SMB3_STAR_RUN_SPEED : m_MaxSpeed;
+    const float activeGroundAccel = starSpeedActive ? SMB3_STAR_ACCEL : m_Acceleration;
+    const float activeGroundRunAccel = starSpeedActive ? (SMB3_GROUND_RUN_ACCEL + 220.0f) : SMB3_GROUND_RUN_ACCEL;
+    const float activeAirAccel = starSpeedActive ? (SMB3_AIR_ACCEL + 140.0f) : SMB3_AIR_ACCEL;
+    const float activeFriction = starSpeedActive ? (m_Friction + 180.0f) : m_Friction;
+    const float activeTurnBrake = starSpeedActive ? (SMB3_TURN_BRAKE_DECEL + 320.0f) : SMB3_TURN_BRAKE_DECEL;
+    m_IsBraking = false;
+
+    if (hasDirectionalInput) {
+        const bool turningAgainstMomentum = (m_VelocityX * inputDirection) < -1.0f;
+        const float currentAbsSpeed = std::abs(m_VelocityX);
+        const float acceleration =
+            m_OnGround
+                ? (currentAbsSpeed < activeWalkSpeed ? activeGroundAccel : activeGroundRunAccel)
+                : activeAirAccel;
+
+        if (turningAgainstMomentum && m_OnGround) {
+            m_IsBraking = currentAbsSpeed > 10.0f;
+            m_VelocityX += inputDirection * activeTurnBrake * dt;
+        } else {
+            m_VelocityX += inputDirection * acceleration * dt;
         }
-        else if (moveRight && !moveLeft) {
-            m_VelocityX += m_Acceleration * dt;
-            isMoving = true;
-            m_Transform.scale.x = std::abs(m_Transform.scale.x);
+
+        if (!m_IsBraking) {
+            m_Transform.scale.x =
+                (inputDirection < 0.0f) ? -std::abs(m_Transform.scale.x) : std::abs(m_Transform.scale.x);
         }
+    } else if (m_OnGround) {
+        if (m_VelocityX > 0.0f) m_VelocityX = std::max(0.0f, m_VelocityX - activeFriction * dt);
+        else if (m_VelocityX < 0.0f) m_VelocityX = std::min(0.0f, m_VelocityX + activeFriction * dt);
     }
 
-    if (!isMoving && m_OnGround) {
-        if (m_VelocityX > 0) m_VelocityX = std::max(0.0f, m_VelocityX - m_Friction * dt);
-        else if (m_VelocityX < 0) m_VelocityX = std::min(0.0f, m_VelocityX + m_Friction * dt);
+    if (m_OnGround && hasDirectionalInput && (m_VelocityX * inputDirection) < 0.0f &&
+        std::abs(m_VelocityX) < 8.0f) {
+        m_VelocityX = 0.0f;
     }
 
-    m_VelocityX = std::clamp(m_VelocityX, -m_MaxSpeed, m_MaxSpeed);
+    m_VelocityX = std::clamp(m_VelocityX, -activeRunSpeed, activeRunSpeed);
 
     if (m_TransformType == TransformType::None &&
         !m_IsCrouching && Util::Input::IsKeyDown(Util::Keycode::SPACE) && m_OnGround) {
@@ -1108,13 +1142,9 @@ void Mario::HandleAnimation(float dt) {
 
     if (!m_OnGround) m_AnimState = AnimState::JUMP;
     else if (m_IsCrouching) m_AnimState = AnimState::CROUCH;
+    else if (m_IsBraking) m_AnimState = AnimState::BRAKE;
     else if (std::abs(m_VelocityX) > 20.0f) {
-        if (m_VelocityX > 100.0f && Util::Input::IsKeyPressed(Util::Keycode::A))
-            m_AnimState = AnimState::BRAKE;
-        else if (m_VelocityX < -100.0f && Util::Input::IsKeyPressed(Util::Keycode::D))
-            m_AnimState = AnimState::BRAKE;
-        else
-            m_AnimState = AnimState::WALK;
+        m_AnimState = AnimState::WALK;
     }
     else {
         m_AnimState = AnimState::IDLE;
