@@ -11,7 +11,7 @@ extern std::unique_ptr<MapManager> g_MapManager;
 
 namespace {
 
-constexpr float FIREBALL_SPEED = 330.0f;
+constexpr float FIREBALL_SPEED = 500.0f;
 constexpr float FIREBALL_GRAVITY = -1600.0f;
 constexpr float FIREBALL_BOUNCE_SPEED = 520.0f;
 constexpr float FIREBALL_LIFETIME = 0.24f;
