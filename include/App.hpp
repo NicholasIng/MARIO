@@ -8,9 +8,11 @@
 #include "Fireball.hpp"
 #include "Pickup.hpp"
 #include "Debris.hpp"
+#include "Util/BGM.hpp"
 #include "Util/Color.hpp"
 #include "Util/GameObject.hpp"
 #include "Util/Image.hpp"
+#include "Util/SFX.hpp"
 #include <memory>
 #include <string>
 #include <vector>
@@ -26,18 +28,22 @@ public:
 
 private:
     enum class GoalSequenceStage { None, Sliding, PlayerControl, Entering, Finished };
-    enum class ScreenState { Title, LevelIntro, Gameplay };
+    enum class ScreenState { Title, LevelIntro, Gameplay, Paused, StatusMessage };
+    enum class StatusMessageAction { None, ReloadLevel, ShowGameOver, RestartToTitle };
+    enum class MusicTrack { None, GroundTheme };
     struct PendingEnemySpawn {
         glm::vec2 position;
         bool activated = false;
     };
     struct SpriteText {
         std::vector<std::shared_ptr<Util::GameObject>> glyphs;
+        std::string content;
         glm::vec2 position = { 0.0f, 0.0f };
         glm::vec2 scale = { 1.0f, 1.0f };
         float spacing = 0.0f;
         float lineHeight = 0.0f;
         float zIndex = 50.0f;
+        bool layoutDirty = true;
     };
     struct AnimatedSprite {
         std::vector<std::shared_ptr<Util::Image>> frames;
@@ -52,6 +58,32 @@ private:
         glm::vec2 worldPosition = { 0.0f, 0.0f };
         float lifetime = 0.0f;
         float riseSpeed = 0.0f;
+    };
+    struct AudioBank {
+        std::unique_ptr<Util::BGM> groundTheme;
+        std::unique_ptr<Util::SFX> oneUp;
+        std::unique_ptr<Util::SFX> bowserFalls;
+        std::unique_ptr<Util::SFX> bowserFire;
+        std::unique_ptr<Util::SFX> breakBlock;
+        std::unique_ptr<Util::SFX> bump;
+        std::unique_ptr<Util::SFX> coin;
+        std::unique_ptr<Util::SFX> fireball;
+        std::unique_ptr<Util::SFX> fireworks;
+        std::unique_ptr<Util::SFX> flagpole;
+        std::unique_ptr<Util::SFX> gameOver;
+        std::unique_ptr<Util::SFX> jumpSmall;
+        std::unique_ptr<Util::SFX> jumpSuper;
+        std::unique_ptr<Util::SFX> kick;
+        std::unique_ptr<Util::SFX> marioDie;
+        std::unique_ptr<Util::SFX> pause;
+        std::unique_ptr<Util::SFX> pipe;
+        std::unique_ptr<Util::SFX> powerUp;
+        std::unique_ptr<Util::SFX> powerUpAppears;
+        std::unique_ptr<Util::SFX> stageClear;
+        std::unique_ptr<Util::SFX> stomp;
+        std::unique_ptr<Util::SFX> vine;
+        std::unique_ptr<Util::SFX> warning;
+        std::unique_ptr<Util::SFX> worldClear;
     };
 
     State m_CurrentState = State::START;
@@ -80,14 +112,26 @@ private:
     int m_World = 1;
     int m_Level = 1;
     float m_LevelTimer = 400.0f;
+    int m_DisplayedLevelTime = 400;
     float m_LevelIntroTimer = 0.0f;
+    float m_StatusMessageTimer = 0.0f;
     float m_TitleBlinkTimer = 0.0f;
+    MusicTrack m_ActiveMusic = MusicTrack::None;
     bool m_WasMarioDead = false;
+    bool m_DeathWasTimeout = false;
+    bool m_LowTimeWarningPlayed = false;
+    bool m_GoalCelebrationPlayed = false;
     Util::Color m_SkyColor = Util::Color(90, 147, 235, 255);
     int m_TitleSelection = 0;
+    AudioBank m_Audio;
     AnimatedSprite m_HudCoinIcon;
     AnimatedSprite m_TitleCoinIcon;
+    std::shared_ptr<Util::GameObject> m_TitleLogoImage;
+    std::shared_ptr<Util::GameObject> m_TitleNintendoText;
+    std::shared_ptr<Util::GameObject> m_TitleCloudLeft;
+    std::shared_ptr<Util::GameObject> m_TitleCloudRight;
     std::shared_ptr<Util::GameObject> m_TitleMountain;
+    std::shared_ptr<Util::GameObject> m_TitleBushLeft;
     std::shared_ptr<Util::GameObject> m_TitleBush;
     std::shared_ptr<Util::GameObject> m_TitleMario;
     std::shared_ptr<Util::GameObject> m_IntroMario;
@@ -100,13 +144,13 @@ private:
     SpriteText m_HudTimeLabel;
     SpriteText m_HudTimeValue;
     SpriteText m_HudCoinValue;
-    SpriteText m_TitleLogoShadow;
-    SpriteText m_TitleLogo;
     SpriteText m_TitleOption1;
     SpriteText m_TitleOption2;
     SpriteText m_TitleTopScore;
     SpriteText m_IntroWorldText;
     SpriteText m_IntroLivesText;
+    SpriteText m_StatusMessageText;
+    StatusMessageAction m_StatusMessageAction = StatusMessageAction::None;
     std::vector<FloatingText> m_FloatingTexts;
 
     void StartGoalSequence();
@@ -114,11 +158,16 @@ private:
     void ActivateNearbyEnemies();
     void UpdateTitleScreen(float dt);
     void UpdateLevelIntro(float dt);
+    void UpdatePaused(float dt);
+    void UpdateStatusMessage(float dt);
     void UpdateGameplay(float dt);
     void RenderTitleScreen();
     void RenderLevelIntro();
+    void RenderPaused();
+    void RenderStatusMessage();
     void RenderGameplay();
     void InitializeUi();
+    void InitializeAudio();
     void InitializeAnimatedSprite(AnimatedSprite& sprite,
                                   const std::vector<std::string>& framePaths,
                                   const glm::vec2& position,
@@ -132,12 +181,24 @@ private:
                              float spacing,
                              float lineHeight,
                              float zIndex);
+    void LayoutSpriteText(SpriteText& spriteText);
     void SetSpriteText(SpriteText& spriteText, const std::string& text);
     void DrawSpriteText(const SpriteText& spriteText) const;
     std::string GetFontSpritePath(char character) const;
     void DrawHud();
     void DrawUiObject(const std::shared_ptr<Util::GameObject>& object) const;
     void RefreshHudText();
+    void ResetGameSession();
+    void LoadLevel();
+    void HandleMarioDeath();
+    void TogglePause();
+    void PlayTitleMusic();
+    void PlayGameplayMusic(bool restart = false);
+    void StopMusic(int fadeMs = 0);
+    void PauseMusic();
+    void ResumeMusic();
+    void PlaySfx(Util::SFX* sfx, int loop = 0, int duration = -1);
+    void BeginStatusMessage(const std::string& message, float duration, StatusMessageAction action);
     void AddScore(int points);
     void AwardPoints(int points, const glm::vec2& worldPosition, const std::string& popupText = "");
     void SpawnFloatingText(const std::string& text, const glm::vec2& worldPosition);

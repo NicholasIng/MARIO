@@ -26,7 +26,6 @@ private:
     static constexpr float RISE_DURATION = 0.3f;
     static constexpr float COIN_POP_DURATION = 0.5f;
     static constexpr float COIN_POP_HEIGHT = 88.0f;
-    static constexpr float SPAWN_SLIDE_DISTANCE = 20.0f;
 
     std::shared_ptr<Util::Image> m_Image;
     std::unique_ptr<Animation> m_Animation;

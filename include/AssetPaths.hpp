@@ -19,4 +19,8 @@ inline std::string Image(const std::string& relativePath) {
     return (ResourceRoot() / "image" / std::filesystem::path(relativePath)).string();
 }
 
+inline std::string Sound(const std::string& relativePath) {
+    return (ResourceRoot() / "image" / "Sound" / std::filesystem::path(relativePath)).string();
+}
+
 } // namespace AssetPaths
