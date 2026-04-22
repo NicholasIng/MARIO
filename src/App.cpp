@@ -29,6 +29,7 @@ constexpr float CASTLE_TARGET_HEIGHT_TILES = 6.0f;
 constexpr float CASTLE_OFFSET_TILES = 7.0f;
 constexpr float CASTLE_END_INSET_TILES = 1.0f;
 constexpr float GOAL_FINISH_DELAY = 1.2f;
+constexpr float TIME_BONUS_TICK_DURATION = 0.035f;
 constexpr float ENEMY_SPAWN_RANGE_X = WINDOW_WIDTH * 0.75f;
 constexpr float LEVEL_INTRO_DURATION = 1.75f;
 constexpr float FONT_GLYPH_SIZE = 8.0f;
@@ -126,7 +127,6 @@ void App::StartGoalSequence() {
     m_GoalCelebrationPlayed = false;
     m_Fireballs.clear();
     m_FireballCooldown = 0.0f;
-    AddScore(static_cast<int>(std::max(0.0f, m_LevelTimer)) * 10);
     StopMusic(250);
     PlaySfx(m_Audio.flagpole.get());
     PlaySfx(m_Audio.worldClear.get());
@@ -183,14 +183,16 @@ void App::UpdateGoalSequence(float dt) {
         g_MapManager->SetFlagY(nextFlagY);
         if (m_Mario->IsGoalSequenceFinished()) {
             g_MapManager->SetFlagY(g_MapManager->GetFlagBottomY());
+            m_Mario->StartGoalWalk(m_CastleDoorX);
             m_GoalSequenceStage = GoalSequenceStage::PlayerControl;
         }
     } else if (m_GoalSequenceStage == GoalSequenceStage::PlayerControl) {
-        if (m_Mario->m_Transform.translation.x >= m_CastleDoorX) {
+        m_Mario->Update();
+        if (m_Mario->HasReachedGoalWalkTarget()) {
             m_Mario->m_Transform.translation.x = m_CastleDoorX;
             m_Mario->SetVisible(false);
             m_GoalSequenceStage = GoalSequenceStage::Entering;
-            m_GoalSequenceTimer = GOAL_FINISH_DELAY;
+            m_GoalSequenceTimer = 0.0f;
             if (!m_GoalCelebrationPlayed) {
                 m_GoalCelebrationPlayed = true;
                 PlaySfx(m_Audio.pipe.get());
@@ -199,10 +201,25 @@ void App::UpdateGoalSequence(float dt) {
             }
         }
     } else if (m_GoalSequenceStage == GoalSequenceStage::Entering) {
-        m_GoalSequenceTimer = std::max(0.0f, m_GoalSequenceTimer - dt);
-        if (m_GoalSequenceTimer <= 0.0f) {
-            m_GoalSequenceStage = GoalSequenceStage::Finished;
-            m_CurrentState = State::END;
+        if (m_DisplayedLevelTime > 0) {
+            m_GoalSequenceTimer += dt;
+            while (m_GoalSequenceTimer >= TIME_BONUS_TICK_DURATION && m_DisplayedLevelTime > 0) {
+                m_GoalSequenceTimer -= TIME_BONUS_TICK_DURATION;
+                --m_DisplayedLevelTime;
+                m_LevelTimer = static_cast<float>(m_DisplayedLevelTime);
+                SetSpriteText(m_HudTimeValue, PadNumber(m_DisplayedLevelTime, 3));
+                AddScore(50);
+            }
+
+            if (m_DisplayedLevelTime <= 0) {
+                m_GoalSequenceTimer = GOAL_FINISH_DELAY;
+            }
+        } else {
+            m_GoalSequenceTimer = std::max(0.0f, m_GoalSequenceTimer - dt);
+            if (m_GoalSequenceTimer <= 0.0f) {
+                m_GoalSequenceStage = GoalSequenceStage::Finished;
+                m_CurrentState = State::END;
+            }
         }
     }
 }
@@ -1009,10 +1026,10 @@ void App::UpdateTitleScreen(float dt) {
     AdvanceAnimatedSprite(m_TitleCoinIcon, dt);
     m_TitleBlinkTimer += dt;
 
-    if (Util::Input::IsKeyPressed(Util::Keycode::UP) ||
-        Util::Input::IsKeyPressed(Util::Keycode::DOWN) ||
-        Util::Input::IsKeyPressed(Util::Keycode::W) ||
-        Util::Input::IsKeyPressed(Util::Keycode::S)) {
+    if (Util::Input::IsKeyDown(Util::Keycode::UP) ||
+        Util::Input::IsKeyDown(Util::Keycode::DOWN) ||
+        Util::Input::IsKeyDown(Util::Keycode::W) ||
+        Util::Input::IsKeyDown(Util::Keycode::S)) {
         m_TitleSelection = 1 - m_TitleSelection;
         PlaySfx(m_Audio.bump.get());
     }
@@ -1138,8 +1155,7 @@ void App::UpdateGameplay(float dt) {
     }
 
     const bool goalSequenceActive = m_GoalSequenceStage != GoalSequenceStage::None;
-    const bool manualGoalControl = m_GoalSequenceStage == GoalSequenceStage::PlayerControl;
-    const bool autoGoalSequence = goalSequenceActive && !manualGoalControl;
+    const bool autoGoalSequence = goalSequenceActive;
     if (autoGoalSequence) {
         UpdateGoalSequence(dt);
     } else {
@@ -1399,13 +1415,6 @@ void App::UpdateGameplay(float dt) {
             m_Mario->m_Transform.translation.x >= g_MapManager->GetGoalX()) {
             StartGoalSequence();
         }
-    }
-
-    if (m_GoalSequenceStage == GoalSequenceStage::Entering) {
-        UpdateGoalSequence(dt);
-    }
-    if (m_GoalSequenceStage == GoalSequenceStage::PlayerControl) {
-        UpdateGoalSequence(dt);
     }
 
     m_Enemies.erase(

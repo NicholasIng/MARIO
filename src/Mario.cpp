@@ -774,12 +774,23 @@ void Mario::Update() {
 
     bool moveLeft = Util::Input::IsKeyPressed(Util::Keycode::A);
     bool moveRight = Util::Input::IsKeyPressed(Util::Keycode::D);
+    if (m_GoalWalkActive && !m_GoalWalkReached) {
+        moveLeft = false;
+        moveRight = m_Transform.translation.x < (m_GoalWalkTargetX - 0.5f);
+        if (!moveRight) {
+            m_GoalWalkActive = false;
+            m_GoalWalkReached = true;
+            m_VelocityX = 0.0f;
+        }
+    }
     if (m_TransformType == TransformType::SmallBigTransition) {
         moveLeft = false;
         moveRight = false;
     }
     const bool wasCrouching = m_IsCrouching;
-    const bool wantsCrouch = Util::Input::IsKeyPressed(Util::Keycode::S);
+    const bool wantsCrouch =
+        !(m_GoalWalkActive && !m_GoalWalkReached) &&
+        Util::Input::IsKeyPressed(Util::Keycode::S);
     if (wantsCrouch && m_OnGround) {
         m_IsCrouching = true;
     } else if (IsBig() && m_IsCrouching && g_MapManager) {
@@ -859,8 +870,12 @@ void Mario::Update() {
 
     m_VelocityX = std::clamp(m_VelocityX, -activeRunSpeed, activeRunSpeed);
 
-    const bool jumpPressed = Util::Input::IsKeyDown(Util::Keycode::SPACE);
-    const bool jumpHeld = Util::Input::IsKeyPressed(Util::Keycode::SPACE);
+    const bool jumpPressed =
+        !(m_GoalWalkActive && !m_GoalWalkReached) &&
+        Util::Input::IsKeyDown(Util::Keycode::SPACE);
+    const bool jumpHeld =
+        !(m_GoalWalkActive && !m_GoalWalkReached) &&
+        Util::Input::IsKeyPressed(Util::Keycode::SPACE);
 
     if (m_TransformType == TransformType::None &&
         !m_IsCrouching && jumpPressed && m_OnGround) {
@@ -1016,6 +1031,13 @@ void Mario::Update() {
     m_Transform.translation.x = candidateX;
     m_Transform.translation.y = candidateY;
 
+    if (m_GoalWalkActive && m_Transform.translation.x >= m_GoalWalkTargetX - 0.5f) {
+        m_Transform.translation.x = m_GoalWalkTargetX;
+        m_VelocityX = 0.0f;
+        m_GoalWalkActive = false;
+        m_GoalWalkReached = true;
+    }
+
     if (g_MapManager) {
         float tileSize = g_MapManager->GetTileSize();
         float mapLeft = -(g_MapManager->GetWidth() * tileSize) / 2.0f;
@@ -1058,6 +1080,8 @@ void Mario::Die(bool launchUpward) {
     m_PowerDownLockTimer = 0.0f;
     m_TransformType = TransformType::None;
     m_GoalSequenceState = GoalSequenceState::None;
+    m_GoalWalkActive = false;
+    m_GoalWalkReached = false;
     SetVisible(launchUpward);
     if (launchUpward) {
         m_Image->SetImage(m_DeathFramePath);
@@ -1068,6 +1092,18 @@ void Mario::BounceAfterStomp() {
     m_VelocityY = m_JumpForce * 0.6f;
     m_OnGround = false;
     m_JumpTimer = 0.0f;
+}
+
+void Mario::StartGoalWalk(float targetX) {
+    m_GoalWalkTargetX = targetX;
+    m_GoalWalkActive = true;
+    m_GoalWalkReached = false;
+    m_VelocityX = 0.0f;
+    m_VelocityY = 0.0f;
+    m_JumpTimer = 0.0f;
+    m_IsCrouching = false;
+    m_Transform.scale.x = std::abs(m_Transform.scale.x);
+    ActiveAnimations().at(AnimState::WALK)->Reset();
 }
 
 void Mario::StartGoalSequence(float poleX, float flagX, float flagBottomY, float groundY, float slideStartY) {
@@ -1088,6 +1124,8 @@ void Mario::StartGoalSequence(float poleX, float flagX, float flagBottomY, float
     m_VelocityY = 0.0f;
     m_JumpTimer = 0.0f;
     m_OnGround = false;
+    m_GoalWalkActive = false;
+    m_GoalWalkReached = false;
     m_GoalSequenceState = GoalSequenceState::SlideDownFlag;
     m_Transform.scale.x = std::abs(m_Transform.scale.x);
     m_Transform.translation.x = m_GoalFlagX + FLAG_SLIDE_OFFSET_X;

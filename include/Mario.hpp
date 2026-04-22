@@ -23,11 +23,13 @@ public:
     void Die(bool launchUpward = true);
     void BounceAfterStomp();
     void StartGoalSequence(float poleX, float flagX, float flagBottomY, float groundY, float slideStartY);
+    void StartGoalWalk(float targetX);
     bool IsGoalSequenceActive() const {
         return m_GoalSequenceState != GoalSequenceState::None &&
                m_GoalSequenceState != GoalSequenceState::Finished;
     }
     bool IsGoalSequenceFinished() const { return m_GoalSequenceState == GoalSequenceState::Finished; }
+    bool HasReachedGoalWalkTarget() const { return m_GoalWalkReached; }
     float GetFacingDirection() const { return m_Transform.scale.x >= 0.0f ? 1.0f : -1.0f; }
     float GetRenderOffsetY() const;
     glm::vec2 GetFireballSpawnPosition() const;
@@ -79,6 +81,9 @@ private:
     float m_GoalFlagBottomY = 0.0f;
     float m_GoalGroundY = 0.0f;
     float m_GoalSlideStartY = 0.0f;
+    float m_GoalWalkTargetX = 0.0f;
+    bool m_GoalWalkActive = false;
+    bool m_GoalWalkReached = false;
 
     AnimState m_AnimState = AnimState::IDLE;
     std::map<AnimState, std::unique_ptr<Animation>> m_SmallAnimations;
