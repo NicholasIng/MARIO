@@ -71,17 +71,21 @@ void Pickup::Update() {
         return;
     }
 
-    UpdateRise(dt);
     if (m_RiseElapsed < RISE_DURATION) {
-        return;
+        UpdateRise(dt);
+        if (m_RiseElapsed < RISE_DURATION) {
+            return;
+        }
     }
 
-    if (m_Type == LootType::FireFlower) return;
+    // Once the scripted rise finishes, stop pinning the pickup to its spawn
+    // point so physics and horizontal movement can take over normally.
+    m_Transform.scale = { BASE_SCALE, BASE_SCALE };
 
     if (!g_MapManager) return;
 
     const float gravity = -1800.0f;
-    const float moveSpeed = 90.0f;
+    const float moveSpeed = (m_Type == LootType::Star) ? 155.0f : 120.0f;
     const glm::vec2 half = GetHalfExtents();
     const float tileSize = g_MapManager->GetTileSize();
     const float mapLeft = g_MapManager->GetWorldLeft();
@@ -152,11 +156,17 @@ void Pickup::Update() {
     }
     m_Transform.translation.y = candidateY;
 
-    if (!m_HasLanded) return;
+    if (m_Type == LootType::FireFlower) {
+        if (m_HasLanded && hasGroundSupport(m_Transform.translation.x, m_Transform.translation.y)) {
+            m_VelocityY = 0.0f;
+        } else {
+            m_HasLanded = false;
+        }
+        return;
+    }
 
     if (!hasGroundSupport(m_Transform.translation.x, m_Transform.translation.y)) {
         m_HasLanded = false;
-        return;
     }
 
     const float candidateX = m_Transform.translation.x + m_HorizontalDirection * moveSpeed * dt;
@@ -209,15 +219,10 @@ void Pickup::UpdateRise(float dt) {
     m_RiseElapsed = std::min(RISE_DURATION, m_RiseElapsed + dt);
     const float progress = (RISE_DURATION <= 0.0f) ? 1.0f : (m_RiseElapsed / RISE_DURATION);
 
-    // Grow the sprite upward while it rises so it feels like it is emerging
-    // from inside the block instead of teleporting above it.
+    // Let pickups emerge straight out of the block first.
     const float visibleScaleY = std::max(0.01f, BASE_SCALE * progress);
     m_Transform.scale = { BASE_SCALE, visibleScaleY };
-    if (m_Type == LootType::RedMushroom ||
-        m_Type == LootType::GreenMushroom ||
-        m_Type == LootType::Star) {
-        m_Transform.translation.x = m_SpawnStartX + SPAWN_SLIDE_DISTANCE * progress;
-    }
+    m_Transform.translation.x = m_SpawnStartX;
     m_Transform.translation.y = m_SpawnStartY + RISE_DISTANCE * progress * 0.5f;
 }
 

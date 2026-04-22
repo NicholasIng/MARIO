@@ -32,12 +32,13 @@ constexpr float STAR_FLASH_FRAME_INTERVAL = 0.08f;
 constexpr float SMB3_WALK_SPEED = 200.0f;
 constexpr float SMB3_RUN_SPEED = 400.0f;
 constexpr float SMB3_STAR_RUN_SPEED = 500.0f;
-constexpr float SMB3_GROUND_ACCEL = 1750.0f;
-constexpr float SMB3_GROUND_RUN_ACCEL = 1150.0f;
+constexpr float SMB3_GROUND_ACCEL = 1500.0f;
+constexpr float SMB3_GROUND_RUN_ACCEL = 1100.0f;
 constexpr float SMB3_AIR_ACCEL = 900.0f;
-constexpr float SMB3_STAR_ACCEL = 3000.0f;
+constexpr float SMB3_STAR_ACCEL = 2700.0f;
 constexpr float SMB3_RELEASE_FRICTION = 1750.0f;
 constexpr float SMB3_TURN_BRAKE_DECEL = 2000.0f;
+constexpr float SMB3_JUMP_HOLD_FORCE = 1700.0f;
 
 enum class PaletteVariant {
     Normal,
@@ -253,10 +254,10 @@ Mario::Mario()
       m_MaxSpeed(SMB3_RUN_SPEED),
       m_Friction(SMB3_RELEASE_FRICTION),
       m_Gravity(-2250.0f),
-      m_JumpForce(720.0f),
+      m_JumpForce(750.0f),
       m_OnGround(false),
       m_JumpTimer(0.0f),
-      m_MaxJumpTime(0.22f) {
+      m_MaxJumpTime(0.18f) {
 
     m_SmallAnimations[AnimState::IDLE] = std::make_unique<Animation>(
         std::vector<std::string>{
@@ -705,23 +706,9 @@ void Mario::Update() {
     if (m_IsDead) {
         m_VelocityY += m_Gravity * dt;
         m_Transform.translation.y += m_VelocityY * dt;
-        m_RespawnTimer -= dt;
+        m_RespawnTimer = std::max(0.0f, m_RespawnTimer - dt);
         if (m_RespawnTimer <= 0.0f) {
-            m_IsDead = false;
-            m_VelocityX = 0.0f;
-            m_VelocityY = 0.0f;
-            m_OnGround = false;
-            m_IsCrouching = false;
-            m_JumpTimer = 0.0f;
-            m_InvulnerabilityTimer = 0.0f;
-            m_StarPowerTimer = 0.0f;
-            m_PowerDownLockTimer = 0.0f;
-            m_PowerState = PowerState::Small;
-            m_AnimState = AnimState::IDLE;
-            ResetAnimations();
-            SetVisible(true);
-            m_Transform.translation = m_SpawnPosition;
-            m_Image->SetImage(ActiveAnimations().at(AnimState::IDLE)->GetCurrentFramePath());
+            m_DeathFinished = true;
         }
         return;
     }
@@ -872,19 +859,21 @@ void Mario::Update() {
 
     m_VelocityX = std::clamp(m_VelocityX, -activeRunSpeed, activeRunSpeed);
 
+    const bool jumpPressed = Util::Input::IsKeyDown(Util::Keycode::SPACE);
+    const bool jumpHeld = Util::Input::IsKeyPressed(Util::Keycode::SPACE);
+
     if (m_TransformType == TransformType::None &&
-        !m_IsCrouching && Util::Input::IsKeyDown(Util::Keycode::SPACE) && m_OnGround) {
+        !m_IsCrouching && jumpPressed && m_OnGround) {
         m_VelocityY = m_JumpForce;
         m_OnGround = false;
         m_JumpTimer = m_MaxJumpTime;
     }
 
-    if (m_TransformType == TransformType::None &&
-        Util::Input::IsKeyPressed(Util::Keycode::SPACE) && m_JumpTimer > 0.0f) {
-        m_VelocityY = m_JumpForce;
-        m_JumpTimer -= dt;
-    }
-    else {
+    else if (m_TransformType == TransformType::None &&
+             jumpHeld && m_JumpTimer > 0.0f && m_VelocityY > 0.0f) {
+        m_VelocityY += SMB3_JUMP_HOLD_FORCE * dt;
+        m_JumpTimer = std::max(0.0f, m_JumpTimer - dt);
+    } else {
         m_JumpTimer = 0.0f;
     }
 
@@ -1046,7 +1035,7 @@ void Mario::Update() {
 
         const float mapBottom = -(g_MapManager->GetHeight() * tileSize) / 2.0f;
         if (!m_IsDead && (m_Transform.translation.y + halfHeight) < mapBottom) {
-            Die();
+            Die(false);
             return;
         }
     }
@@ -1054,16 +1043,25 @@ void Mario::Update() {
     HandleAnimation(dt);
 }
 
-void Mario::Die() {
+void Mario::Die(bool launchUpward) {
     if (m_IsDead) return;
     m_IsDead = true;
-    m_RespawnTimer = 1.25f;
+    m_DeathFinished = false;
+    m_RespawnTimer = launchUpward ? 1.25f : 0.75f;
     m_VelocityX = 0.0f;
-    m_VelocityY = 900.0f;
+    m_VelocityY = launchUpward ? 900.0f : 0.0f;
     m_IsCrouching = false;
     m_OnGround = false;
-    SetVisible(true);
-    m_Image->SetImage(m_DeathFramePath);
+    m_JumpTimer = 0.0f;
+    m_InvulnerabilityTimer = 0.0f;
+    m_StarPowerTimer = 0.0f;
+    m_PowerDownLockTimer = 0.0f;
+    m_TransformType = TransformType::None;
+    m_GoalSequenceState = GoalSequenceState::None;
+    SetVisible(launchUpward);
+    if (launchUpward) {
+        m_Image->SetImage(m_DeathFramePath);
+    }
 }
 
 void Mario::BounceAfterStomp() {

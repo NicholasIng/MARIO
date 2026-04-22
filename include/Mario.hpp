@@ -20,7 +20,7 @@ public:
     void SetSpawnPosition(const glm::vec2& spawn) { m_SpawnPosition = spawn; }
     void PowerUp(LootType type);
     void TakeEnemyHit();
-    void Die();
+    void Die(bool launchUpward = true);
     void BounceAfterStomp();
     void StartGoalSequence(float poleX, float flagX, float flagBottomY, float groundY, float slideStartY);
     bool IsGoalSequenceActive() const {
@@ -32,11 +32,13 @@ public:
     float GetRenderOffsetY() const;
     glm::vec2 GetFireballSpawnPosition() const;
     bool IsDead() const { return m_IsDead; }
+    bool IsDeathSequenceFinished() const { return m_DeathFinished; }
     bool IsBig() const { return m_PowerState != PowerState::Small; }
     bool IsFire() const { return m_PowerState == PowerState::Fire; }
     bool IsTransforming() const { return m_TransformType != TransformType::None; }
     bool IsInvulnerable() const { return m_InvulnerabilityTimer > 0.0f || m_StarPowerTimer > 0.0f; }
     bool HasStarPower() const { return m_StarPowerTimer > 0.0f; }
+    bool IsOnGround() const { return m_OnGround; }
     glm::vec2 GetHalfExtents() const;
     float GetVelocityY() const { return m_VelocityY; }
     bool WasJumpingUpward() const { return m_VelocityY > 0.0f; }
@@ -56,6 +58,7 @@ private:
     bool m_IsBraking = false;
     bool m_IsCrouching = false;
     bool m_IsDead = false;
+    bool m_DeathFinished = false;
     float m_JumpTimer, m_MaxJumpTime;
     float m_StoredVelocityX = 0.0f;
     float m_StoredVelocityY = 0.0f;
