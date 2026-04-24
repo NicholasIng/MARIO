@@ -11,6 +11,7 @@
 #include <string>
 #include <queue>
 #include <limits>
+#include <functional>
 
 namespace fs = std::filesystem;
 
@@ -136,6 +137,14 @@ static bool IsFlagColor(Uint8 r, Uint8 g, Uint8 b) {
     return PackRGB(r, g, b) == PackRGB(109, 255, 85);
 }
 
+static bool IsCastleColor(Uint8 r, Uint8 g, Uint8 b) {
+    return PackRGB(r, g, b) == PackRGB(255, 216, 0);
+}
+
+static bool IsPipeForkedColor(Uint8 r, Uint8 g, Uint8 b) {
+    return PackRGB(r, g, b) == PackRGB(0, 255, 176);
+}
+
 static glm::vec2 ComputeGroundedSpawnPosition(const MapManager& map,
                                               int gridX,
                                               int entityGridY,
@@ -234,11 +243,15 @@ bool convert_sketch(
     std::string mountainResolved = MapManager::ResolveBackgroundPath("mountains.png");
     std::string bushResolved = MapManager::ResolveBackgroundPath("Bush.png");
     std::string cloudResolved = MapManager::ResolveBackgroundPath("Clouds_2.png");
+    std::string castleResolved = MapManager::ResolveBackgroundPath("castle1.png");
+    std::string pipeForkedResolved = MapManager::ResolveBackgroundPath("WarpPipeForked.png");
     std::vector<std::vector<char>> pipeMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> mountainMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> bushMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> cloudMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> flagMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> castleMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> pipeForkedMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> goombaMask(width, std::vector<char>(layerHeight, 0));
 
     for (int x = 0; x < width; ++x) {
@@ -250,6 +263,15 @@ bool convert_sketch(
             // =========================
             if (!GetPixelRGBA(surface, x, y, r, g, b, a)) continue;
             if (a > 0) {
+                if (IsCastleColor(r, g, b)) {
+                    castleMask[x][y] = 1;
+                    continue;
+                }
+                if (IsPipeForkedColor(r, g, b)) {
+                    pipeForkedMask[x][y] = 1;
+                    continue;
+                }
+
                 uint32_t key = PackRGB(r,g,b);
                 auto it = tileMap.find(key);
                 const TileEntry* matchedTile = nullptr;
@@ -294,7 +316,11 @@ bool convert_sketch(
             // =========================
             if (!GetPixelRGBA(surface, x, y + layerHeight, r, g, b, a)) continue;
             if (a > 0) {
-                if (r == 255 && g == 0 && b == 0) {
+                if (IsCastleColor(r, g, b)) {
+                    castleMask[x][y] = 1;
+                } else if (IsPipeForkedColor(r, g, b)) {
+                    pipeForkedMask[x][y] = 1;
+                } else if (r == 255 && g == 0 && b == 0) {
                     marioSpawnX = x;
                     marioSpawnY = y;
                     spawnMarkerFound = true;
@@ -328,6 +354,16 @@ bool convert_sketch(
                     continue;
                 }
 
+                if (IsCastleColor(r, g, b)) {
+                    castleMask[x][y] = 1;
+                    continue;
+                }
+
+                if (IsPipeForkedColor(r, g, b)) {
+                    pipeForkedMask[x][y] = 1;
+                    continue;
+                }
+
                 if (IsMountainColor(r, g, b)) {
                     mountainMask[x][y] = 1;
                     continue;
@@ -339,7 +375,8 @@ bool convert_sketch(
     auto AddComponentSprites = [&](const std::vector<std::vector<char>>& mask,
                                    bool isBackground,
                                    Cell type,
-                                   const std::string& resolvedPath) {
+                                   const std::string& resolvedPath,
+                                   const std::function<void(int, int, int, int)>& onComponent = {}) {
         std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
         for (int sx = 0; sx < width; ++sx) {
             for (int sy = 0; sy < layerHeight; ++sy) {
@@ -379,6 +416,71 @@ bool convert_sketch(
                     map.AddBackgroundSprite(minX, minY, spanX, spanY, resolvedPath);
                 } else {
                     map.AddTileSprite(minX, minY, spanX, spanY, type, resolvedPath);
+                }
+                if (onComponent) {
+                    onComponent(minX, minY, spanX, spanY);
+                }
+            }
+        }
+    };
+
+    auto AddMarkerScaledSprite = [&](const std::vector<std::vector<char>>& mask,
+                                     const std::string& resolvedPath,
+                                     const std::function<void(int, int, int, int, int, int)>& onComponent = {}) {
+        if (resolvedPath.empty() || !fs::exists(resolvedPath)) {
+            return;
+        }
+
+        Util::Image image(resolvedPath);
+        const glm::vec2 imageSize = image.GetSize();
+        if (imageSize.x <= 0.0f || imageSize.y <= 0.0f) {
+            return;
+        }
+
+        const int spriteTileWidth = std::max(1, static_cast<int>(std::round((imageSize.x * 3.0f) / map.GetTileSize())));
+        const int spriteTileHeight = std::max(1, static_cast<int>(std::round((imageSize.y * 3.0f) / map.GetTileSize())));
+
+        std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
+        for (int sx = 0; sx < width; ++sx) {
+            for (int sy = 0; sy < layerHeight; ++sy) {
+                if (!mask[sx][sy] || visited[sx][sy]) continue;
+
+                int minX = sx;
+                int maxX = sx;
+                int minY = sy;
+                int maxY = sy;
+                std::queue<std::pair<int, int>> q;
+                q.push({sx, sy});
+                visited[sx][sy] = 1;
+
+                while (!q.empty()) {
+                    auto [cx, cy] = q.front();
+                    q.pop();
+                    minX = std::min(minX, cx);
+                    maxX = std::max(maxX, cx);
+                    minY = std::min(minY, cy);
+                    maxY = std::max(maxY, cy);
+
+                    const int dx[4] = {1, -1, 0, 0};
+                    const int dy[4] = {0, 0, 1, -1};
+                    for (int i = 0; i < 4; ++i) {
+                        const int nx = cx + dx[i];
+                        const int ny = cy + dy[i];
+                        if (nx < 0 || nx >= width || ny < 0 || ny >= layerHeight) continue;
+                        if (visited[nx][ny] || !mask[nx][ny]) continue;
+                        visited[nx][ny] = 1;
+                        q.push({nx, ny});
+                    }
+                }
+
+                const int markerCenterX = (minX + maxX) / 2;
+                const int markerBaseY = maxY;
+                const int startX = std::clamp(markerCenterX - spriteTileWidth / 2, 0, std::max(0, width - spriteTileWidth));
+                const int startY = std::clamp(markerBaseY - spriteTileHeight + 1, 0, std::max(0, layerHeight - spriteTileHeight));
+
+                map.AddBackgroundSprite(startX, startY, spriteTileWidth, spriteTileHeight, resolvedPath);
+                if (onComponent) {
+                    onComponent(startX, startY, spriteTileWidth, spriteTileHeight, markerCenterX, markerBaseY);
                 }
             }
         }
@@ -451,6 +553,20 @@ bool convert_sketch(
     }
     if (!cloudResolved.empty() && fs::exists(cloudResolved)) {
         AddComponentSprites(cloudMask, true, Cell::Empty, cloudResolved);
+    }
+    if (!castleResolved.empty() && fs::exists(castleResolved)) {
+        AddMarkerScaledSprite(castleMask, castleResolved);
+    }
+    if (!pipeForkedResolved.empty() && fs::exists(pipeForkedResolved)) {
+        AddMarkerScaledSprite(
+            pipeForkedMask,
+            pipeForkedResolved,
+            [&](int, int, int, int, int markerCenterX, int) {
+                const float entryX =
+                    map.GetWorldLeft() + markerCenterX * map.GetTileSize() + map.GetTileSize() * 0.5f;
+                map.SetTransitionPipeEntryX(entryX);
+            }
+        );
     }
 
     std::vector<std::vector<char>> visitedFlag(width, std::vector<char>(layerHeight, 0));

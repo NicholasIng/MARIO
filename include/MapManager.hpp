@@ -66,6 +66,8 @@ private:
     float m_GoalSlideStartY = 0.0f;
     std::shared_ptr<Util::GameObject> m_GoalFlagObject;
     std::shared_ptr<Util::Image> m_GoalFlagImage;
+    bool m_HasTransitionPipe = false;
+    float m_TransitionPipeEntryX = 0.0f;
     int m_Width = 0;
     int m_Height = 0;
 
@@ -265,6 +267,8 @@ public:
         m_GoalSlideStartY = 0.0f;
         m_GoalFlagObject = nullptr;
         m_GoalFlagImage = nullptr;
+        m_HasTransitionPipe = false;
+        m_TransitionPipeEntryX = 0.0f;
     }
 
     void AddTileSprite(int gridX, int gridY, int tileSpanX, int tileSpanY,
@@ -595,6 +599,12 @@ public:
     float GetFlagBottomY() const { return m_FlagBottomY; }
     float GetFlagX() const { return m_FlagX; }
     float GetGoalSlideStartY() const { return m_GoalSlideStartY; }
+    void SetTransitionPipeEntryX(float x) {
+        m_HasTransitionPipe = true;
+        m_TransitionPipeEntryX = x;
+    }
+    bool HasTransitionPipe() const { return m_HasTransitionPipe; }
+    float GetTransitionPipeEntryX() const { return m_TransitionPipeEntryX; }
     void SetFlagY(float y) {
         if (m_GoalFlagObject) {
             m_GoalFlagObject->m_Transform.translation.y = std::clamp(y, m_FlagBottomY, m_FlagTopY);

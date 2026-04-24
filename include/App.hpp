@@ -28,9 +28,10 @@ public:
 
 private:
     enum class GoalSequenceStage { None, Sliding, PlayerControl, Entering, Finished };
-    enum class ScreenState { Title, LevelIntro, Gameplay, Paused, StatusMessage };
+    enum class ScreenState { Title, LevelIntro, Gameplay, Paused, StatusMessage, TransitionScene };
     enum class StatusMessageAction { None, ReloadLevel, ShowGameOver, RestartToTitle };
     enum class MusicTrack { None, GroundTheme, InvincibilityTheme };
+    enum class LevelIntroPurpose { StartLevel, PostGoalTransition };
     struct PendingEnemySpawn {
         glm::vec2 position;
         bool activated = false;
@@ -117,13 +118,21 @@ private:
     float m_LevelIntroTimer = 0.0f;
     float m_StatusMessageTimer = 0.0f;
     float m_TitleBlinkTimer = 0.0f;
+    float m_TransitionExitTimer = 0.0f;
+    float m_TransitionPipeEntryX = 0.0f;
+    float m_TransitionPipeEntryY = 0.0f;
+    float m_TransitionPipeSinkDistance = 0.0f;
     MusicTrack m_ActiveMusic = MusicTrack::None;
     bool m_WasMarioDead = false;
     bool m_DeathWasTimeout = false;
     bool m_LowTimeWarningPlayed = false;
     bool m_GoalCelebrationPlayed = false;
+    bool m_TransitionPipeReached = false;
+    bool m_TransitionPipeSoundPlayed = false;
+    bool m_TransitionMarioHidden = false;
     Util::Color m_SkyColor = Util::Color(90, 147, 235, 255);
     int m_TitleSelection = 0;
+    LevelIntroPurpose m_LevelIntroPurpose = LevelIntroPurpose::StartLevel;
     AudioBank m_Audio;
     AnimatedSprite m_HudCoinIcon;
     AnimatedSprite m_TitleCoinIcon;
@@ -162,6 +171,7 @@ private:
     void UpdatePaused(float dt);
     void UpdateStatusMessage(float dt);
     void UpdateGameplay(float dt);
+    void UpdateTransitionScene(float dt);
     void RenderTitleScreen();
     void RenderLevelIntro();
     void RenderPaused();
@@ -191,6 +201,11 @@ private:
     void RefreshHudText();
     void ResetGameSession();
     void LoadLevel();
+    bool LoadSceneSketch(const std::string& sketchPath, bool preserveProgress);
+    std::string ResolveTransitionSketchPath() const;
+    void BeginPostGoalTransition();
+    void LoadTransitionScene();
+    void RenderSceneWorld(bool drawCastle);
     void HandleMarioDeath();
     void TogglePause();
     void PlayTitleMusic();
