@@ -39,6 +39,7 @@ public:
     bool IsFire() const { return m_PowerState == PowerState::Fire; }
     bool IsTransforming() const { return m_TransformType != TransformType::None; }
     bool IsInvulnerable() const { return m_InvulnerabilityTimer > 0.0f || m_StarPowerTimer > 0.0f; }
+    bool IsRecoveringFromHit() const { return m_InvulnerabilityTimer > 0.0f; }
     bool HasStarPower() const { return m_StarPowerTimer > 0.0f; }
     bool IsOnGround() const { return m_OnGround; }
     glm::vec2 GetHalfExtents() const;

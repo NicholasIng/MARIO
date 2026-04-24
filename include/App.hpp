@@ -30,7 +30,7 @@ private:
     enum class GoalSequenceStage { None, Sliding, PlayerControl, Entering, Finished };
     enum class ScreenState { Title, LevelIntro, Gameplay, Paused, StatusMessage };
     enum class StatusMessageAction { None, ReloadLevel, ShowGameOver, RestartToTitle };
-    enum class MusicTrack { None, GroundTheme };
+    enum class MusicTrack { None, GroundTheme, InvincibilityTheme };
     struct PendingEnemySpawn {
         glm::vec2 position;
         bool activated = false;
@@ -61,6 +61,7 @@ private:
     };
     struct AudioBank {
         std::unique_ptr<Util::BGM> groundTheme;
+        std::unique_ptr<Util::BGM> invincibilityTheme;
         std::unique_ptr<Util::SFX> oneUp;
         std::unique_ptr<Util::SFX> bowserFalls;
         std::unique_ptr<Util::SFX> bowserFire;
@@ -194,6 +195,8 @@ private:
     void TogglePause();
     void PlayTitleMusic();
     void PlayGameplayMusic(bool restart = false);
+    void PlayInvincibilityMusic(bool restart = false);
+    void UpdateGameplayMusic();
     void StopMusic(int fadeMs = 0);
     void PauseMusic();
     void ResumeMusic();

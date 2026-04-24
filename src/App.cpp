@@ -129,7 +129,6 @@ void App::StartGoalSequence() {
     m_FireballCooldown = 0.0f;
     StopMusic(250);
     PlaySfx(m_Audio.flagpole.get());
-    PlaySfx(m_Audio.worldClear.get());
 
     if (m_CastleObject != nullptr && m_CastleImage != nullptr) {
         const float targetHeight = g_MapManager->GetTileSize() * CASTLE_TARGET_HEIGHT_TILES;
@@ -195,9 +194,7 @@ void App::UpdateGoalSequence(float dt) {
             m_GoalSequenceTimer = 0.0f;
             if (!m_GoalCelebrationPlayed) {
                 m_GoalCelebrationPlayed = true;
-                PlaySfx(m_Audio.pipe.get());
                 PlaySfx(m_Audio.stageClear.get());
-                PlaySfx(m_Audio.fireworks.get());
             }
         }
     } else if (m_GoalSequenceStage == GoalSequenceStage::Entering) {
@@ -228,6 +225,7 @@ void App::InitializeAudio() {
     if (m_Audio.groundTheme != nullptr) return;
 
     m_Audio.groundTheme = std::make_unique<Util::BGM>(AssetPaths::Sound("01. Ground Theme.mp3"));
+    m_Audio.invincibilityTheme = std::make_unique<Util::BGM>(AssetPaths::Sound("05. Invincibility Theme.mp3"));
     m_Audio.oneUp = std::make_unique<Util::SFX>(AssetPaths::Sound("smb_1-up.wav"));
     m_Audio.bowserFalls = std::make_unique<Util::SFX>(AssetPaths::Sound("smb_bowserfalls.wav"));
     m_Audio.bowserFire = std::make_unique<Util::SFX>(AssetPaths::Sound("smb_bowserfire.wav"));
@@ -254,6 +252,9 @@ void App::InitializeAudio() {
 
     if (m_Audio.groundTheme != nullptr) {
         m_Audio.groundTheme->SetVolume(48);
+    }
+    if (m_Audio.invincibilityTheme != nullptr) {
+        m_Audio.invincibilityTheme->SetVolume(48);
     }
 
     const std::vector<Util::SFX*> effects = {
@@ -315,6 +316,28 @@ void App::PlayGameplayMusic(bool restart) {
     if (!restart && m_ActiveMusic == MusicTrack::GroundTheme) return;
     m_Audio.groundTheme->Play(-1);
     m_ActiveMusic = MusicTrack::GroundTheme;
+}
+
+void App::PlayInvincibilityMusic(bool restart) {
+    InitializeAudio();
+    if (m_Audio.invincibilityTheme == nullptr) return;
+    if (!restart && m_ActiveMusic == MusicTrack::InvincibilityTheme) return;
+    m_Audio.invincibilityTheme->Play(-1);
+    m_ActiveMusic = MusicTrack::InvincibilityTheme;
+}
+
+void App::UpdateGameplayMusic() {
+    if (!m_Mario || m_Mario->IsDead() || m_GoalSequenceStage != GoalSequenceStage::None) {
+        return;
+    }
+
+    const bool useInvincibilityTheme =
+        m_Mario->HasStarPower() || m_Mario->IsRecoveringFromHit();
+    if (useInvincibilityTheme) {
+        PlayInvincibilityMusic();
+    } else {
+        PlayGameplayMusic();
+    }
 }
 
 void App::StopMusic(int fadeMs) {
@@ -1270,6 +1293,8 @@ void App::UpdateGameplay(float dt) {
         HandleMarioDeath();
         return;
     }
+
+    UpdateGameplayMusic();
 
     if (!powerupFreezeActive) {
         m_FireballCooldown = std::max(0.0f, m_FireballCooldown - dt);
