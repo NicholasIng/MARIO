@@ -15,6 +15,7 @@ public:
     bool IsExpired() const { return m_Expired; }
     bool IsExploding() const { return m_Exploding; }
     glm::vec2 GetHalfExtents() const { return { 12.0f, 12.0f }; }
+    float GetDirection() const { return m_Direction; }
 
 private:
     std::shared_ptr<Util::Image> m_Image;

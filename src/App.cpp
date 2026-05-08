@@ -117,7 +117,7 @@ void App::ActivateNearbyEnemies() {
             continue;
         }
 
-        m_Enemies.push_back(std::make_unique<Enemy>(pending.position.x, pending.position.y));
+        m_Enemies.push_back(std::make_unique<Enemy>(pending.position.x, pending.position.y, pending.kind));
         pending.activated = true;
     }
 }
@@ -849,7 +849,7 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
         m_DisplayedLevelTime = STARTING_TIMER;
     }
 
-    std::vector<glm::vec2> enemySpawns;
+    std::vector<EnemySpawnInfo> enemySpawns;
     bool foundSpawn = convert_sketch(
         sketchPath,
         *g_MapManager,
@@ -861,7 +861,7 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
     glClearColor(m_SkyColor.r / 255.0f, m_SkyColor.g / 255.0f, m_SkyColor.b / 255.0f, 1.0f);
 
     for (const auto& spawn : enemySpawns) {
-        m_PendingEnemySpawns.push_back({ spawn, false });
+        m_PendingEnemySpawns.push_back({ spawn.position, spawn.kind, false });
     }
 
     if (!foundSpawn) {
@@ -1401,6 +1401,28 @@ void App::UpdateGameplay(float dt) {
                     const bool overlapY = leftTop > rightBottom && leftBottom < rightTop;
                     if (!overlapX || !overlapY) continue;
 
+                    if (leftEnemy->IsShellSliding() && rightEnemy->CanBeDefeatedByShell()) {
+                        if (rightEnemy->IsShellSliding()) {
+                            leftEnemy->SetDirection(-leftEnemy->GetDirection());
+                            rightEnemy->SetDirection(-rightEnemy->GetDirection());
+                        } else {
+                            const float knockback = 180.0f * leftEnemy->GetDirection();
+                            rightEnemy->KillFlipped(knockback);
+                            AwardPoints(100, rightEnemy->m_Transform.translation);
+                            PlaySfx(m_Audio.kick.get());
+                            PlaySfx(m_Audio.bowserFalls.get());
+                        }
+                        continue;
+                    }
+                    if (rightEnemy->IsShellSliding() && leftEnemy->CanBeDefeatedByShell()) {
+                        const float knockback = 180.0f * rightEnemy->GetDirection();
+                        leftEnemy->KillFlipped(knockback);
+                        AwardPoints(100, leftEnemy->m_Transform.translation);
+                        PlaySfx(m_Audio.kick.get());
+                        PlaySfx(m_Audio.bowserFalls.get());
+                        continue;
+                    }
+
                     const float overlapAmount =
                         std::min(leftRight, rightRight) - std::max(leftLeft, rightLeft);
                     if (overlapAmount <= 0.0f) continue;
@@ -1530,6 +1552,10 @@ void App::UpdateGameplay(float dt) {
                 marioBottom >= enemyTop - stompForgiveness &&
                 horizontalOverlap >= minimumStompWidth &&
                 verticalOverlap <= enemyHalf.y + stompForgiveness;
+            const bool kickableShell = enemy->IsKickableShell();
+            const bool sideShellContact = kickableShell && !stomped;
+            const float shellKickDirection =
+                (m_Mario->m_Transform.translation.x >= enemy->m_Transform.translation.x) ? -1.0f : 1.0f;
 
             if (m_Mario->HasStarPower()) {
                 enemy->KillFlipped(110.0f * m_Mario->GetFacingDirection());
@@ -1541,6 +1567,11 @@ void App::UpdateGameplay(float dt) {
                 m_Mario->BounceAfterStomp();
                 AwardPoints(100, enemy->m_Transform.translation);
                 PlaySfx(m_Audio.stomp.get());
+            } else if (sideShellContact) {
+                enemy->KickShell(shellKickDirection);
+                PlaySfx(m_Audio.kick.get());
+            } else if (enemy->IsHarmlessToPlayer()) {
+                continue;
             } else if (!m_Mario->IsInvulnerable()) {
                 m_Mario->TakeEnemyHit();
                 break;
@@ -1603,7 +1634,7 @@ void App::UpdateGameplay(float dt) {
                 const bool overlapY = fireballTop > enemyBottom && fireballBottom < enemyTop;
                 if (!overlapX || !overlapY) continue;
 
-                enemy->Stomp();
+                enemy->KillFlipped(140.0f * fireball->GetDirection());
                 fireball->Explode();
                 AwardPoints(100, enemy->m_Transform.translation);
                 PlaySfx(m_Audio.kick.get());

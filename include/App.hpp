@@ -34,6 +34,7 @@ private:
     enum class LevelIntroPurpose { StartLevel, PostGoalTransition };
     struct PendingEnemySpawn {
         glm::vec2 position;
+        EnemyKind kind = EnemyKind::Goomba;
         bool activated = false;
     };
     struct SpriteText {

@@ -1,6 +1,7 @@
 ﻿#include "ConvertSketch.hpp"
 #include "Util/Logger.hpp"
 #include "MapManager.hpp"
+#include "Enemy.hpp"
 #include <SDL_image.h>
 #include <unordered_map>
 #include <filesystem>
@@ -204,7 +205,7 @@ bool convert_sketch(
     MapManager& map,
     Mario& mario,
     Util::Color& background_color,
-    std::vector<glm::vec2>* enemy_spawns
+    std::vector<EnemySpawnInfo>* enemy_spawns
 ) {
     SDL_Surface* loaded = IMG_Load(path.c_str());
     if (!loaded) {
@@ -290,6 +291,7 @@ bool convert_sketch(
     std::vector<std::vector<char>> castleMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> pipeForkedMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> goombaMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> koopaMask(width, std::vector<char>(layerHeight, 0));
 
     for (int x = 0; x < width; ++x) {
         for (int y = 0; y < layerHeight; ++y) {
@@ -357,6 +359,8 @@ bool convert_sketch(
                     castleMask[x][y] = 1;
                 } else if (IsPipeForkedColor(r, g, b)) {
                     pipeForkedMask[x][y] = 1;
+                } else if (r == 0 && g == 255 && b == 42) {
+                    koopaMask[x][y] = 1;
                 } else if (r == 182 && g == 73 && b == 0) {
                     goombaMask[x][y] = 1;
                 }
@@ -674,45 +678,50 @@ bool convert_sketch(
     }
 
     if (enemy_spawns != nullptr) {
-        std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
-        for (int sx = 0; sx < width; ++sx) {
-            for (int sy = 0; sy < layerHeight; ++sy) {
-                if (!goombaMask[sx][sy] || visited[sx][sy]) continue;
+        const auto appendEnemySpawns = [&](const std::vector<std::vector<char>>& mask, EnemyKind kind) {
+            std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
+            const float halfHeight = (kind == EnemyKind::Koopa) ? 36.0f : 24.0f;
+            for (int sx = 0; sx < width; ++sx) {
+                for (int sy = 0; sy < layerHeight; ++sy) {
+                    if (!mask[sx][sy] || visited[sx][sy]) continue;
 
-                int minX = sx;
-                int maxX = sx;
-                int minY = sy;
-                int maxY = sy;
-                std::queue<std::pair<int, int>> q;
-                q.push({sx, sy});
-                visited[sx][sy] = 1;
+                    int minX = sx;
+                    int maxX = sx;
+                    int minY = sy;
+                    std::queue<std::pair<int, int>> q;
+                    q.push({sx, sy});
+                    visited[sx][sy] = 1;
 
-                while (!q.empty()) {
-                    auto [cx, cy] = q.front();
-                    q.pop();
-                    minX = std::min(minX, cx);
-                    maxX = std::max(maxX, cx);
-                    minY = std::min(minY, cy);
-                    maxY = std::max(maxY, cy);
+                    while (!q.empty()) {
+                        auto [cx, cy] = q.front();
+                        q.pop();
+                        minX = std::min(minX, cx);
+                        maxX = std::max(maxX, cx);
+                        minY = std::min(minY, cy);
 
-                    const int dx[4] = {1, -1, 0, 0};
-                    const int dy[4] = {0, 0, 1, -1};
-                    for (int i = 0; i < 4; ++i) {
-                        int nx = cx + dx[i];
-                        int ny = cy + dy[i];
-                        if (nx < 0 || nx >= width || ny < 0 || ny >= layerHeight) continue;
-                        if (visited[nx][ny] || !goombaMask[nx][ny]) continue;
-                        visited[nx][ny] = 1;
-                        q.push({nx, ny});
+                        const int dx[4] = {1, -1, 0, 0};
+                        const int dy[4] = {0, 0, 1, -1};
+                        for (int i = 0; i < 4; ++i) {
+                            int nx = cx + dx[i];
+                            int ny = cy + dy[i];
+                            if (nx < 0 || nx >= width || ny < 0 || ny >= layerHeight) continue;
+                            if (visited[nx][ny] || !mask[nx][ny]) continue;
+                            visited[nx][ny] = 1;
+                            q.push({nx, ny});
+                        }
                     }
-                }
 
-                const int centerX = (minX + maxX) / 2;
-                enemy_spawns->push_back(
-                    ComputeGroundedSpawnPosition(map, centerX, minY, 24.0f)
-                );
+                    const int centerX = (minX + maxX) / 2;
+                    enemy_spawns->push_back({
+                        ComputeGroundedSpawnPosition(map, centerX, minY, halfHeight),
+                        kind
+                    });
+                }
             }
-        }
+        };
+
+        appendEnemySpawns(goombaMask, EnemyKind::Goomba);
+        appendEnemySpawns(koopaMask, EnemyKind::Koopa);
     }
 
     std::string hardBlockPath = MapManager::ResolveTilePath(Cell::Brick, "HardBlock.png");

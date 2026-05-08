@@ -610,9 +610,6 @@ void Mario::PowerUp(LootType type) {
     }
 
     if (type == LootType::GreenMushroom) {
-        if (m_PowerState == PowerState::Small) {
-            BeginTransformation(PowerState::Big, TransformType::SmallBigTransition);
-        }
         return;
     }
 
