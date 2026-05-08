@@ -33,6 +33,9 @@ private:
     // decorative background objects
     std::vector<std::shared_ptr<Util::GameObject>> m_BackgroundObjects;
 
+    // decorative foreground objects that should draw in front of Mario
+    std::vector<std::shared_ptr<Util::GameObject>> m_ForegroundObjects;
+
     struct AnimatedTile {
         std::shared_ptr<Util::GameObject> object;
         std::shared_ptr<Util::Image> image;
@@ -253,6 +256,7 @@ public:
         m_QuestionBlockRemainingHits.assign(width, std::vector<int>(height, 1));
         m_Objects.clear();
         m_BackgroundObjects.clear();
+        m_ForegroundObjects.clear();
         m_AnimatedTiles.clear();
         std::queue<SpawnEvent> empty;
         std::swap(m_SpawnEvents, empty);
@@ -443,6 +447,42 @@ public:
 
     void AddBackgroundTile(int gridX, int gridY, const std::string& texturePath) {
         AddBackgroundSprite(gridX, gridY, 1, 1, texturePath);
+    }
+
+    void AddForegroundSprite(int gridX, int gridY, int tileSpanX, int tileSpanY,
+                             const std::string& texturePath) {
+        if (gridX < 0 || gridX >= m_Width || gridY < 0 || gridY >= m_Height) {
+            return;
+        }
+
+        std::string resolvedPath = ResolveBackgroundPath(texturePath);
+
+        auto obj = std::make_shared<Util::GameObject>();
+        auto img = std::make_shared<Util::Image>(resolvedPath);
+        obj->SetDrawable(img);
+
+        const float xPos = -(m_Width * TILE_SIZE) / 2.0f + (gridX * TILE_SIZE) + (tileSpanX * TILE_SIZE) / 2.0f;
+        const float yPos = (m_Height * TILE_SIZE) / 2.0f - (gridY * TILE_SIZE) - (tileSpanY * TILE_SIZE) / 2.0f;
+
+        const glm::vec2 imgSize = img->GetSize();
+        if (imgSize.x > 0.0f && imgSize.y > 0.0f) {
+            const float targetWidth = tileSpanX * TILE_SIZE;
+            const float targetHeight = tileSpanY * TILE_SIZE;
+            const float uniformScale = std::min(targetWidth / imgSize.x, targetHeight / imgSize.y);
+            const float actualWidth = imgSize.x * uniformScale;
+            const float actualHeight = imgSize.y * uniformScale;
+            obj->m_Transform.scale = { uniformScale, uniformScale };
+            obj->m_Transform.translation = {
+                xPos,
+                yPos - (targetHeight - actualHeight) / 2.0f
+            };
+        } else {
+            obj->m_Transform.scale = { 1.0f, 1.0f };
+            obj->m_Transform.translation = { xPos, yPos };
+        }
+
+        obj->SetZIndex(20.0f);
+        m_ForegroundObjects.push_back(obj);
     }
 
     Cell GetCell(int x, int y) const {
@@ -642,6 +682,15 @@ public:
             obj->m_Transform.translation = oldPos;
         }
 
+    }
+
+    void DrawForeground(float viewX) {
+        for (auto& obj : m_ForegroundObjects) {
+            auto oldPos = obj->m_Transform.translation;
+            obj->m_Transform.translation.x -= viewX;
+            obj->Draw();
+            obj->m_Transform.translation = oldPos;
+        }
     }
 
     int GetWidth() const { return m_Width; }

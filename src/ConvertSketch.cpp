@@ -145,6 +145,43 @@ static bool IsPipeForkedColor(Uint8 r, Uint8 g, Uint8 b) {
     return PackRGB(r, g, b) == PackRGB(0, 255, 176);
 }
 
+static bool FindMarioSpawnMarker(SDL_Surface* surface,
+                                 int layerHeight,
+                                 int& outGridX,
+                                 int& outEntityGridY,
+                                 bool& outFoundOutsideEntityLayer) {
+    if (!surface || layerHeight <= 0) return false;
+
+    outFoundOutsideEntityLayer = false;
+
+    for (int x = 0; x < surface->w; ++x) {
+        for (int y = 0; y < layerHeight; ++y) {
+            Uint8 r, g, b, a;
+            if (!GetPixelRGBA(surface, x, y + layerHeight, r, g, b, a)) continue;
+            if (a > 0 && r == 255 && g == 0 && b == 0) {
+                outGridX = x;
+                outEntityGridY = y;
+                return true;
+            }
+        }
+    }
+
+    for (int x = 0; x < surface->w; ++x) {
+        for (int y = 0; y < surface->h; ++y) {
+            Uint8 r, g, b, a;
+            if (!GetPixelRGBA(surface, x, y, r, g, b, a)) continue;
+            if (a > 0 && r == 255 && g == 0 && b == 0) {
+                outGridX = x;
+                outEntityGridY = y % layerHeight;
+                outFoundOutsideEntityLayer = (y < layerHeight || y >= 2 * layerHeight);
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 static glm::vec2 ComputeGroundedSpawnPosition(const MapManager& map,
                                               int gridX,
                                               int entityGridY,
@@ -224,9 +261,9 @@ bool convert_sketch(
         { PackRGB(150,  75,   0), { Cell::Brick,         "Stair.png" } }  // brown-ish stair
     };
 
-    bool spawnMarkerFound = false;
     int marioSpawnX = -1;
     int marioSpawnY = -1;
+    bool spawnMarkerFoundOutsideEntityLayer = false;
 
     // pre-resolve stair fallback: if a "Stair.png" exists (under resources) use it for unmatched top-layer tiles
     std::string stairResolved = MapManager::ResolveTilePath(Cell::Brick, "Stair.png");
@@ -320,10 +357,6 @@ bool convert_sketch(
                     castleMask[x][y] = 1;
                 } else if (IsPipeForkedColor(r, g, b)) {
                     pipeForkedMask[x][y] = 1;
-                } else if (r == 255 && g == 0 && b == 0) {
-                    marioSpawnX = x;
-                    marioSpawnY = y;
-                    spawnMarkerFound = true;
                 } else if (r == 182 && g == 73 && b == 0) {
                     goombaMask[x][y] = 1;
                 }
@@ -370,6 +403,17 @@ bool convert_sketch(
                 }
             }
         }
+    }
+
+    const bool spawnMarkerFound = FindMarioSpawnMarker(
+        surface,
+        layerHeight,
+        marioSpawnX,
+        marioSpawnY,
+        spawnMarkerFoundOutsideEntityLayer
+    );
+    if (spawnMarkerFoundOutsideEntityLayer) {
+        LOG_WARN("Mario spawn marker was found outside the entity layer; using its wrapped entity position.");
     }
 
     auto AddComponentSprites = [&](const std::vector<std::vector<char>>& mask,
@@ -426,6 +470,7 @@ bool convert_sketch(
 
     auto AddMarkerScaledSprite = [&](const std::vector<std::vector<char>>& mask,
                                      const std::string& resolvedPath,
+                                     bool drawInForeground = false,
                                      const std::function<void(int, int, int, int, int, int)>& onComponent = {}) {
         if (resolvedPath.empty() || !fs::exists(resolvedPath)) {
             return;
@@ -478,7 +523,11 @@ bool convert_sketch(
                 const int startX = std::clamp(markerCenterX - spriteTileWidth / 2, 0, std::max(0, width - spriteTileWidth));
                 const int startY = std::clamp(markerBaseY - spriteTileHeight + 1, 0, std::max(0, layerHeight - spriteTileHeight));
 
-                map.AddBackgroundSprite(startX, startY, spriteTileWidth, spriteTileHeight, resolvedPath);
+                if (drawInForeground) {
+                    map.AddForegroundSprite(startX, startY, spriteTileWidth, spriteTileHeight, resolvedPath);
+                } else {
+                    map.AddBackgroundSprite(startX, startY, spriteTileWidth, spriteTileHeight, resolvedPath);
+                }
                 if (onComponent) {
                     onComponent(startX, startY, spriteTileWidth, spriteTileHeight, markerCenterX, markerBaseY);
                 }
@@ -561,6 +610,7 @@ bool convert_sketch(
         AddMarkerScaledSprite(
             pipeForkedMask,
             pipeForkedResolved,
+            true,
             [&](int, int, int, int, int markerCenterX, int) {
                 const float entryX =
                     map.GetWorldLeft() + markerCenterX * map.GetTileSize() + map.GetTileSize() * 0.5f;

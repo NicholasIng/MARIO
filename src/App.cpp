@@ -32,6 +32,7 @@ constexpr float GOAL_FINISH_DELAY = 1.2f;
 constexpr float POST_GOAL_INTRO_DURATION = 2.0f;
 constexpr float TRANSITION_PIPE_SINK_DURATION = 0.8f;
 constexpr float TRANSITION_PIPE_SINK_SPEED = 96.0f;
+constexpr float TRANSITION_PIPE_ENTRY_RANGE_TILES = 0.6f;
 constexpr float TIME_BONUS_TICK_DURATION = 0.035f;
 constexpr float ENEMY_SPAWN_RANGE_X = WINDOW_WIDTH * 0.75f;
 constexpr float LEVEL_INTRO_DURATION = 1.75f;
@@ -958,7 +959,6 @@ void App::LoadTransitionScene() {
     m_TransitionPipeReached = false;
     m_TransitionPipeSoundPlayed = false;
     m_TransitionMarioHidden = false;
-    m_Mario->StartGoalWalk(m_TransitionPipeEntryX);
     RefreshHudText();
 }
 
@@ -1118,6 +1118,10 @@ void App::RenderSceneWorld(bool drawCastle) {
         m_Mario->Draw();
         m_Mario->m_Transform.translation = oldPos;
     }
+
+    if (g_MapManager) {
+        g_MapManager->DrawForeground(m_ViewX);
+    }
 }
 
 void App::RenderGameplay() {
@@ -1206,11 +1210,24 @@ void App::UpdateTransitionScene(float dt) {
     }
 
     if (m_Mario) {
+        const bool wasOnGround = m_Mario->IsOnGround();
         if (!m_TransitionPipeReached) {
             m_Mario->Update();
-            if (m_Mario->HasReachedGoalWalkTarget()) {
-                m_TransitionPipeReached = true;
-                m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
+            if (g_MapManager) {
+                const float entryRange =
+                    g_MapManager->GetTileSize() * TRANSITION_PIPE_ENTRY_RANGE_TILES;
+                const bool atPipe =
+                    std::abs(m_Mario->m_Transform.translation.x - m_TransitionPipeEntryX) <= entryRange;
+                const bool pressDown =
+                    Util::Input::IsKeyPressed(Util::Keycode::S) ||
+                    Util::Input::IsKeyPressed(Util::Keycode::DOWN);
+                if (atPipe && wasOnGround && m_Mario->IsOnGround() && pressDown) {
+                    m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
+                    m_Mario->m_Transform.translation.y = m_TransitionPipeEntryY;
+                    m_TransitionPipeReached = true;
+                    m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
+                    m_Mario->SetVisible(true);
+                }
             }
         } else if (!m_TransitionMarioHidden) {
             if (!m_TransitionPipeSoundPlayed) {
