@@ -1,7 +1,20 @@
 set(SRC_FILES
     App.cpp
+    AppAudio.cpp
+    AppGoal.cpp
+    AppLevel.cpp
+    AppLifecycle.cpp
+    AppRender.cpp
+    AppUi.cpp
+    AppUpdate.cpp
     Mario.cpp
+    MarioAnimation.cpp
+    MarioGoal.cpp
+    MarioPower.cpp
+    MarioUpdate.cpp
     Enemy.cpp
+    EnemyCombat.cpp
+    EnemyUpdate.cpp
     Fireball.cpp
     Debris.cpp
     Pickup.cpp
@@ -10,9 +23,12 @@ set(SRC_FILES
 
 set(INCLUDE_FILES
     App.hpp
+    AppDetail.hpp
     Mario.hpp
+    MarioDetail.hpp
     Animation.hpp
     Enemy.hpp
+    EnemyDetail.hpp
     Fireball.hpp
     Debris.hpp
     Pickup.hpp
