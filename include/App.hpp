@@ -120,6 +120,7 @@ private:
     float m_StatusMessageTimer = 0.0f;
     float m_TitleBlinkTimer = 0.0f;
     float m_TransitionExitTimer = 0.0f;
+    float m_TransitionBlackoutTimer = 0.0f;
     float m_TransitionPipeEntryX = 0.0f;
     float m_TransitionPipeEntryY = 0.0f;
     float m_TransitionPipeSinkDistance = 0.0f;
@@ -131,8 +132,8 @@ private:
     bool m_TransitionPipeReached = false;
     bool m_TransitionPipeSoundPlayed = false;
     bool m_TransitionMarioHidden = false;
+    bool m_TransitionAutoWalkStarted = false;
     Util::Color m_SkyColor = Util::Color(90, 147, 235, 255);
-    int m_TitleSelection = 0;
     LevelIntroPurpose m_LevelIntroPurpose = LevelIntroPurpose::StartLevel;
     AudioBank m_Audio;
     AnimatedSprite m_HudCoinIcon;
@@ -156,7 +157,6 @@ private:
     SpriteText m_HudTimeValue;
     SpriteText m_HudCoinValue;
     SpriteText m_TitleOption1;
-    SpriteText m_TitleOption2;
     SpriteText m_TitleTopScore;
     SpriteText m_IntroWorldText;
     SpriteText m_IntroLivesText;
@@ -202,8 +202,11 @@ private:
     void RefreshHudText();
     void ResetGameSession();
     void LoadLevel();
+    void LoadLevelOneTwo();
+    void ReloadCurrentLevel();
     bool LoadSceneSketch(const std::string& sketchPath, bool preserveProgress);
     std::string ResolveTransitionSketchPath() const;
+    std::string ResolveLevelOneTwoSketchPath() const;
     void BeginPostGoalTransition();
     void LoadTransitionScene();
     void RenderSceneWorld(bool drawCastle);

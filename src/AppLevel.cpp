@@ -30,12 +30,13 @@ void App::ResetGameSession() {
     m_StatusMessageAction = StatusMessageAction::None;
     m_DeathWasTimeout = false;
     m_TitleBlinkTimer = 0.0f;
-    m_TitleSelection = 0;
     m_LowTimeWarningPlayed = false;
     m_GoalCelebrationPlayed = false;
+    m_TransitionBlackoutTimer = 0.0f;
     m_TransitionPipeReached = false;
     m_TransitionPipeSoundPlayed = false;
     m_TransitionMarioHidden = false;
+    m_TransitionAutoWalkStarted = false;
     m_TransitionExitTimer = 0.0f;
     m_TransitionPipeEntryX = 0.0f;
     m_TransitionPipeEntryY = 0.0f;
@@ -47,10 +48,11 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
     const int savedScore = m_Score;
     const int savedCoins = m_Coins;
     const int savedLives = m_Lives;
-    const int savedWorld = m_World;
-    const int savedLevel = m_Level;
     const float savedLevelTimer = m_LevelTimer;
     const int savedDisplayedLevelTime = m_DisplayedLevelTime;
+    const bool preserveMarioState = preserveProgress && m_Mario != nullptr;
+    const Mario::PowerState savedPowerState =
+        preserveMarioState ? m_Mario->GetPowerState() : Mario::PowerState::Small;
 
     g_MapManager = std::make_unique<MapManager>();
     m_Mario = std::make_unique<Mario>();
@@ -72,9 +74,11 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
     m_DeathWasTimeout = false;
     m_LowTimeWarningPlayed = false;
     m_GoalCelebrationPlayed = false;
+    m_TransitionBlackoutTimer = 0.0f;
     m_TransitionPipeReached = false;
     m_TransitionPipeSoundPlayed = false;
     m_TransitionMarioHidden = false;
+    m_TransitionAutoWalkStarted = false;
     m_TransitionExitTimer = 0.0f;
     m_TransitionPipeEntryX = 0.0f;
     m_TransitionPipeEntryY = 0.0f;
@@ -92,8 +96,6 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
         m_Score = savedScore;
         m_Coins = savedCoins;
         m_Lives = savedLives;
-        m_World = savedWorld;
-        m_Level = savedLevel;
         m_LevelTimer = savedLevelTimer;
         m_DisplayedLevelTime = savedDisplayedLevelTime;
     } else {
@@ -121,6 +123,9 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
     if (!foundSpawn) {
         m_Mario->m_Transform.translation = { 0.0f, -200.0f };
     }
+    if (preserveMarioState) {
+        m_Mario->RestorePowerState(savedPowerState);
+    }
     m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
 
     m_ViewX = 0.0f;
@@ -129,6 +134,8 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
 }
 
 void App::LoadLevel() {
+    m_World = 1;
+    m_Level = 1;
     LoadSceneSketch(AssetPaths::Image("LevelSketch0.png"), false);
     m_CastleObject = std::make_shared<Util::GameObject>();
     m_CastleImage = std::make_shared<Util::Image>(AssetPaths::Image("castle1.png"));
@@ -159,6 +166,23 @@ void App::LoadLevel() {
     }
 }
 
+void App::LoadLevelOneTwo() {
+    m_World = 1;
+    m_Level = 2;
+    LoadSceneSketch(ResolveLevelOneTwoSketchPath(), true);
+    m_LevelTimer = STARTING_TIMER;
+    m_DisplayedLevelTime = STARTING_TIMER;
+    RefreshHudText();
+}
+
+void App::ReloadCurrentLevel() {
+    if (m_World == 1 && m_Level == 2) {
+        LoadLevelOneTwo();
+        return;
+    }
+    LoadLevel();
+}
+
 std::string App::ResolveTransitionSketchPath() const {
     const std::filesystem::path preferred = AssetPaths::ResourceRoot() / "image" / "transition1-1.png";
     if (std::filesystem::exists(preferred)) {
@@ -171,6 +195,10 @@ std::string App::ResolveTransitionSketchPath() const {
     }
 
     return "";
+}
+
+std::string App::ResolveLevelOneTwoSketchPath() const {
+    return AssetPaths::Image("LevelSketch1.png");
 }
 
 void App::BeginPostGoalTransition() {
@@ -209,10 +237,14 @@ void App::LoadTransitionScene() {
     }
     m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
     m_TransitionPipeSinkDistance = tileSize * 1.2f;
-    m_TransitionExitTimer = TRANSITION_PIPE_SINK_DURATION;
+    m_TransitionExitTimer = TRANSITION_BLACKOUT_DURATION;
+    m_TransitionBlackoutTimer = 0.0f;
     m_TransitionPipeReached = false;
     m_TransitionPipeSoundPlayed = false;
     m_TransitionMarioHidden = false;
+    m_TransitionAutoWalkStarted = false;
+    m_Mario->StartGoalWalk(m_TransitionPipeEntryX);
+    m_TransitionAutoWalkStarted = true;
     RefreshHudText();
 }
 
@@ -229,7 +261,7 @@ void App::HandleMarioDeath() {
     }
 
     if (m_Lives > 0) {
-        LoadLevel();
+        ReloadCurrentLevel();
         StartLevelIntro(LEVEL_INTRO_DURATION);
         return;
     }

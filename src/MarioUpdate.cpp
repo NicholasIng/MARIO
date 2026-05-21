@@ -109,7 +109,9 @@ void Mario::Update() {
         return;
     }
 
-    SnapUpOutOfGround(m_Transform.translation, GetHalfExtents());
+    if (m_VelocityY <= 0.0f) {
+        ResolveMinorGroundPenetration(m_Transform.translation, GetHalfExtents());
+    }
 
     if (m_PowerDownLockTimer > 0.0f) {
         m_PowerDownLockTimer = std::max(0.0f, m_PowerDownLockTimer - dt);
@@ -260,6 +262,7 @@ void Mario::Update() {
     // - first resolve horizontal movement (with current Y)
     // - then resolve vertical movement (with resolved X)
 
+    const bool wasOnGround = m_OnGround;
     m_OnGround = false;
 
     // use map tile size and geometry from map manager if available
@@ -288,6 +291,89 @@ void Mario::Update() {
 
     float candidateX = curX;
     float candidateY = curY;
+    const auto movingPlatforms = g_MapManager ? g_MapManager->GetMovingPlatformSnapshots()
+                                              : std::vector<MapManager::MovingPlatformSnapshot>{};
+    if (g_MapManager && wasOnGround && m_VelocityY <= 0.0f) {
+        const glm::vec2 carryDelta = g_MapManager->GetCarryDelta({ curX, curY }, halfExtents);
+        curX += carryDelta.x;
+        curY += carryDelta.y;
+        candidateX = curX;
+        candidateY = curY;
+    }
+
+    auto resolveHorizontalPlatforms = [&](float currentY, float& targetX) {
+        if (movingPlatforms.empty() || std::abs(targetX - curX) <= 0.0f) return;
+
+        const float actorTop = currentY + halfHeight;
+        const float actorBottom = currentY - halfHeight;
+        for (const auto& platform : movingPlatforms) {
+            const float platformLeft = platform.center.x - platform.halfExtents.x;
+            const float platformRight = platform.center.x + platform.halfExtents.x;
+            const float platformTop = platform.center.y + platform.halfExtents.y;
+            const float platformBottom = platform.center.y - platform.halfExtents.y;
+            const bool overlapY = actorTop > platformBottom + 2.0f && actorBottom < platformTop - 2.0f;
+            if (!overlapY) continue;
+
+            if (targetX > curX) {
+                const float previousRight = curX + halfWidth;
+                const float nextRight = targetX + halfWidth;
+                if (previousRight <= platformLeft + 3.0f && nextRight > platformLeft) {
+                    targetX = platformLeft - halfWidth - eps;
+                    m_VelocityX = 0.0f;
+                }
+            } else {
+                const float previousLeft = curX - halfWidth;
+                const float nextLeft = targetX - halfWidth;
+                if (previousLeft >= platformRight - 3.0f && nextLeft < platformRight) {
+                    targetX = platformRight + halfWidth + eps;
+                    m_VelocityX = 0.0f;
+                }
+            }
+        }
+    };
+
+    auto resolveVerticalPlatforms = [&](float& targetY) {
+        if (movingPlatforms.empty()) return;
+
+        const float previousBottom = curY - halfHeight;
+        const float previousTop = curY + halfHeight;
+        const float actorLeft = candidateX - halfWidth;
+        const float actorRight = candidateX + halfWidth;
+
+        for (const auto& platform : movingPlatforms) {
+            const float platformLeft = platform.center.x - platform.halfExtents.x;
+            const float platformRight = platform.center.x + platform.halfExtents.x;
+            const float platformTop = platform.center.y + platform.halfExtents.y;
+            const float platformBottom = platform.center.y - platform.halfExtents.y;
+            const float previousPlatformTop = platformTop - platform.delta.y;
+            const float previousPlatformBottom = platformBottom - platform.delta.y;
+            const bool overlapX = actorRight > platformLeft + 2.0f && actorLeft < platformRight - 2.0f;
+            if (!overlapX) continue;
+
+            if (moveY <= 0.0f || platform.delta.y > 0.0f) {
+                const float nextBottom = targetY - halfHeight;
+                if (previousBottom >= previousPlatformTop - 6.0f &&
+                    nextBottom <= platformTop + 4.0f) {
+                    targetY = platformTop + halfHeight;
+                    m_VelocityY = 0.0f;
+                    m_OnGround = true;
+                    return;
+                }
+            }
+
+            if (moveY > 0.0f) {
+                const float nextTop = targetY + halfHeight;
+                if (previousTop <= previousPlatformBottom + 6.0f &&
+                    nextTop >= platformBottom - 2.0f) {
+                    const float ceilingSeparation = IsBig() ? 0.5f : 1.0f;
+                    targetY = platformBottom - halfHeight - ceilingSeparation;
+                    m_VelocityY = 0.0f;
+                    m_JumpTimer = 0.0f;
+                    return;
+                }
+            }
+        }
+    };
 
     // --- HORIZONTAL ---
     if (g_MapManager && std::abs(moveX) > 0.0f) {
@@ -331,6 +417,7 @@ void Mario::Update() {
     else {
         candidateX = curX + moveX;
     }
+    resolveHorizontalPlatforms(curY, candidateX);
 
     // --- VERTICAL ---
     if (g_MapManager && std::abs(moveY) > 0.0f) {
@@ -359,7 +446,8 @@ void Mario::Update() {
                     }
                     // collide with ceiling of tile at (gx, gridY)
                     float tileBottom = mapTop - (gridY + 1) * tileSize;
-                    candidateY = tileBottom - halfHeight - eps;
+                    const float ceilingSeparation = IsBig() ? 0.5f : 1.0f;
+                    candidateY = tileBottom - halfHeight - ceilingSeparation;
                     m_VelocityY = 0.0f;
                     m_JumpTimer = 0.0f;
                     break;
@@ -385,6 +473,7 @@ void Mario::Update() {
     else {
         candidateY = curY + moveY;
     }
+    resolveVerticalPlatforms(candidateY);
 
     // Apply resolved candidate position
     m_Transform.translation.x = candidateX;

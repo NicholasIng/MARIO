@@ -7,7 +7,8 @@
 
 enum class EnemyKind {
     Goomba,
-    Koopa
+    GreenKoopa,
+    RedKoopa
 };
 
 struct EnemySpawnInfo {
@@ -19,9 +20,11 @@ class Enemy : public Util::GameObject {
 public:
     enum class State {
         Walking,
+        RetreatingIntoShell,
         ShellIdle,
         ShellSliding,
-        Recovering
+        Recovering,
+        Dead
     };
 
     Enemy(float x, float y, EnemyKind kind = EnemyKind::Goomba);
@@ -37,15 +40,17 @@ public:
     float GetHorizontalVelocity() const { return m_VelocityX; }
     EnemyKind GetKind() const { return m_Kind; }
     State GetState() const { return m_State; }
-    bool IsShellSliding() const { return m_Kind == EnemyKind::Koopa && m_State == State::ShellSliding; }
+    bool IsKoopa() const { return m_Kind == EnemyKind::GreenKoopa || m_Kind == EnemyKind::RedKoopa; }
+    bool UsesEdgeDetection() const { return m_Kind == EnemyKind::RedKoopa; }
+    bool IsShellSliding() const { return IsKoopa() && m_State == State::ShellSliding; }
     bool IsKickableShell() const {
-        return m_Kind == EnemyKind::Koopa &&
+        return IsKoopa() &&
                (m_State == State::ShellIdle || m_State == State::Recovering);
     }
     bool IsHarmlessToPlayer() const {
-        return m_Kind == EnemyKind::Koopa &&
-               (m_State == State::ShellIdle ||
-                m_State == State::ShellSliding ||
+        return IsKoopa() &&
+               (m_State == State::RetreatingIntoShell ||
+                m_State == State::ShellIdle ||
                 m_State == State::Recovering);
     }
     bool CanBeDefeatedByShell() const { return m_Alive; }
@@ -60,6 +65,7 @@ private:
     float m_VelocityX = 0.0f;
     float m_DeathTimer = 0.0f;
     float m_WalkAnimationTimer = 0.0f;
+    float m_RetreatTimer = 0.0f;
     float m_ShellIdleTimer = 0.0f;
     float m_RecoveryTimer = 0.0f;
     bool m_Alive = true;
@@ -69,8 +75,10 @@ private:
     std::string m_LeftPath;
     std::string m_RightPath;
     std::string m_ShellPath;
+    std::string m_ShellRecoverPath;
     std::string m_DeathPath;
 
+    void EnterRetreatingIntoShell();
     void EnterShellIdle();
     void EnterRecovering();
     void RefreshSprite();

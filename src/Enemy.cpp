@@ -13,11 +13,22 @@ Enemy::Enemy(float x, float y, EnemyKind kind)
     : m_Kind(kind),
       m_State(State::Walking),
       m_Direction(-1.0f),
-      m_Speed(kind == EnemyKind::Koopa ? KOOPA_WALK_SPEED : GOOMBA_WALK_SPEED),
-      m_LeftPath(kind == EnemyKind::Koopa ? AssetPaths::Image("koopa_l.png") : AssetPaths::Image("Goomba_l.png")),
-      m_RightPath(kind == EnemyKind::Koopa ? AssetPaths::Image("koopa_r.png") : AssetPaths::Image("Goomba_r.png")),
-      m_ShellPath(kind == EnemyKind::Koopa ? AssetPaths::Image("koopa_shell.png") : AssetPaths::Image("Goombadeath.png")),
-      m_DeathPath(AssetPaths::Image("Goombadeath.png")) {
+      m_Speed((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? KOOPA_WALK_SPEED : GOOMBA_WALK_SPEED),
+      m_LeftPath((g_MapManager && g_MapManager->IsUndergroundTheme())
+          ? ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("ug_koopa_l.png") : AssetPaths::Image("ug_goomba_l.png"))
+          : ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("koopa_l.png") : AssetPaths::Image("Goomba_l.png"))),
+      m_RightPath((g_MapManager && g_MapManager->IsUndergroundTheme())
+          ? ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("ug_koopa_r.png") : AssetPaths::Image("ug_goomba_r.png"))
+          : ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("koopa_r.png") : AssetPaths::Image("Goomba_r.png"))),
+      m_ShellPath((g_MapManager && g_MapManager->IsUndergroundTheme())
+          ? ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("ug_koopa_shell.png") : AssetPaths::Image("ug_goomba_death.png"))
+          : ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("koopa_shell.png") : AssetPaths::Image("Goombadeath.png"))),
+      m_ShellRecoverPath((g_MapManager && g_MapManager->IsUndergroundTheme())
+          ? AssetPaths::Image("ug_koopa_shell2.png")
+          : AssetPaths::Image("koopa_shell2.png")),
+      m_DeathPath((g_MapManager && g_MapManager->IsUndergroundTheme())
+          ? AssetPaths::Image("ug_goomba_death.png")
+          : AssetPaths::Image("Goombadeath.png")) {
     m_Image = std::make_shared<Util::Image>(m_LeftPath);
     SetDrawable(m_Image);
     m_Transform.translation = { x, y };
@@ -30,7 +41,10 @@ glm::vec2 Enemy::GetHalfExtents() const {
     if (m_Kind == EnemyKind::Goomba) {
         return { 20.0f, 24.0f };
     }
-    if (m_State == State::ShellIdle || m_State == State::ShellSliding || m_State == State::Recovering) {
+    if (m_State == State::RetreatingIntoShell ||
+        m_State == State::ShellIdle ||
+        m_State == State::ShellSliding ||
+        m_State == State::Recovering) {
         return { 18.0f, 18.0f };
     }
     return { 24.0f, 36.0f };
@@ -42,9 +56,20 @@ void Enemy::SetDirection(float direction) {
     RefreshSprite();
 }
 
+void Enemy::EnterRetreatingIntoShell() {
+    if (!IsKoopa()) return;
+    m_State = State::RetreatingIntoShell;
+    m_RetreatTimer = KOOPA_RETREAT_DURATION;
+    m_ShellIdleTimer = 0.0f;
+    m_RecoveryTimer = 0.0f;
+    m_VelocityX = 0.0f;
+    RefreshSprite();
+}
+
 void Enemy::EnterShellIdle() {
-    if (m_Kind != EnemyKind::Koopa) return;
+    if (!IsKoopa()) return;
     m_State = State::ShellIdle;
+    m_RetreatTimer = 0.0f;
     m_ShellIdleTimer = KOOPA_SHELL_IDLE_DURATION;
     m_RecoveryTimer = 0.0f;
     m_VelocityX = 0.0f;
@@ -52,8 +77,9 @@ void Enemy::EnterShellIdle() {
 }
 
 void Enemy::EnterRecovering() {
-    if (m_Kind != EnemyKind::Koopa) return;
+    if (!IsKoopa()) return;
     m_State = State::Recovering;
+    m_RetreatTimer = 0.0f;
     m_ShellIdleTimer = 0.0f;
     m_RecoveryTimer = KOOPA_RECOVERY_DURATION;
     m_VelocityX = 0.0f;
@@ -61,13 +87,14 @@ void Enemy::EnterRecovering() {
 }
 
 void Enemy::KickShell(float direction) {
-    if (m_Kind != EnemyKind::Koopa) return;
+    if (!IsKoopa()) return;
     if (m_State != State::ShellIdle && m_State != State::Recovering) return;
 
     m_State = State::ShellSliding;
+    m_RetreatTimer = 0.0f;
     m_Direction = (direction >= 0.0f) ? 1.0f : -1.0f;
     m_VelocityX = m_Direction * KOOPA_SHELL_SPEED;
-    m_ShellIdleTimer = 0.0f;
+    m_ShellIdleTimer = KOOPA_SHELL_IDLE_DURATION;
     m_RecoveryTimer = 0.0f;
     RefreshSprite();
 }

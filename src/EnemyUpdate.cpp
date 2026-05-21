@@ -33,8 +33,18 @@ void Enemy::Update() {
         return;
     }
 
-    if (m_Kind == EnemyKind::Koopa) {
-        if (m_State == State::ShellIdle) {
+    if (IsKoopa()) {
+        if (m_State == State::RetreatingIntoShell) {
+            m_RetreatTimer = std::max(0.0f, m_RetreatTimer - dt);
+            if (m_RetreatTimer <= 0.0f) {
+                EnterShellIdle();
+            }
+        } else if (m_State == State::ShellIdle) {
+            m_ShellIdleTimer = std::max(0.0f, m_ShellIdleTimer - dt);
+            if (m_ShellIdleTimer <= 0.0f) {
+                EnterRecovering();
+            }
+        } else if (m_State == State::ShellSliding) {
             m_ShellIdleTimer = std::max(0.0f, m_ShellIdleTimer - dt);
             if (m_ShellIdleTimer <= 0.0f) {
                 EnterRecovering();
@@ -43,13 +53,20 @@ void Enemy::Update() {
             m_RecoveryTimer = std::max(0.0f, m_RecoveryTimer - dt);
             if (m_RecoveryTimer <= 0.0f) {
                 m_State = State::Walking;
+                m_RetreatTimer = 0.0f;
+                m_ShellIdleTimer = 0.0f;
+                m_RecoveryTimer = 0.0f;
                 m_VelocityX = 0.0f;
                 RefreshSprite();
             }
         }
     }
 
-    SnapUpOutOfGround(m_Transform.translation, GetHalfExtents());
+    const glm::vec2 half = GetHalfExtents();
+    if (g_MapManager && m_VelocityY <= 0.0f) {
+        m_Transform.translation += g_MapManager->GetCarryDelta(m_Transform.translation, half);
+    }
+    SnapUpOutOfGround(m_Transform.translation, half);
     if (!g_MapManager) {
         if (m_State == State::Walking) {
             m_Transform.translation.x += m_Direction * m_Speed * dt;
@@ -60,7 +77,6 @@ void Enemy::Update() {
         return;
     }
 
-    const glm::vec2 half = GetHalfExtents();
     const float tileSize = g_MapManager->GetTileSize();
     const float mapLeft = g_MapManager->GetWorldLeft();
     const float mapTop = (g_MapManager->GetHeight() * tileSize) / 2.0f;
@@ -81,9 +97,11 @@ void Enemy::Update() {
         const int gridY = std::clamp(worldToGridY(footY), 0, std::max(0, mapHeight - 1));
         return g_MapManager->IsSolidAt(gridX, gridY);
     };
+    const auto movingPlatforms = g_MapManager->GetMovingPlatformSnapshots();
 
     m_VelocityY += ENEMY_GRAVITY * dt;
 
+    const float previousY = m_Transform.translation.y;
     float candidateY = m_Transform.translation.y + m_VelocityY * dt;
     float leftX = m_Transform.translation.x - half.x;
     float rightX = m_Transform.translation.x + half.x;
@@ -149,6 +167,35 @@ void Enemy::Update() {
             }
         }
 
+        if (!hitWall) {
+            const float actorTop = m_Transform.translation.y + half.y - eps;
+            const float actorBottom = m_Transform.translation.y - half.y + eps;
+            for (const auto& platform : movingPlatforms) {
+                const float platformLeft = platform.center.x - platform.halfExtents.x;
+                const float platformRight = platform.center.x + platform.halfExtents.x;
+                const float platformTop = platform.center.y + platform.halfExtents.y;
+                const float platformBottom = platform.center.y - platform.halfExtents.y;
+                const bool overlapY = actorTop > platformBottom + 2.0f && actorBottom < platformTop - 2.0f;
+                if (!overlapY) continue;
+
+                if (m_Direction > 0.0f) {
+                    const float previousRight = m_Transform.translation.x + half.x;
+                    const float nextRight = candidateX + half.x;
+                    if (previousRight <= platformLeft + 3.0f && nextRight > platformLeft) {
+                        hitWall = true;
+                        break;
+                    }
+                } else {
+                    const float previousLeft = m_Transform.translation.x - half.x;
+                    const float nextLeft = candidateX - half.x;
+                    if (previousLeft >= platformRight - 3.0f && nextLeft < platformRight) {
+                        hitWall = true;
+                        break;
+                    }
+                }
+            }
+        }
+
         if (hitWall) {
             m_Direction = -m_Direction;
             if (m_State == State::ShellSliding) {
@@ -157,13 +204,37 @@ void Enemy::Update() {
                 m_VelocityX = 0.0f;
             }
         } else if (m_State == State::Walking &&
-                   m_Kind == EnemyKind::Koopa &&
+                   UsesEdgeDetection() &&
                    onGround &&
                    !hasGroundAhead(m_Direction)) {
             m_Direction = -m_Direction;
             m_VelocityX = 0.0f;
         } else {
             m_Transform.translation.x = candidateX;
+        }
+    }
+
+    if (!movingPlatforms.empty()) {
+        const float previousBottom = previousY - half.y;
+        const float actorLeft = m_Transform.translation.x - half.x;
+        const float actorRight = m_Transform.translation.x + half.x;
+        for (const auto& platform : movingPlatforms) {
+            const float platformLeft = platform.center.x - platform.halfExtents.x;
+            const float platformRight = platform.center.x + platform.halfExtents.x;
+            const float platformTop = platform.center.y + platform.halfExtents.y;
+            const float previousPlatformTop = platformTop - platform.delta.y;
+            const bool overlapX = actorRight > platformLeft + 2.0f && actorLeft < platformRight - 2.0f;
+            if (!overlapX) continue;
+
+            const float currentBottom = m_Transform.translation.y - half.y;
+            if (m_VelocityY <= 0.0f &&
+                previousBottom >= previousPlatformTop - 6.0f &&
+                currentBottom <= platformTop + 4.0f) {
+                m_Transform.translation.y = platformTop + half.y;
+                m_VelocityY = 0.0f;
+                onGround = true;
+                break;
+            }
         }
     }
 

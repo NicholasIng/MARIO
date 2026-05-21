@@ -146,6 +146,10 @@ static bool IsPipeForkedColor(Uint8 r, Uint8 g, Uint8 b) {
     return PackRGB(r, g, b) == PackRGB(0, 255, 176);
 }
 
+static bool IsMovingPlatformColor(Uint8 r, Uint8 g, Uint8 b) {
+    return PackRGB(r, g, b) == PackRGB(255, 205, 0);
+}
+
 static bool FindMarioSpawnMarker(SDL_Surface* surface,
                                  int layerHeight,
                                  int& outGridX,
@@ -188,16 +192,33 @@ static glm::vec2 ComputeGroundedSpawnPosition(const MapManager& map,
                                               int entityGridY,
                                               float halfHeight) {
     const float tileSize = map.GetTileSize();
-    const float worldX = map.GetWorldLeft() + gridX * tileSize + tileSize / 2.0f;
+    const int clampedGridX = std::clamp(gridX, 0, std::max(0, map.GetWidth() - 1));
+    const float worldX = map.GetWorldLeft() + clampedGridX * tileSize + tileSize / 2.0f;
+    const int minSearchX = std::max(0, clampedGridX - 1);
+    const int maxSearchX = std::min(std::max(0, map.GetWidth() - 1), clampedGridX + 1);
+
     for (int y = std::max(0, entityGridY); y < map.GetHeight(); ++y) {
-        if (MapManager::IsSolidCell(map.GetCell(gridX, y))) {
-            const float tileTop = (map.GetHeight() * tileSize) / 2.0f - y * tileSize;
-            return { worldX, tileTop + halfHeight };
+        for (int supportX = minSearchX; supportX <= maxSearchX; ++supportX) {
+            if (MapManager::IsSolidCell(map.GetCell(supportX, y))) {
+                const float tileTop = (map.GetHeight() * tileSize) / 2.0f - y * tileSize;
+                return { worldX, tileTop + halfHeight };
+            }
         }
     }
 
     const float fallbackY = (map.GetHeight() * tileSize) / 2.0f - entityGridY * tileSize + tileSize / 2.0f;
     return { worldX, fallbackY };
+}
+
+static glm::vec2 ComputeMarkerSpawnPosition(const MapManager& map,
+                                            int gridX,
+                                            int entityGridY) {
+    const float tileSize = map.GetTileSize();
+    const int clampedGridX = std::clamp(gridX, 0, std::max(0, map.GetWidth() - 1));
+    const int clampedGridY = std::clamp(entityGridY, 0, std::max(0, map.GetHeight() - 1));
+    const float worldX = map.GetWorldLeft() + clampedGridX * tileSize + tileSize / 2.0f;
+    const float worldY = (map.GetHeight() * tileSize) / 2.0f - clampedGridY * tileSize - tileSize / 2.0f;
+    return { worldX, worldY };
 }
 
 bool convert_sketch(
@@ -234,7 +255,15 @@ bool convert_sketch(
     int layerHeight = totalHeight / 3;
     map.SetMapSize(width, layerHeight);
 
-    background_color = Util::Color(SKY_BLUE_R, SKY_BLUE_G, SKY_BLUE_B, 255);
+    const std::string loweredPath = ToLower(path);
+    const bool isUndergroundLevel =
+        loweredPath.find("levelsketch1") != std::string::npos ||
+        loweredPath.find("1-2") != std::string::npos;
+    map.SetUndergroundTheme(isUndergroundLevel);
+
+    background_color = isUndergroundLevel
+        ? Util::Color(0, 0, 0, 255)
+        : Util::Color(SKY_BLUE_R, SKY_BLUE_G, SKY_BLUE_B, 255);
 
     // tile mappings: packed RGB -> pair(Cell type, requested filename)
     struct TileEntry {
@@ -243,17 +272,20 @@ bool convert_sketch(
         LootType questionLoot = LootType::Coin;
         int questionHitCount = 1;
         bool renderAsBrick = false;
+        bool hiddenUntilHit = false;
     };
     std::unordered_map<uint32_t, TileEntry> tileMap = {
-        { PackRGB(0,   0,   0),   { Cell::Wall,          "Ground.png" } },
-        { PackRGB(182, 73,  0),   { Cell::Brick,         "Brick.png" } },
-        { PackRGB(146, 73,  0),   { Cell::Brick,         "Brick.png" } },
-        { PackRGB(255, 255, 0),   { Cell::Coin,          "Coin.png" } },
+        { PackRGB(0,   0,   0),   { Cell::Wall,          isUndergroundLevel ? "SMB_Ground_Underground.png" : "Ground.png" } },
+        { PackRGB(182, 73,  0),   { Cell::Brick,         isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png" } },
+        { PackRGB(146, 73,  0),   { Cell::Brick,         isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png" } },
+        { PackRGB(255, 255, 0),   { Cell::Coin,          isUndergroundLevel ? "ug_coin1.png" : "Coin.png" } },
         { PackRGB(255, 73,  85),  { Cell::QuestionBlock, "Question.png", LootType::ProgressivePowerUp } },
+        { PackRGB(255, 135, 143), { Cell::QuestionBlock, isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png", LootType::RedMushroom, 1, true } },
         { PackRGB(255, 146, 85),  { Cell::QuestionBlock, "Question.png", LootType::Coin } },
-        { PackRGB(0,   20, 255),  { Cell::QuestionBlock, "Question.png", LootType::Star } },
-        { PackRGB(121, 255, 107), { Cell::QuestionBlock, "Question.png", LootType::GreenMushroom } },
-        { PackRGB(243, 125, 45),  { Cell::QuestionBlock, "Brick.png", LootType::Coin, 11, true } },
+        { PackRGB(0,   20, 255),  { Cell::QuestionBlock, isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png", LootType::Star, 1, true } },
+        { PackRGB(0,   100, 0),   { Cell::QuestionBlock, isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png", LootType::GreenMushroom, 1, true } },
+        { PackRGB(121, 255, 107), { Cell::QuestionBlock, "Question.png", LootType::GreenMushroom, 1, false, true } },
+        { PackRGB(243, 125, 45),  { Cell::QuestionBlock, isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png", LootType::Coin, 11, true } },
         { PackRGB(0,   146, 0),   { Cell::Pipe,          "Pipe.png" } },
         { PackRGB(0,   182, 0),   { Cell::Pipe,          "Pipe.png" } },
         { PackRGB(0,   219, 0),   { Cell::Pipe,          "Pipe.png" } },
@@ -267,7 +299,10 @@ bool convert_sketch(
     bool spawnMarkerFoundOutsideEntityLayer = false;
 
     // pre-resolve stair fallback: if a "Stair.png" exists (under resources) use it for unmatched top-layer tiles
-    std::string stairResolved = MapManager::ResolveTilePath(Cell::Brick, "Stair.png");
+    std::string stairResolved = MapManager::ResolveTilePath(
+        Cell::Brick,
+        isUndergroundLevel ? "SMB_Underground_Hard_Block.png" : "Stair.png"
+    );
     bool haveStairAsset = false;
     if (!stairResolved.empty() && fs::exists(stairResolved)) {
         haveStairAsset = true;
@@ -278,9 +313,9 @@ bool convert_sketch(
     const std::string pipeTopRight = MapManager::ResolveTilePath(Cell::Pipe, "pipetop_right.png");
     const std::string pipeBottomLeft = MapManager::ResolveTilePath(Cell::Pipe, "pipebottom_left.png");
     const std::string pipeBottomRight = MapManager::ResolveTilePath(Cell::Pipe, "pipebottom_right.png");
-    std::string mountainResolved = MapManager::ResolveBackgroundPath("mountains.png");
-    std::string bushResolved = MapManager::ResolveBackgroundPath("Bush.png");
-    std::string cloudResolved = MapManager::ResolveBackgroundPath("Clouds_2.png");
+    std::string mountainResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("mountains.png");
+    std::string bushResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("Bush.png");
+    std::string cloudResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("Clouds_2.png");
     std::string castleResolved = MapManager::ResolveBackgroundPath("castle1.png");
     std::string pipeForkedResolved = MapManager::ResolveBackgroundPath("WarpPipeForked.png");
     std::vector<std::vector<char>> pipeMask(width, std::vector<char>(layerHeight, 0));
@@ -290,6 +325,7 @@ bool convert_sketch(
     std::vector<std::vector<char>> flagMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> castleMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> pipeForkedMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> movingPlatformMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> goombaMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> koopaMask(width, std::vector<char>(layerHeight, 0));
 
@@ -308,6 +344,10 @@ bool convert_sketch(
                 }
                 if (IsPipeForkedColor(r, g, b)) {
                     pipeForkedMask[x][y] = 1;
+                    continue;
+                }
+                if (IsMovingPlatformColor(r, g, b)) {
+                    movingPlatformMask[x][y] = 1;
                     continue;
                 }
 
@@ -336,6 +376,9 @@ bool convert_sketch(
                             if (matchedTile->renderAsBrick) {
                                 map.SetQuestionBlockStaticTexture(x, y, matchedTile->requested);
                             }
+                            if (matchedTile->hiddenUntilHit) {
+                                map.SetQuestionBlockHidden(x, y, true);
+                            }
                         }
                     }
                 } else {
@@ -344,7 +387,10 @@ bool convert_sketch(
                         map.AddTile(x, y, Cell::Brick, stairResolved);
                     } else {
                         // fallback: try Brick.png (MapManager will resolve)
-                        std::string resolvedBrick = MapManager::ResolveTilePath(Cell::Brick, "Brick.png");
+                        std::string resolvedBrick = MapManager::ResolveTilePath(
+                            Cell::Brick,
+                            isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png"
+                        );
                         map.AddTile(x, y, Cell::Brick, resolvedBrick);
                     }
                 }
@@ -623,6 +669,51 @@ bool convert_sketch(
         );
     }
 
+    {
+        std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
+        for (int sx = 0; sx < width; ++sx) {
+            for (int sy = 0; sy < layerHeight; ++sy) {
+                if (!movingPlatformMask[sx][sy] || visited[sx][sy]) continue;
+
+                int minX = sx;
+                int maxX = sx;
+                int minY = sy;
+                int maxY = sy;
+                std::queue<std::pair<int, int>> q;
+                q.push({sx, sy});
+                visited[sx][sy] = 1;
+
+                while (!q.empty()) {
+                    auto [cx, cy] = q.front();
+                    q.pop();
+                    minX = std::min(minX, cx);
+                    maxX = std::max(maxX, cx);
+                    minY = std::min(minY, cy);
+                    maxY = std::max(maxY, cy);
+
+                    const int dx[4] = {1, -1, 0, 0};
+                    const int dy[4] = {0, 0, 1, -1};
+                    for (int i = 0; i < 4; ++i) {
+                        const int nx = cx + dx[i];
+                        const int ny = cy + dy[i];
+                        if (nx < 0 || nx >= width || ny < 0 || ny >= layerHeight) continue;
+                        if (visited[nx][ny] || !movingPlatformMask[nx][ny]) continue;
+                        visited[nx][ny] = 1;
+                        q.push({nx, ny});
+                    }
+                }
+
+                const int spanX = maxX - minX + 1;
+                const int spanY = maxY - minY + 1;
+                const int defaultTravelTiles = 4;
+                const int topGridY =
+                    (spanY > 1) ? minY : std::max(0, maxY - (defaultTravelTiles - 1));
+                const int bottomGridY = maxY;
+                map.AddMovingPlatform(minX, topGridY, bottomGridY, spanX, "platform.png");
+            }
+        }
+    }
+
     std::vector<std::vector<char>> visitedFlag(width, std::vector<char>(layerHeight, 0));
     for (int sx = 0; sx < width; ++sx) {
         for (int sy = 0; sy < layerHeight; ++sy) {
@@ -654,7 +745,10 @@ bool convert_sketch(
             const std::string flagstickPath = MapManager::ResolveBackgroundPath("flagstick.png");
             const std::string dotPath = MapManager::ResolveBackgroundPath("dot.png");
             const std::string flagPath = MapManager::ResolveBackgroundPath("flag.png");
-            const std::string hardBlockPath = MapManager::ResolveTilePath(Cell::Wall, "HardBlock.png");
+            const std::string hardBlockPath = MapManager::ResolveTilePath(
+                Cell::Wall,
+                isUndergroundLevel ? "SMB_Underground_Hard_Block.png" : "HardBlock.png"
+            );
             const int poleBottomY = maxY;
             const int maxBaseY = layerHeight - 1;
             const int baseY = std::min(maxBaseY, poleBottomY + 1);
@@ -680,7 +774,8 @@ bool convert_sketch(
     if (enemy_spawns != nullptr) {
         const auto appendEnemySpawns = [&](const std::vector<std::vector<char>>& mask, EnemyKind kind) {
             std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
-            const float halfHeight = (kind == EnemyKind::Koopa) ? 36.0f : 24.0f;
+            const float halfHeight =
+                (kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? 36.0f : 24.0f;
             for (int sx = 0; sx < width; ++sx) {
                 for (int sy = 0; sy < layerHeight; ++sy) {
                     if (!mask[sx][sy] || visited[sx][sy]) continue;
@@ -721,10 +816,13 @@ bool convert_sketch(
         };
 
         appendEnemySpawns(goombaMask, EnemyKind::Goomba);
-        appendEnemySpawns(koopaMask, EnemyKind::Koopa);
+        appendEnemySpawns(koopaMask, EnemyKind::GreenKoopa);
     }
 
-    std::string hardBlockPath = MapManager::ResolveTilePath(Cell::Brick, "HardBlock.png");
+    std::string hardBlockPath = MapManager::ResolveTilePath(
+        Cell::Brick,
+        isUndergroundLevel ? "SMB_Underground_Hard_Block.png" : "HardBlock.png"
+    );
     bool haveHardBlockAsset = !hardBlockPath.empty() && fs::exists(hardBlockPath);
     if (haveHardBlockAsset) {
         std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
@@ -804,9 +902,7 @@ bool convert_sketch(
 
     bool spawnFound = false;
     if (spawnMarkerFound) {
-        mario.m_Transform.translation = ComputeGroundedSpawnPosition(
-            map, marioSpawnX, marioSpawnY, mario.GetHalfExtents().y
-        );
+        mario.m_Transform.translation = ComputeMarkerSpawnPosition(map, marioSpawnX, marioSpawnY);
         spawnFound = true;
     }
 

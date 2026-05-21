@@ -75,7 +75,6 @@ void App::RenderTitleScreen() {
     DrawSpriteText(m_HudCoinValue);
     DrawUiObject(m_TitleLogoImage);
     DrawSpriteText(m_TitleOption1);
-    DrawSpriteText(m_TitleOption2);
     DrawSpriteText(m_TitleTopScore);
     DrawUiObject(m_TitleNintendoText);
     DrawUiObject(m_TitleCursor);

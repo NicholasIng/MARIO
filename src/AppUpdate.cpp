@@ -24,17 +24,8 @@ void App::UpdateTitleScreen(float dt) {
     AdvanceAnimatedSprite(m_TitleCoinIcon, dt);
     m_TitleBlinkTimer += dt;
 
-    if (Util::Input::IsKeyDown(Util::Keycode::UP) ||
-        Util::Input::IsKeyDown(Util::Keycode::DOWN) ||
-        Util::Input::IsKeyDown(Util::Keycode::W) ||
-        Util::Input::IsKeyDown(Util::Keycode::S)) {
-        m_TitleSelection = 1 - m_TitleSelection;
-        PlaySfx(m_Audio.bump.get());
-    }
-
-    const float cursorY = (m_TitleSelection == 0) ? -128.0f : -174.0f;
     if (m_TitleCursor != nullptr) {
-        m_TitleCursor->m_Transform.translation = { -216.0f, cursorY };
+        m_TitleCursor->m_Transform.translation = { -216.0f, -128.0f };
         m_TitleCursor->SetVisible(std::fmod(m_TitleBlinkTimer, TITLE_CURSOR_BLINK_DURATION * 2.0f) < TITLE_CURSOR_BLINK_DURATION);
     }
 
@@ -74,24 +65,13 @@ void App::UpdateTransitionScene(float dt) {
     }
 
     if (m_Mario) {
-        const bool wasOnGround = m_Mario->IsOnGround();
         if (!m_TransitionPipeReached) {
             m_Mario->Update();
-            if (g_MapManager) {
-                const float entryRange =
-                    g_MapManager->GetTileSize() * TRANSITION_PIPE_ENTRY_RANGE_TILES;
-                const bool atPipe =
-                    std::abs(m_Mario->m_Transform.translation.x - m_TransitionPipeEntryX) <= entryRange;
-                const bool pressDown =
-                    Util::Input::IsKeyPressed(Util::Keycode::S) ||
-                    Util::Input::IsKeyPressed(Util::Keycode::DOWN);
-                if (atPipe && wasOnGround && m_Mario->IsOnGround() && pressDown) {
-                    m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
-                    m_Mario->m_Transform.translation.y = m_TransitionPipeEntryY;
-                    m_TransitionPipeReached = true;
-                    m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
-                    m_Mario->SetVisible(true);
-                }
+            if (m_TransitionAutoWalkStarted && m_Mario->HasReachedGoalWalkTarget()) {
+                m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
+                m_TransitionPipeReached = true;
+                m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
+                m_Mario->SetVisible(true);
             }
         } else if (!m_TransitionMarioHidden) {
             if (!m_TransitionPipeSoundPlayed) {
@@ -103,11 +83,14 @@ void App::UpdateTransitionScene(float dt) {
             if (m_Mario->m_Transform.translation.y <= m_TransitionPipeEntryY - m_TransitionPipeSinkDistance) {
                 m_Mario->SetVisible(false);
                 m_TransitionMarioHidden = true;
+                m_TransitionBlackoutTimer = TRANSITION_BLACKOUT_DURATION;
             }
         } else {
-            m_TransitionExitTimer = std::max(0.0f, m_TransitionExitTimer - dt);
-            if (m_TransitionExitTimer <= 0.0f) {
-                m_CurrentState = State::END;
+            m_TransitionBlackoutTimer = std::max(0.0f, m_TransitionBlackoutTimer - dt);
+            if (m_TransitionBlackoutTimer <= 0.0f) {
+                LoadLevelOneTwo();
+                PlayGameplayMusic(true);
+                m_ScreenState = ScreenState::Gameplay;
                 return;
             }
         }
@@ -124,6 +107,12 @@ void App::UpdateTransitionScene(float dt) {
         }
     }
 
+    if (m_TransitionMarioHidden) {
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        return;
+    }
+
     RenderSceneWorld(false);
     DrawHud();
 }
@@ -136,7 +125,7 @@ void App::UpdateStatusMessage(float dt) {
         m_StatusMessageAction = StatusMessageAction::None;
 
         if (action == StatusMessageAction::ReloadLevel) {
-            LoadLevel();
+            ReloadCurrentLevel();
             StartLevelIntro(LEVEL_INTRO_DURATION);
             return;
         }
@@ -409,15 +398,46 @@ void App::UpdateGameplay(float dt) {
             const float verticalOverlap =
                 std::min(marioTop, enemyTop) - std::max(marioBottom, enemyBottom);
             const float stompForgiveness = 18.0f;
-            const float minimumStompWidth = enemyHalf.x * 0.35f;
+            const bool isKoopa = enemy->IsKoopa();
+            const float minimumStompWidth = enemyHalf.x * (isKoopa ? 0.2f : 0.35f);
+            const float marioPreviousBottom = marioBottom - m_Mario->GetVelocityY() * dt;
+            const bool approachedFromAbove =
+                marioPreviousBottom >= enemyTop - stompForgiveness ||
+                m_Mario->m_Transform.translation.y >
+                    enemy->m_Transform.translation.y + enemyHalf.y * (isKoopa ? 0.05f : 0.2f);
+            const Enemy::State enemyState = enemy->GetState();
+            const bool stationaryShellState =
+                isKoopa &&
+                (enemyState == Enemy::State::RetreatingIntoShell ||
+                 enemyState == Enemy::State::ShellIdle ||
+                 enemyState == Enemy::State::Recovering);
+            const bool slidingShellState =
+                isKoopa &&
+                enemyState == Enemy::State::ShellSliding;
+            const bool kickableShell = enemy->IsKickableShell();
+            const bool shellTopContact =
+                slidingShellState &&
+                m_Mario->GetVelocityY() <= 60.0f &&
+                approachedFromAbove &&
+                horizontalOverlap >= enemyHalf.x * 0.15f &&
+                verticalOverlap <= enemyHalf.y + stompForgiveness;
+            const bool stationaryShellTopContact =
+                kickableShell &&
+                m_Mario->GetVelocityY() <= 60.0f &&
+                approachedFromAbove &&
+                horizontalOverlap >= enemyHalf.x * 0.15f &&
+                verticalOverlap <= enemyHalf.y + stompForgiveness;
             const bool stomped =
-                m_Mario->GetVelocityY() < -30.0f &&
-                m_Mario->m_Transform.translation.y >= enemy->m_Transform.translation.y - 8.0f &&
-                marioBottom >= enemyTop - stompForgiveness &&
+                enemyState == Enemy::State::Walking &&
+                m_Mario->GetVelocityY() <= 60.0f &&
+                approachedFromAbove &&
                 horizontalOverlap >= minimumStompWidth &&
                 verticalOverlap <= enemyHalf.y + stompForgiveness;
-            const bool kickableShell = enemy->IsKickableShell();
-            const bool sideShellContact = kickableShell && !stomped;
+            const bool sideShellContact =
+                kickableShell &&
+                !stomped &&
+                !shellTopContact &&
+                !stationaryShellTopContact;
             const float shellKickDirection =
                 (m_Mario->m_Transform.translation.x >= enemy->m_Transform.translation.x) ? -1.0f : 1.0f;
 
@@ -431,9 +451,19 @@ void App::UpdateGameplay(float dt) {
                 m_Mario->BounceAfterStomp();
                 AwardPoints(100, enemy->m_Transform.translation);
                 PlaySfx(m_Audio.stomp.get());
+            } else if (shellTopContact) {
+                enemy->Stomp();
+                m_Mario->BounceAfterStomp();
+                PlaySfx(m_Audio.stomp.get());
             } else if (sideShellContact) {
                 enemy->KickShell(shellKickDirection);
+                enemy->m_Transform.translation.x =
+                    m_Mario->m_Transform.translation.x +
+                    shellKickDirection * (marioHalf.x + enemyHalf.x + 2.0f);
                 PlaySfx(m_Audio.kick.get());
+                continue;
+            } else if (stationaryShellTopContact || stationaryShellState) {
+                continue;
             } else if (enemy->IsHarmlessToPlayer()) {
                 continue;
             } else if (!m_Mario->IsInvulnerable()) {

@@ -280,7 +280,6 @@ void App::InitializeUi() {
     ConfigureSpriteText(m_HudCoinValue, { -74.0f, 294.0f }, { HUD_TEXT_SCALE, HUD_TEXT_SCALE }, 3.0f, 0.0f, UI_Z);
 
     ConfigureSpriteText(m_TitleOption1, { -171.0f, -128.0f }, { TITLE_TEXT_SCALE, TITLE_TEXT_SCALE }, 3.0f, 0.0f, UI_Z);
-    ConfigureSpriteText(m_TitleOption2, { -171.0f, -174.0f }, { TITLE_TEXT_SCALE, TITLE_TEXT_SCALE }, 3.0f, 0.0f, UI_Z);
     ConfigureSpriteText(m_TitleTopScore, { -133.0f, -226.0f }, { TITLE_TEXT_SCALE, TITLE_TEXT_SCALE }, 3.0f, 0.0f, UI_Z);
 
     ConfigureSpriteText(m_IntroWorldText, { -90.0f, 68.0f }, { INTRO_TEXT_SCALE, INTRO_TEXT_SCALE }, 3.0f, 0.0f, UI_Z);
@@ -316,7 +315,6 @@ void App::RefreshHudText() {
     SetSpriteText(m_HudCoinValue, "x" + PadNumber(m_Coins, 2));
 
     SetSpriteText(m_TitleOption1, "1 PLAYER GAME");
-    SetSpriteText(m_TitleOption2, "2 PLAYER GAME");
     SetSpriteText(m_TitleTopScore, "TOP-" + PadNumber(m_TopScore, 6));
 
     SetSpriteText(m_IntroWorldText, "WORLD " + WorldLabel(m_World, m_Level));

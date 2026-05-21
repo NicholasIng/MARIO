@@ -31,6 +31,7 @@ public:
     bool IsGoalSequenceFinished() const { return m_GoalSequenceState == GoalSequenceState::Finished; }
     bool HasReachedGoalWalkTarget() const { return m_GoalWalkReached; }
     float GetFacingDirection() const { return m_Transform.scale.x >= 0.0f ? 1.0f : -1.0f; }
+    PowerState GetPowerState() const { return m_PowerState; }
     float GetRenderOffsetY() const;
     glm::vec2 GetFireballSpawnPosition() const;
     bool IsDead() const { return m_IsDead; }
@@ -45,6 +46,7 @@ public:
     glm::vec2 GetHalfExtents() const;
     float GetVelocityY() const { return m_VelocityY; }
     bool WasJumpingUpward() const { return m_VelocityY > 0.0f; }
+    void RestorePowerState(PowerState state);
 
 private:
     static constexpr float SMALL_HALF_WIDTH = 18.0f;

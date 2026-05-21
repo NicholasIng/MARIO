@@ -235,6 +235,21 @@ inline void SnapUpOutOfGround(glm::vec2& center, const glm::vec2& halfExtents) {
     }
 }
 
+inline void ResolveMinorGroundPenetration(glm::vec2& center, const glm::vec2& halfExtents) {
+    if (!g_MapManager) return;
+    if (!IntersectsSolidTile(center, halfExtents)) return;
+
+    glm::vec2 candidate = center;
+    constexpr int kMaxMinorSnapSteps = 8;
+    for (int step = 0; step < kMaxMinorSnapSteps; ++step) {
+        candidate.y += 1.0f;
+        if (!IntersectsSolidTile(candidate, halfExtents)) {
+            center = candidate;
+            return;
+        }
+    }
+}
+
 inline void ClampGrowthToAvailableHeadroom(glm::vec2& center, float originalY, const glm::vec2& halfExtents) {
     if (!g_MapManager) return;
 

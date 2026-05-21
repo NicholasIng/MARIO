@@ -14,7 +14,8 @@ constexpr float FLIPPED_DEATH_CULL_MARGIN = 96.0f;
 constexpr float ENEMY_GRAVITY = -1800.0f;
 constexpr float GOOMBA_WALK_SPEED = 40.0f;
 constexpr float KOOPA_WALK_SPEED = 46.0f;
-constexpr float KOOPA_SHELL_SPEED = 240.0f;
+constexpr float KOOPA_SHELL_SPEED = 320.0f;
+constexpr float KOOPA_RETREAT_DURATION = 0.14f;
 constexpr float KOOPA_SHELL_IDLE_DURATION = 4.0f;
 constexpr float KOOPA_RECOVERY_DURATION = 1.1f;
 

@@ -120,6 +120,31 @@ void Mario::PowerUp(LootType type) {
     }
 }
 
+void Mario::RestorePowerState(PowerState state) {
+    m_TargetPowerState = state;
+    m_TransformType = TransformType::None;
+    m_TransformTimer = 0.0f;
+    m_TransformShowBigFrame = false;
+    m_StoredVelocityX = 0.0f;
+    m_StoredVelocityY = 0.0f;
+    m_VelocityX = 0.0f;
+    m_VelocityY = 0.0f;
+    m_InvulnerabilityTimer = 0.0f;
+    m_StarPowerTimer = 0.0f;
+    m_PowerDownLockTimer = 0.0f;
+    m_IsCrouching = false;
+    m_OnGround = false;
+    SetVisible(true);
+
+    if (m_PowerState != state) {
+        SetPowerState(state);
+    } else {
+        ResetAnimations();
+        m_AnimState = AnimState::IDLE;
+        m_Image->SetImage(ActiveAnimations().at(m_AnimState)->GetCurrentFramePath());
+    }
+}
+
 void Mario::TakeEnemyHit() {
     if (m_IsDead || IsInvulnerable() || m_PowerDownLockTimer > 0.0f ||
         m_TransformType != TransformType::None) return;

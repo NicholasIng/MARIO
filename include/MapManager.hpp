@@ -22,7 +22,22 @@ enum class Cell { Empty, Wall, Brick, QuestionBlock, Pipe, Coin };
 enum class LootType { RedMushroom, GreenMushroom, FireFlower, Coin, Star, ProgressivePowerUp };
 
 class MapManager {
+public:
+    enum class MovingPlatformState {
+        MovingUp,
+        MovingDown,
+        WaitingTop,
+        WaitingBottom
+    };
+
+    struct MovingPlatformSnapshot {
+        glm::vec2 center = { 0.0f, 0.0f };
+        glm::vec2 halfExtents = { 0.0f, 0.0f };
+        glm::vec2 delta = { 0.0f, 0.0f };
+    };
+
 private:
+    bool m_IsUndergroundTheme = false;
     std::vector<std::vector<Cell>> m_Map;
     std::vector<std::vector<std::shared_ptr<Util::GameObject>>> m_TileObjects;
     std::vector<std::vector<std::shared_ptr<Util::GameObject>>> m_BackgroundTileObjects;
@@ -43,8 +58,23 @@ private:
         int gridX = 0;
         int gridY = 0;
     };
+    struct MovingPlatform {
+        std::shared_ptr<Util::GameObject> object;
+        std::shared_ptr<Util::Image> image;
+        MovingPlatformState state = MovingPlatformState::MovingUp;
+        glm::vec2 halfExtents = { 0.0f, 0.0f };
+        glm::vec2 previousCenter = { 0.0f, 0.0f };
+        glm::vec2 delta = { 0.0f, 0.0f };
+        float moveSpeed = 72.0f;
+        float topLimit = 0.0f;
+        float bottomLimit = 0.0f;
+        float waitTime = 0.18f;
+        float waitTimer = 0.0f;
+    };
     std::vector<AnimatedTile> m_AnimatedTiles;
+    std::vector<MovingPlatform> m_MovingPlatforms;
     std::vector<std::vector<bool>> m_QuestionBlockUsed;
+    std::vector<std::vector<bool>> m_HiddenQuestionBlocks;
     std::vector<std::vector<LootType>> m_QuestionBlockLoot;
     std::vector<std::vector<int>> m_QuestionBlockRemainingHits;
     struct SpawnEvent {
@@ -78,6 +108,9 @@ private:
 
 public:
     MapManager() = default;
+
+    void SetUndergroundTheme(bool isUnderground) { m_IsUndergroundTheme = isUnderground; }
+    bool IsUndergroundTheme() const { return m_IsUndergroundTheme; }
 
     static bool IsSolidCell(Cell cell) {
         return cell == Cell::Wall ||
@@ -247,17 +280,20 @@ public:
     void SetMapSize(int width, int height) {
         m_Width = width;
         m_Height = height;
+        m_IsUndergroundTheme = false;
 
         m_Map.assign(width, std::vector<Cell>(height, Cell::Empty));
         m_TileObjects.assign(width, std::vector<std::shared_ptr<Util::GameObject>>(height, nullptr));
         m_BackgroundTileObjects.assign(width, std::vector<std::shared_ptr<Util::GameObject>>(height, nullptr));
         m_QuestionBlockUsed.assign(width, std::vector<bool>(height, false));
+        m_HiddenQuestionBlocks.assign(width, std::vector<bool>(height, false));
         m_QuestionBlockLoot.assign(width, std::vector<LootType>(height, LootType::Coin));
         m_QuestionBlockRemainingHits.assign(width, std::vector<int>(height, 1));
         m_Objects.clear();
         m_BackgroundObjects.clear();
         m_ForegroundObjects.clear();
         m_AnimatedTiles.clear();
+        m_MovingPlatforms.clear();
         std::queue<SpawnEvent> empty;
         std::swap(m_SpawnEvents, empty);
         std::queue<BrickBreakEvent> emptyBreaks;
@@ -310,8 +346,15 @@ public:
         glm::vec2 imgSize = img->GetSize();
         glm::vec2 scale = {1.0f, 1.0f};
         if (imgSize.x > 0.0f && imgSize.y > 0.0f) {
-            scale.x = (tileSpanX * TILE_SIZE) / imgSize.x;
-            scale.y = (tileSpanY * TILE_SIZE) / imgSize.y;
+            if (type == Cell::Coin) {
+                const float targetWidth = tileSpanX * TILE_SIZE * 0.8f;
+                const float targetHeight = tileSpanY * TILE_SIZE * 0.875f;
+                const float uniformScale = std::min(targetWidth / imgSize.x, targetHeight / imgSize.y);
+                scale = { uniformScale, uniformScale };
+            } else {
+                scale.x = (tileSpanX * TILE_SIZE) / imgSize.x;
+                scale.y = (tileSpanY * TILE_SIZE) / imgSize.y;
+            }
         }
         obj->m_Transform.scale = scale;
 
@@ -342,10 +385,10 @@ public:
                 };
             } else {
                 frames = {
-                    ResolveTilePath(Cell::Coin, "coin1.png"),
-                    ResolveTilePath(Cell::Coin, "coin2.png"),
-                    ResolveTilePath(Cell::Coin, "coin3.png"),
-                    ResolveTilePath(Cell::Coin, "coin4.png")
+                    ResolveTilePath(Cell::Coin, m_IsUndergroundTheme ? "ug_coin1.png" : "coin1.png"),
+                    ResolveTilePath(Cell::Coin, m_IsUndergroundTheme ? "ug_coin2.png" : "coin2.png"),
+                    ResolveTilePath(Cell::Coin, m_IsUndergroundTheme ? "ug_coin3.png" : "coin3.png"),
+                    ResolveTilePath(Cell::Coin, m_IsUndergroundTheme ? "ug_coin4.png" : "coin4.png")
                 };
                 frameDuration = 0.09f;
             }
@@ -357,10 +400,121 @@ public:
         AddTileSprite(gridX, gridY, 1, 1, type, texturePath);
     }
 
+    void AddMovingPlatform(int gridX,
+                           int topGridY,
+                           int bottomGridY,
+                           int tileSpanX,
+                           const std::string& texturePath,
+                           float moveSpeed = 72.0f,
+                           float waitTime = 0.18f) {
+        if (m_Width <= 0 || m_Height <= 0) return;
+
+        const int clampedGridX = std::clamp(gridX, 0, std::max(0, m_Width - 1));
+        const int clampedTopGridY = std::clamp(topGridY, 0, std::max(0, m_Height - 1));
+        const int clampedBottomGridY = std::clamp(bottomGridY, clampedTopGridY, std::max(0, m_Height - 1));
+        const int spanX = std::max(1, tileSpanX);
+        const std::string resolvedPath = ResolveBackgroundPath(texturePath);
+
+        auto object = std::make_shared<Util::GameObject>();
+        auto image = std::make_shared<Util::Image>(resolvedPath);
+        object->SetDrawable(image);
+
+        const float targetWidth = spanX * TILE_SIZE;
+        const float targetHeight = TILE_SIZE * 0.5f;
+        const glm::vec2 imageSize = image->GetSize();
+        glm::vec2 scale = { 1.0f, 1.0f };
+        if (imageSize.x > 0.0f && imageSize.y > 0.0f) {
+            scale.x = targetWidth / imageSize.x;
+            scale.y = targetHeight / imageSize.y;
+        }
+
+        const float centerX =
+            -(m_Width * TILE_SIZE) / 2.0f + clampedGridX * TILE_SIZE + targetWidth * 0.5f;
+        const auto gridToCenterY = [&](int gridY) {
+            return (m_Height * TILE_SIZE) / 2.0f - gridY * TILE_SIZE - TILE_SIZE * 0.5f;
+        };
+        const float topCenterY = gridToCenterY(clampedTopGridY);
+        const float bottomCenterY = gridToCenterY(clampedBottomGridY);
+
+        object->m_Transform.translation = { centerX, bottomCenterY };
+        object->m_Transform.scale = scale;
+        object->SetZIndex(8.0f);
+
+        MovingPlatform platform;
+        platform.object = object;
+        platform.image = image;
+        platform.state = MovingPlatformState::MovingUp;
+        platform.halfExtents = { targetWidth * 0.5f, targetHeight * 0.5f };
+        platform.previousCenter = object->m_Transform.translation;
+        platform.delta = { 0.0f, 0.0f };
+        platform.moveSpeed = std::max(1.0f, moveSpeed);
+        platform.topLimit = std::max(topCenterY, bottomCenterY);
+        platform.bottomLimit = std::min(topCenterY, bottomCenterY);
+        platform.waitTime = std::max(0.0f, waitTime);
+        platform.waitTimer = 0.0f;
+
+        m_MovingPlatforms.push_back(platform);
+        m_Objects.push_back(object);
+    }
+
+    std::vector<MovingPlatformSnapshot> GetMovingPlatformSnapshots() const {
+        std::vector<MovingPlatformSnapshot> snapshots;
+        snapshots.reserve(m_MovingPlatforms.size());
+        for (const auto& platform : m_MovingPlatforms) {
+            snapshots.push_back({ platform.object->m_Transform.translation, platform.halfExtents, platform.delta });
+        }
+        return snapshots;
+    }
+
+    glm::vec2 GetCarryDelta(const glm::vec2& center,
+                            const glm::vec2& halfExtents,
+                            float tolerance = 4.0f) const {
+        const float actorBottom = center.y - halfExtents.y;
+        const float actorLeft = center.x - halfExtents.x;
+        const float actorRight = center.x + halfExtents.x;
+
+        for (const auto& platform : m_MovingPlatforms) {
+            const glm::vec2 platformCenter = platform.object->m_Transform.translation;
+            const float platformTop = platformCenter.y + platform.halfExtents.y;
+            const float platformLeft = platformCenter.x - platform.halfExtents.x;
+            const float platformRight = platformCenter.x + platform.halfExtents.x;
+            const bool overlapX = actorRight > platformLeft + 2.0f && actorLeft < platformRight - 2.0f;
+            if (!overlapX) continue;
+            if (std::abs(actorBottom - platformTop) <= tolerance) {
+                return platform.delta;
+            }
+        }
+
+        return { 0.0f, 0.0f };
+    }
+
     void SetQuestionBlockLoot(int x, int y, LootType lootType) {
         if (x < 0 || x >= m_Width || y < 0 || y >= m_Height) return;
         if (m_Map[x][y] != Cell::QuestionBlock) return;
         m_QuestionBlockLoot[x][y] = lootType;
+    }
+
+    void SetQuestionBlockHidden(int x, int y, bool hidden) {
+        if (x < 0 || x >= m_Width || y < 0 || y >= m_Height) return;
+        if (m_Map[x][y] != Cell::QuestionBlock) return;
+
+        m_HiddenQuestionBlocks[x][y] = hidden;
+        if (m_TileObjects[x][y] != nullptr) {
+            m_TileObjects[x][y]->SetVisible(!hidden);
+        }
+
+        if (hidden) {
+            m_AnimatedTiles.erase(
+                std::remove_if(m_AnimatedTiles.begin(), m_AnimatedTiles.end(),
+                               [&](const AnimatedTile& tile) { return tile.gridX == x && tile.gridY == y; }),
+                m_AnimatedTiles.end()
+            );
+        }
+    }
+
+    bool IsQuestionBlockHidden(int x, int y) const {
+        if (x < 0 || x >= m_Width || y < 0 || y >= m_Height) return false;
+        return m_Map[x][y] == Cell::QuestionBlock && m_HiddenQuestionBlocks[x][y];
     }
 
     void SetQuestionBlockHitCount(int x, int y, int hitCount) {
@@ -494,7 +648,11 @@ public:
     }
 
     bool IsSolidAt(int x, int y) const {
-        return IsSolidCell(GetCell(x, y));
+        const Cell cell = GetCell(x, y);
+        if (cell == Cell::QuestionBlock && IsQuestionBlockHidden(x, y)) {
+            return false;
+        }
+        return IsSolidCell(cell);
     }
 
     bool ClearTile(int x, int y) {
@@ -514,6 +672,7 @@ public:
         m_Map[x][y] = Cell::Empty;
         m_TileObjects[x][y] = nullptr;
         m_QuestionBlockUsed[x][y] = false;
+        m_HiddenQuestionBlocks[x][y] = false;
         m_QuestionBlockLoot[x][y] = LootType::Coin;
         m_QuestionBlockRemainingHits[x][y] = 1;
         return true;
@@ -545,9 +704,14 @@ public:
         }
 
         m_QuestionBlockUsed[x][y] = true;
+        m_HiddenQuestionBlocks[x][y] = false;
 
-        const std::string usedPath = ResolveTilePath(Cell::QuestionBlock, "Question4.png");
+        const std::string usedPath = ResolveTilePath(
+            Cell::QuestionBlock,
+            m_IsUndergroundTheme ? "ug_question4.png" : "Question4.png"
+        );
         if (m_TileObjects[x][y] != nullptr) {
+            m_TileObjects[x][y]->SetVisible(true);
             m_TileObjects[x][y]->SetDrawable(std::make_shared<Util::Image>(usedPath));
         }
 
@@ -562,6 +726,12 @@ public:
 
     bool BreakBrick(int x, int y) {
         if (GetCell(x, y) != Cell::Brick) return false;
+
+        for (int offset = 1; offset <= 2; ++offset) {
+            if (GetCell(x, y - offset) == Cell::Coin) {
+                CollectCoin(x, y - offset);
+            }
+        }
 
         const float worldX = GetWorldLeft() + x * TILE_SIZE + TILE_SIZE / 2.0f;
         const float worldY = (m_Height * TILE_SIZE) / 2.0f - y * TILE_SIZE - TILE_SIZE / 2.0f;
@@ -656,6 +826,54 @@ public:
         for (auto& tile : m_AnimatedTiles) {
             tile.animation.Update(dt);
             tile.image->SetImage(tile.animation.GetCurrentFramePath());
+        }
+
+        for (auto& platform : m_MovingPlatforms) {
+            platform.previousCenter = platform.object->m_Transform.translation;
+            platform.delta = { 0.0f, 0.0f };
+
+            float nextY = platform.object->m_Transform.translation.y;
+            switch (platform.state) {
+            case MovingPlatformState::MovingUp:
+                nextY += platform.moveSpeed * dt;
+                if (nextY >= platform.topLimit) {
+                    nextY = platform.topLimit;
+                    if (platform.waitTime > 0.0f) {
+                        platform.state = MovingPlatformState::WaitingTop;
+                        platform.waitTimer = platform.waitTime;
+                    } else {
+                        platform.state = MovingPlatformState::MovingDown;
+                    }
+                }
+                break;
+            case MovingPlatformState::MovingDown:
+                nextY -= platform.moveSpeed * dt;
+                if (nextY <= platform.bottomLimit) {
+                    nextY = platform.bottomLimit;
+                    if (platform.waitTime > 0.0f) {
+                        platform.state = MovingPlatformState::WaitingBottom;
+                        platform.waitTimer = platform.waitTime;
+                    } else {
+                        platform.state = MovingPlatformState::MovingUp;
+                    }
+                }
+                break;
+            case MovingPlatformState::WaitingTop:
+                platform.waitTimer = std::max(0.0f, platform.waitTimer - dt);
+                if (platform.waitTimer <= 0.0f) {
+                    platform.state = MovingPlatformState::MovingDown;
+                }
+                break;
+            case MovingPlatformState::WaitingBottom:
+                platform.waitTimer = std::max(0.0f, platform.waitTimer - dt);
+                if (platform.waitTimer <= 0.0f) {
+                    platform.state = MovingPlatformState::MovingUp;
+                }
+                break;
+            }
+
+            platform.object->m_Transform.translation.y = nextY;
+            platform.delta = platform.object->m_Transform.translation - platform.previousCenter;
         }
 
     }
