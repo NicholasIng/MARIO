@@ -15,11 +15,11 @@ Enemy::Enemy(float x, float y, EnemyKind kind)
       m_Direction(-1.0f),
       m_Speed((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? KOOPA_WALK_SPEED : GOOMBA_WALK_SPEED),
       m_LeftPath((g_MapManager && g_MapManager->IsUndergroundTheme())
-          ? ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("ug_koopa_l.png") : AssetPaths::Image("ug_goomba_l.png"))
-          : ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("koopa_l.png") : AssetPaths::Image("Goomba_l.png"))),
+          ? (kind == EnemyKind::Venus ? AssetPaths::Image("ug_venus.png") : ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("ug_koopa_l.png") : AssetPaths::Image("ug_goomba_l.png")))
+          : (kind == EnemyKind::Venus ? AssetPaths::Image("ug_venus.png") : ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("koopa_l.png") : AssetPaths::Image("Goomba_l.png")))),
       m_RightPath((g_MapManager && g_MapManager->IsUndergroundTheme())
-          ? ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("ug_koopa_r.png") : AssetPaths::Image("ug_goomba_r.png"))
-          : ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("koopa_r.png") : AssetPaths::Image("Goomba_r.png"))),
+          ? (kind == EnemyKind::Venus ? AssetPaths::Image("ug_venus2.png") : ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("ug_koopa_r.png") : AssetPaths::Image("ug_goomba_r.png")))
+          : (kind == EnemyKind::Venus ? AssetPaths::Image("ug_venus2.png") : ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("koopa_r.png") : AssetPaths::Image("Goomba_r.png")))),
       m_ShellPath((g_MapManager && g_MapManager->IsUndergroundTheme())
           ? ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("ug_koopa_shell.png") : AssetPaths::Image("ug_goomba_death.png"))
           : ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("koopa_shell.png") : AssetPaths::Image("Goombadeath.png"))),
@@ -34,10 +34,20 @@ Enemy::Enemy(float x, float y, EnemyKind kind)
     m_Transform.translation = { x, y };
     m_Transform.scale = { 3.0f, 3.0f };
     m_ZIndex = 9.0f;
+    if (m_Kind == EnemyKind::Venus) {
+        m_VenusTopY = y;
+        m_VenusHiddenY = y - 96.0f;
+        m_VenusExposure = 0.0f;
+        m_Transform.translation.y = m_VenusHiddenY;
+        m_ZIndex = 0.5f;
+    }
     RefreshSprite();
 }
 
 glm::vec2 Enemy::GetHalfExtents() const {
+    if (m_Kind == EnemyKind::Venus) {
+        return { 22.0f, 28.0f };
+    }
     if (m_Kind == EnemyKind::Goomba) {
         return { 20.0f, 24.0f };
     }

@@ -8,7 +8,8 @@
 enum class EnemyKind {
     Goomba,
     GreenKoopa,
-    RedKoopa
+    RedKoopa,
+    Venus
 };
 
 struct EnemySpawnInfo {
@@ -41,6 +42,7 @@ public:
     EnemyKind GetKind() const { return m_Kind; }
     State GetState() const { return m_State; }
     bool IsKoopa() const { return m_Kind == EnemyKind::GreenKoopa || m_Kind == EnemyKind::RedKoopa; }
+    bool IsVenus() const { return m_Kind == EnemyKind::Venus; }
     bool UsesEdgeDetection() const { return m_Kind == EnemyKind::RedKoopa; }
     bool IsShellSliding() const { return IsKoopa() && m_State == State::ShellSliding; }
     bool IsKickableShell() const {
@@ -48,6 +50,9 @@ public:
                (m_State == State::ShellIdle || m_State == State::Recovering);
     }
     bool IsHarmlessToPlayer() const {
+        if (IsVenus()) {
+            return m_VenusExposure < 0.35f;
+        }
         return IsKoopa() &&
                (m_State == State::RetreatingIntoShell ||
                 m_State == State::ShellIdle ||
@@ -68,6 +73,10 @@ private:
     float m_RetreatTimer = 0.0f;
     float m_ShellIdleTimer = 0.0f;
     float m_RecoveryTimer = 0.0f;
+    float m_VenusTimer = 0.0f;
+    float m_VenusHiddenY = 0.0f;
+    float m_VenusTopY = 0.0f;
+    float m_VenusExposure = 1.0f;
     bool m_Alive = true;
     bool m_FlippedDeath = false;
     bool m_DeathFinished = false;

@@ -12,6 +12,10 @@ using namespace EnemyDetail;
 void Enemy::Stomp() {
     if (!m_Alive) return;
 
+    if (IsVenus()) {
+        return;
+    }
+
     if (IsKoopa()) {
         if (m_State == State::Walking) {
             EnterRetreatingIntoShell();
@@ -62,6 +66,11 @@ void Enemy::RefreshSprite() {
     if (m_Kind == EnemyKind::Goomba) {
         const std::string& path = m_UseLeftWalkFrame ? m_LeftPath : m_RightPath;
         m_Image->SetImage(path);
+        return;
+    }
+
+    if (m_Kind == EnemyKind::Venus) {
+        m_Image->SetImage(m_UseLeftWalkFrame ? m_LeftPath : m_RightPath);
         return;
     }
 

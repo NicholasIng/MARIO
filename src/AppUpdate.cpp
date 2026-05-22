@@ -71,7 +71,13 @@ void App::UpdateTransitionScene(float dt) {
                 m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
                 m_TransitionPipeReached = true;
                 m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
-                m_Mario->SetVisible(true);
+                m_Mario->SetVisible(false);
+                if (!m_TransitionPipeSoundPlayed) {
+                    m_TransitionPipeSoundPlayed = true;
+                    PlaySfx(m_Audio.pipe.get());
+                }
+                m_TransitionMarioHidden = true;
+                m_TransitionBlackoutTimer = TRANSITION_BLACKOUT_DURATION;
             }
         } else if (!m_TransitionMarioHidden) {
             if (!m_TransitionPipeSoundPlayed) {
@@ -88,7 +94,11 @@ void App::UpdateTransitionScene(float dt) {
         } else {
             m_TransitionBlackoutTimer = std::max(0.0f, m_TransitionBlackoutTimer - dt);
             if (m_TransitionBlackoutTimer <= 0.0f) {
-                LoadLevelOneTwo();
+                if (m_TransitionDestination == TransitionDestination::UpperWorld) {
+                    LoadLevel(true);
+                } else {
+                    LoadLevelOneTwo();
+                }
                 PlayGameplayMusic(true);
                 m_ScreenState = ScreenState::Gameplay;
                 return;
@@ -429,6 +439,7 @@ void App::UpdateGameplay(float dt) {
                 verticalOverlap <= enemyHalf.y + stompForgiveness;
             const bool stomped =
                 enemyState == Enemy::State::Walking &&
+                !enemy->IsVenus() &&
                 m_Mario->GetVelocityY() <= 60.0f &&
                 approachedFromAbove &&
                 horizontalOverlap >= minimumStompWidth &&
@@ -541,6 +552,12 @@ void App::UpdateGameplay(float dt) {
             m_GoalSequenceStage == GoalSequenceStage::None &&
             m_Mario->m_Transform.translation.x >= g_MapManager->GetGoalX()) {
             StartGoalSequence();
+        }
+        if (m_World == 1 && m_Level == 2 &&
+            g_MapManager && g_MapManager->HasTransitionPipe() &&
+            m_Mario->m_Transform.translation.x >= g_MapManager->GetTransitionPipeEntryX() - g_MapManager->GetTileSize() * 0.5f) {
+            BeginUndergroundExitTransition();
+            return;
         }
     }
 

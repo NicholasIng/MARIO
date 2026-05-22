@@ -37,6 +37,7 @@ void App::ResetGameSession() {
     m_TransitionPipeSoundPlayed = false;
     m_TransitionMarioHidden = false;
     m_TransitionAutoWalkStarted = false;
+    m_TransitionDestination = TransitionDestination::LevelOneTwo;
     m_TransitionExitTimer = 0.0f;
     m_TransitionPipeEntryX = 0.0f;
     m_TransitionPipeEntryY = 0.0f;
@@ -79,6 +80,7 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
     m_TransitionPipeSoundPlayed = false;
     m_TransitionMarioHidden = false;
     m_TransitionAutoWalkStarted = false;
+    m_TransitionDestination = TransitionDestination::LevelOneTwo;
     m_TransitionExitTimer = 0.0f;
     m_TransitionPipeEntryX = 0.0f;
     m_TransitionPipeEntryY = 0.0f;
@@ -133,10 +135,10 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
     return foundSpawn;
 }
 
-void App::LoadLevel() {
+void App::LoadLevel(bool preserveProgress) {
     m_World = 1;
     m_Level = 1;
-    LoadSceneSketch(AssetPaths::Image("LevelSketch0.png"), false);
+    LoadSceneSketch(AssetPaths::Image("LevelSketch0.png"), preserveProgress);
     m_CastleObject = std::make_shared<Util::GameObject>();
     m_CastleImage = std::make_shared<Util::Image>(AssetPaths::Image("castle1.png"));
     m_CastleObject->SetDrawable(m_CastleImage);
@@ -166,10 +168,14 @@ void App::LoadLevel() {
     }
 }
 
-void App::LoadLevelOneTwo() {
+void App::LoadLevelOneTwo(bool preserveMarioState) {
     m_World = 1;
     m_Level = 2;
     LoadSceneSketch(ResolveLevelOneTwoSketchPath(), true);
+    if (!preserveMarioState && m_Mario) {
+        m_Mario->RestorePowerState(Mario::PowerState::Small);
+        m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
+    }
     m_LevelTimer = STARTING_TIMER;
     m_DisplayedLevelTime = STARTING_TIMER;
     RefreshHudText();
@@ -177,7 +183,7 @@ void App::LoadLevelOneTwo() {
 
 void App::ReloadCurrentLevel() {
     if (m_World == 1 && m_Level == 2) {
-        LoadLevelOneTwo();
+        LoadLevelOneTwo(false);
         return;
     }
     LoadLevel();
@@ -203,6 +209,8 @@ std::string App::ResolveLevelOneTwoSketchPath() const {
 
 void App::BeginPostGoalTransition() {
     StopMusic();
+    m_World = 1;
+    m_Level = 2;
     m_LevelIntroTimer = POST_GOAL_INTRO_DURATION;
     m_LevelIntroPurpose = LevelIntroPurpose::PostGoalTransition;
     m_ScreenState = ScreenState::LevelIntro;
@@ -243,9 +251,30 @@ void App::LoadTransitionScene() {
     m_TransitionPipeSoundPlayed = false;
     m_TransitionMarioHidden = false;
     m_TransitionAutoWalkStarted = false;
+    m_TransitionDestination = TransitionDestination::LevelOneTwo;
     m_Mario->StartGoalWalk(m_TransitionPipeEntryX);
     m_TransitionAutoWalkStarted = true;
     RefreshHudText();
+}
+
+void App::BeginUndergroundExitTransition() {
+    if (!m_Mario || !g_MapManager || !g_MapManager->HasTransitionPipe()) return;
+
+    StopMusic(250);
+    m_ScreenState = ScreenState::TransitionScene;
+    m_TransitionDestination = TransitionDestination::UpperWorld;
+    m_TransitionPipeEntryX = g_MapManager->GetTransitionPipeEntryX();
+    m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
+    m_TransitionPipeSinkDistance = g_MapManager->GetTileSize() * 1.2f;
+    m_TransitionExitTimer = TRANSITION_BLACKOUT_DURATION;
+    m_TransitionBlackoutTimer = 0.0f;
+    m_TransitionPipeReached = false;
+    m_TransitionPipeSoundPlayed = false;
+    m_TransitionMarioHidden = false;
+    m_TransitionAutoWalkStarted = true;
+    m_Fireballs.clear();
+    m_FireballCooldown = 0.0f;
+    m_Mario->StartGoalWalk(m_TransitionPipeEntryX);
 }
 
 void App::HandleMarioDeath() {
