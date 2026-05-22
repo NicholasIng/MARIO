@@ -277,7 +277,7 @@ bool convert_sketch(
     std::unordered_map<uint32_t, TileEntry> tileMap = {
         { PackRGB(0,   0,   0),   { Cell::Wall,          isUndergroundLevel ? "SMB_Ground_Underground.png" : "Ground.png" } },
         { PackRGB(182, 73,  0),   { Cell::Brick,         isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png" } },
-        { PackRGB(146, 73,  0),   { Cell::Brick,         isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png" } },
+        { PackRGB(146, 73,  0),   { isUndergroundLevel ? Cell::Wall : Cell::Brick, isUndergroundLevel ? "SMB_Underground_Hard_Block.png" : "Brick.png" } },
         { PackRGB(255, 255, 0),   { Cell::Coin,          isUndergroundLevel ? "ug_coin1.png" : "Coin.png" } },
         { PackRGB(255, 73,  85),  { Cell::QuestionBlock, "Question.png", LootType::ProgressivePowerUp } },
         { PackRGB(255, 135, 143), { Cell::QuestionBlock, isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png", LootType::RedMushroom, 1, true } },
@@ -328,6 +328,8 @@ bool convert_sketch(
     std::vector<std::vector<char>> movingPlatformMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> goombaMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> koopaMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<glm::vec2> venusSpawnPositions;
+    bool undergroundExitPipeVisualAdded = false;
 
     for (int x = 0; x < width; ++x) {
         for (int y = 0; y < layerHeight; ++y) {
@@ -636,6 +638,45 @@ bool convert_sketch(
                             : (isLeftColumn ? pipeBottomLeft : pipeBottomRight);
                     map.AddTile(cellX, cellY, Cell::Pipe, pipePiece);
                 }
+
+                if (isUndergroundLevel) {
+                    const int spanX = maxX - minX + 1;
+                    if (spanX >= 2) {
+                        const float plantX =
+                            map.GetWorldLeft() + (static_cast<float>(minX) + spanX * 0.5f) * map.GetTileSize();
+                        const float pipeTopY =
+                            (map.GetHeight() * map.GetTileSize()) / 2.0f - minY * map.GetTileSize();
+                        venusSpawnPositions.push_back({ plantX, pipeTopY + 28.0f });
+                    }
+
+                    if (!undergroundExitPipeVisualAdded &&
+                        !pipeForkedResolved.empty() &&
+                        fs::exists(pipeForkedResolved) &&
+                        minX > static_cast<int>(width * 0.75f) &&
+                        spanX >= 4) {
+                        Util::Image forkedPipeImage(pipeForkedResolved);
+                        const glm::vec2 forkedSize = forkedPipeImage.GetSize();
+                        const int spriteTileWidth =
+                            std::max(1, static_cast<int>(std::round((forkedSize.x * 3.0f) / map.GetTileSize())));
+                        const int spriteTileHeight =
+                            std::max(1, static_cast<int>(std::round((forkedSize.y * 3.0f) / map.GetTileSize())));
+                        const int startX = std::clamp(
+                            maxX - spriteTileWidth + 1,
+                            0,
+                            std::max(0, width - spriteTileWidth)
+                        );
+                        const int startY = std::clamp(
+                            maxY - spriteTileHeight + 1,
+                            0,
+                            std::max(0, layerHeight - spriteTileHeight)
+                        );
+                        map.AddForegroundSprite(startX, startY, spriteTileWidth, spriteTileHeight, pipeForkedResolved);
+                        const float entryX =
+                            map.GetWorldLeft() + (static_cast<float>(startX) + 0.5f) * map.GetTileSize();
+                        map.SetTransitionPipeEntryX(entryX);
+                        undergroundExitPipeVisualAdded = true;
+                    }
+                }
             }
         }
     } else {
@@ -772,6 +813,18 @@ bool convert_sketch(
     }
 
     if (enemy_spawns != nullptr) {
+        if (isUndergroundLevel && !venusSpawnPositions.empty()) {
+            std::sort(
+                venusSpawnPositions.begin(),
+                venusSpawnPositions.end(),
+                [](const glm::vec2& lhs, const glm::vec2& rhs) { return lhs.x < rhs.x; }
+            );
+            const std::size_t plantCount = std::min<std::size_t>(2, venusSpawnPositions.size());
+            for (std::size_t i = 0; i < plantCount; ++i) {
+                enemy_spawns->push_back({ venusSpawnPositions[i], EnemyKind::Venus });
+            }
+        }
+
         const auto appendEnemySpawns = [&](const std::vector<std::vector<char>>& mask, EnemyKind kind) {
             std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
             const float halfHeight =
@@ -824,7 +877,7 @@ bool convert_sketch(
         isUndergroundLevel ? "SMB_Underground_Hard_Block.png" : "HardBlock.png"
     );
     bool haveHardBlockAsset = !hardBlockPath.empty() && fs::exists(hardBlockPath);
-    if (haveHardBlockAsset) {
+    if (haveHardBlockAsset && !isUndergroundLevel) {
         std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
         for (int sx = 0; sx < width; ++sx) {
             for (int sy = 0; sy < layerHeight; ++sy) {

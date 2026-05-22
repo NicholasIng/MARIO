@@ -33,6 +33,31 @@ void Enemy::Update() {
         return;
     }
 
+    if (IsVenus()) {
+        constexpr float hiddenWait = 1.0f;
+        constexpr float emergeDuration = 0.8f;
+        constexpr float exposedWait = 1.0f;
+        constexpr float retractDuration = 0.8f;
+        constexpr float cycleDuration = hiddenWait + emergeDuration + exposedWait + retractDuration;
+
+        m_VenusTimer = std::fmod(m_VenusTimer + dt, cycleDuration);
+        float exposure = 0.0f;
+        if (m_VenusTimer < hiddenWait) {
+            exposure = 0.0f;
+        } else if (m_VenusTimer < hiddenWait + emergeDuration) {
+            exposure = (m_VenusTimer - hiddenWait) / emergeDuration;
+        } else if (m_VenusTimer < hiddenWait + emergeDuration + exposedWait) {
+            exposure = 1.0f;
+        } else {
+            exposure = 1.0f - (m_VenusTimer - hiddenWait - emergeDuration - exposedWait) / retractDuration;
+        }
+
+        m_VenusExposure = std::clamp(exposure, 0.0f, 1.0f);
+        m_Transform.translation.y = m_VenusHiddenY + (m_VenusTopY - m_VenusHiddenY) * m_VenusExposure;
+        RefreshSprite();
+        return;
+    }
+
     if (IsKoopa()) {
         if (m_State == State::RetreatingIntoShell) {
             m_RetreatTimer = std::max(0.0f, m_RetreatTimer - dt);
