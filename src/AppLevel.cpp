@@ -188,7 +188,11 @@ void App::LoadLevelOneTwo(bool preserveMarioState) {
 void App::LoadLevelOneTwoExitArea(bool preserveMarioState) {
     m_World = 1;
     m_Level = 2;
-    LoadSceneSketch(AssetPaths::Image("OutdoorExitSketch.png"), true);
+    const std::filesystem::path exitSketch = AssetPaths::ResourceRoot() / "image" / "LevelSketch1-1.png";
+    LoadSceneSketch(
+        std::filesystem::exists(exitSketch) ? exitSketch.string() : AssetPaths::Image("OutdoorExitSketch.png"),
+        true
+    );
     if (!preserveMarioState && m_Mario) {
         m_Mario->RestorePowerState(Mario::PowerState::Small);
         AlignMarioSpawnToGround();

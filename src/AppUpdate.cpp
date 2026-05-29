@@ -84,6 +84,9 @@ void App::UpdateTransitionScene(float dt) {
             if (m_TransitionPipeMotion == TransitionPipeMotion::HorizontalRight) {
                 m_Mario->m_Transform.translation.y = m_TransitionPipeEntryY;
                 m_Mario->m_Transform.translation.x += TRANSITION_PIPE_SINK_SPEED * dt;
+            } else if (m_TransitionPipeMotion == TransitionPipeMotion::VerticalUp) {
+                m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
+                m_Mario->m_Transform.translation.y += TRANSITION_PIPE_SINK_SPEED * dt;
             } else {
                 m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
                 m_Mario->m_Transform.translation.y -= TRANSITION_PIPE_SINK_SPEED * dt;
@@ -92,8 +95,17 @@ void App::UpdateTransitionScene(float dt) {
             const bool finishedPipeEntry =
                 m_TransitionPipeMotion == TransitionPipeMotion::HorizontalRight
                     ? m_Mario->m_Transform.translation.x >= m_TransitionPipeEntryX + m_TransitionPipeSinkDistance
+                    : m_TransitionPipeMotion == TransitionPipeMotion::VerticalUp
+                        ? m_Mario->m_Transform.translation.y >= m_TransitionPipeEntryY
                     : m_Mario->m_Transform.translation.y <= m_TransitionPipeEntryY - m_TransitionPipeSinkDistance;
             if (finishedPipeEntry) {
+                if (m_TransitionPipeMotion == TransitionPipeMotion::VerticalUp) {
+                    m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
+                    m_Mario->m_Transform.translation.y = m_TransitionPipeEntryY;
+                    PlayGameplayMusic(true);
+                    m_ScreenState = ScreenState::Gameplay;
+                    return;
+                }
                 m_Mario->SetVisible(false);
                 m_TransitionMarioHidden = true;
                 m_TransitionBlackoutTimer = TRANSITION_BLACKOUT_DURATION;
@@ -103,6 +115,20 @@ void App::UpdateTransitionScene(float dt) {
             if (m_TransitionBlackoutTimer <= 0.0f) {
                 if (m_TransitionDestination == TransitionDestination::LevelOneTwoExitArea) {
                     LoadLevelOneTwoExitArea(true);
+                    if (m_Mario && g_MapManager) {
+                        m_TransitionPipeEntryX = m_Mario->m_Transform.translation.x;
+                        m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
+                        m_TransitionPipeSinkDistance = g_MapManager->GetTileSize() * 1.4f;
+                        m_Mario->m_Transform.translation.y =
+                            m_TransitionPipeEntryY - m_TransitionPipeSinkDistance;
+                        m_Mario->SetVisible(true);
+                        m_TransitionPipeReached = true;
+                        m_TransitionPipeSoundPlayed = false;
+                        m_TransitionMarioHidden = false;
+                        m_TransitionAutoWalkStarted = false;
+                        m_TransitionPipeMotion = TransitionPipeMotion::VerticalUp;
+                        return;
+                    }
                 } else {
                     LoadLevelOneTwo();
                 }

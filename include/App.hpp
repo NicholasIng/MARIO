@@ -33,7 +33,7 @@ private:
     enum class MusicTrack { None, GroundTheme, InvincibilityTheme };
     enum class LevelIntroPurpose { StartLevel, PostGoalTransition };
     enum class TransitionDestination { LevelOneTwo, LevelOneTwoExitArea };
-    enum class TransitionPipeMotion { VerticalDown, HorizontalRight };
+    enum class TransitionPipeMotion { VerticalDown, VerticalUp, HorizontalRight };
     struct PendingEnemySpawn {
         glm::vec2 position;
         EnemyKind kind = EnemyKind::Goomba;
