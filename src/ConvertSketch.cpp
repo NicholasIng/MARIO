@@ -629,26 +629,9 @@ bool convert_sketch(
                     }
                 }
 
-                for (const auto& [cellX, cellY] : cells) {
-                    const bool isTopRow = cellY == minY;
-                    const bool isLeftColumn = cellX == minX;
-                    const std::string& pipePiece =
-                        isTopRow
-                            ? (isLeftColumn ? pipeTopLeft : pipeTopRight)
-                            : (isLeftColumn ? pipeBottomLeft : pipeBottomRight);
-                    map.AddTile(cellX, cellY, Cell::Pipe, pipePiece);
-                }
-
+                const int spanX = maxX - minX + 1;
+                bool handledUndergroundExitPipe = false;
                 if (isUndergroundLevel) {
-                    const int spanX = maxX - minX + 1;
-                    if (spanX >= 2) {
-                        const float plantX =
-                            map.GetWorldLeft() + (static_cast<float>(minX) + spanX * 0.5f) * map.GetTileSize();
-                        const float pipeTopY =
-                            (map.GetHeight() * map.GetTileSize()) / 2.0f - minY * map.GetTileSize();
-                        venusSpawnPositions.push_back({ plantX, pipeTopY + 28.0f });
-                    }
-
                     if (!undergroundExitPipeVisualAdded &&
                         !pipeForkedResolved.empty() &&
                         fs::exists(pipeForkedResolved) &&
@@ -675,6 +658,25 @@ bool convert_sketch(
                             map.GetWorldLeft() + (static_cast<float>(startX) + 0.5f) * map.GetTileSize();
                         map.SetTransitionPipeEntryX(entryX);
                         undergroundExitPipeVisualAdded = true;
+                        handledUndergroundExitPipe = true;
+                    } else if (spanX >= 2) {
+                        const float plantX =
+                            map.GetWorldLeft() + (static_cast<float>(minX) + spanX * 0.5f) * map.GetTileSize();
+                        const float pipeTopY =
+                            (map.GetHeight() * map.GetTileSize()) / 2.0f - minY * map.GetTileSize();
+                        venusSpawnPositions.push_back({ plantX, pipeTopY + 28.0f });
+                    }
+                }
+
+                if (!handledUndergroundExitPipe) {
+                    for (const auto& [cellX, cellY] : cells) {
+                        const bool isTopRow = cellY == minY;
+                        const bool isLeftColumn = cellX == minX;
+                        const std::string& pipePiece =
+                            isTopRow
+                                ? (isLeftColumn ? pipeTopLeft : pipeTopRight)
+                                : (isLeftColumn ? pipeBottomLeft : pipeBottomRight);
+                        map.AddTile(cellX, cellY, Cell::Pipe, pipePiece);
                     }
                 }
             }
@@ -955,7 +957,12 @@ bool convert_sketch(
 
     bool spawnFound = false;
     if (spawnMarkerFound) {
-        mario.m_Transform.translation = ComputeMarkerSpawnPosition(map, marioSpawnX, marioSpawnY);
+        mario.m_Transform.translation = ComputeGroundedSpawnPosition(
+            map,
+            marioSpawnX,
+            marioSpawnY,
+            mario.GetHalfExtents().y
+        );
         spawnFound = true;
     }
 

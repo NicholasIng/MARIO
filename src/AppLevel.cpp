@@ -38,6 +38,7 @@ void App::ResetGameSession() {
     m_TransitionMarioHidden = false;
     m_TransitionAutoWalkStarted = false;
     m_TransitionDestination = TransitionDestination::LevelOneTwo;
+    m_TransitionPipeMotion = TransitionPipeMotion::VerticalDown;
     m_TransitionExitTimer = 0.0f;
     m_TransitionPipeEntryX = 0.0f;
     m_TransitionPipeEntryY = 0.0f;
@@ -81,6 +82,7 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
     m_TransitionMarioHidden = false;
     m_TransitionAutoWalkStarted = false;
     m_TransitionDestination = TransitionDestination::LevelOneTwo;
+    m_TransitionPipeMotion = TransitionPipeMotion::VerticalDown;
     m_TransitionExitTimer = 0.0f;
     m_TransitionPipeEntryX = 0.0f;
     m_TransitionPipeEntryY = 0.0f;
@@ -128,6 +130,7 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
     if (preserveMarioState) {
         m_Mario->RestorePowerState(savedPowerState);
     }
+    AlignMarioSpawnToGround();
     m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
 
     m_ViewX = 0.0f;
@@ -174,11 +177,63 @@ void App::LoadLevelOneTwo(bool preserveMarioState) {
     LoadSceneSketch(ResolveLevelOneTwoSketchPath(), true);
     if (!preserveMarioState && m_Mario) {
         m_Mario->RestorePowerState(Mario::PowerState::Small);
+        AlignMarioSpawnToGround();
         m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
     }
     m_LevelTimer = STARTING_TIMER;
     m_DisplayedLevelTime = STARTING_TIMER;
     RefreshHudText();
+}
+
+void App::LoadLevelOneTwoExitArea(bool preserveMarioState) {
+    m_World = 1;
+    m_Level = 2;
+    LoadSceneSketch(AssetPaths::Image("OutdoorExitSketch.png"), true);
+    if (!preserveMarioState && m_Mario) {
+        m_Mario->RestorePowerState(Mario::PowerState::Small);
+        AlignMarioSpawnToGround();
+        m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
+    }
+    RefreshHudText();
+}
+
+void App::AlignMarioSpawnToGround() {
+    if (!m_Mario || !g_MapManager) return;
+
+    const float tileSize = g_MapManager->GetTileSize();
+    const int mapWidth = g_MapManager->GetWidth();
+    const int mapHeight = g_MapManager->GetHeight();
+    if (mapWidth <= 0 || mapHeight <= 0 || tileSize <= 0.0f) return;
+
+    const float mapLeft = g_MapManager->GetWorldLeft();
+    const float mapTop = (mapHeight * tileSize) / 2.0f;
+    const glm::vec2 half = m_Mario->GetHalfExtents();
+    const float x = m_Mario->m_Transform.translation.x;
+    const float y = m_Mario->m_Transform.translation.y;
+    const int centerGridX = std::clamp(
+        static_cast<int>(std::floor((x - mapLeft) / tileSize)),
+        0,
+        mapWidth - 1
+    );
+    const int markerGridY = std::clamp(
+        static_cast<int>(std::floor((mapTop - y) / tileSize)),
+        0,
+        mapHeight - 1
+    );
+
+    const int minSupportX = std::max(0, centerGridX - 1);
+    const int maxSupportX = std::min(mapWidth - 1, centerGridX + 1);
+    for (int gridY = markerGridY; gridY < mapHeight; ++gridY) {
+        for (int gridX = minSupportX; gridX <= maxSupportX; ++gridX) {
+            if (!MapManager::IsSolidCell(g_MapManager->GetCell(gridX, gridY))) {
+                continue;
+            }
+
+            const float tileTop = mapTop - gridY * tileSize;
+            m_Mario->m_Transform.translation.y = tileTop + half.y;
+            return;
+        }
+    }
 }
 
 void App::ReloadCurrentLevel() {
@@ -252,6 +307,7 @@ void App::LoadTransitionScene() {
     m_TransitionMarioHidden = false;
     m_TransitionAutoWalkStarted = false;
     m_TransitionDestination = TransitionDestination::LevelOneTwo;
+    m_TransitionPipeMotion = TransitionPipeMotion::VerticalDown;
     m_Mario->StartGoalWalk(m_TransitionPipeEntryX);
     m_TransitionAutoWalkStarted = true;
     RefreshHudText();
@@ -262,10 +318,11 @@ void App::BeginUndergroundExitTransition() {
 
     StopMusic(250);
     m_ScreenState = ScreenState::TransitionScene;
-    m_TransitionDestination = TransitionDestination::UpperWorld;
+    m_TransitionDestination = TransitionDestination::LevelOneTwoExitArea;
+    m_TransitionPipeMotion = TransitionPipeMotion::HorizontalRight;
     m_TransitionPipeEntryX = g_MapManager->GetTransitionPipeEntryX();
     m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
-    m_TransitionPipeSinkDistance = g_MapManager->GetTileSize() * 1.2f;
+    m_TransitionPipeSinkDistance = g_MapManager->GetTileSize() * 1.8f;
     m_TransitionExitTimer = TRANSITION_BLACKOUT_DURATION;
     m_TransitionBlackoutTimer = 0.0f;
     m_TransitionPipeReached = false;

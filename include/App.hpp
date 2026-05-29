@@ -32,7 +32,8 @@ private:
     enum class StatusMessageAction { None, ReloadLevel, ShowGameOver, RestartToTitle };
     enum class MusicTrack { None, GroundTheme, InvincibilityTheme };
     enum class LevelIntroPurpose { StartLevel, PostGoalTransition };
-    enum class TransitionDestination { LevelOneTwo, UpperWorld };
+    enum class TransitionDestination { LevelOneTwo, LevelOneTwoExitArea };
+    enum class TransitionPipeMotion { VerticalDown, HorizontalRight };
     struct PendingEnemySpawn {
         glm::vec2 position;
         EnemyKind kind = EnemyKind::Goomba;
@@ -137,6 +138,7 @@ private:
     Util::Color m_SkyColor = Util::Color(90, 147, 235, 255);
     LevelIntroPurpose m_LevelIntroPurpose = LevelIntroPurpose::StartLevel;
     TransitionDestination m_TransitionDestination = TransitionDestination::LevelOneTwo;
+    TransitionPipeMotion m_TransitionPipeMotion = TransitionPipeMotion::VerticalDown;
     AudioBank m_Audio;
     AnimatedSprite m_HudCoinIcon;
     AnimatedSprite m_TitleCoinIcon;
@@ -205,8 +207,10 @@ private:
     void ResetGameSession();
     void LoadLevel(bool preserveProgress = false);
     void LoadLevelOneTwo(bool preserveMarioState = true);
+    void LoadLevelOneTwoExitArea(bool preserveMarioState = true);
     void ReloadCurrentLevel();
     bool LoadSceneSketch(const std::string& sketchPath, bool preserveProgress);
+    void AlignMarioSpawnToGround();
     std::string ResolveTransitionSketchPath() const;
     std::string ResolveLevelOneTwoSketchPath() const;
     void BeginPostGoalTransition();

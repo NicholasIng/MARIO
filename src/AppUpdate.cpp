@@ -71,22 +71,29 @@ void App::UpdateTransitionScene(float dt) {
                 m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
                 m_TransitionPipeReached = true;
                 m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
-                m_Mario->SetVisible(false);
                 if (!m_TransitionPipeSoundPlayed) {
                     m_TransitionPipeSoundPlayed = true;
                     PlaySfx(m_Audio.pipe.get());
                 }
-                m_TransitionMarioHidden = true;
-                m_TransitionBlackoutTimer = TRANSITION_BLACKOUT_DURATION;
             }
         } else if (!m_TransitionMarioHidden) {
             if (!m_TransitionPipeSoundPlayed) {
                 m_TransitionPipeSoundPlayed = true;
                 PlaySfx(m_Audio.pipe.get());
             }
-            m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
-            m_Mario->m_Transform.translation.y -= TRANSITION_PIPE_SINK_SPEED * dt;
-            if (m_Mario->m_Transform.translation.y <= m_TransitionPipeEntryY - m_TransitionPipeSinkDistance) {
+            if (m_TransitionPipeMotion == TransitionPipeMotion::HorizontalRight) {
+                m_Mario->m_Transform.translation.y = m_TransitionPipeEntryY;
+                m_Mario->m_Transform.translation.x += TRANSITION_PIPE_SINK_SPEED * dt;
+            } else {
+                m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
+                m_Mario->m_Transform.translation.y -= TRANSITION_PIPE_SINK_SPEED * dt;
+            }
+
+            const bool finishedPipeEntry =
+                m_TransitionPipeMotion == TransitionPipeMotion::HorizontalRight
+                    ? m_Mario->m_Transform.translation.x >= m_TransitionPipeEntryX + m_TransitionPipeSinkDistance
+                    : m_Mario->m_Transform.translation.y <= m_TransitionPipeEntryY - m_TransitionPipeSinkDistance;
+            if (finishedPipeEntry) {
                 m_Mario->SetVisible(false);
                 m_TransitionMarioHidden = true;
                 m_TransitionBlackoutTimer = TRANSITION_BLACKOUT_DURATION;
@@ -94,8 +101,8 @@ void App::UpdateTransitionScene(float dt) {
         } else {
             m_TransitionBlackoutTimer = std::max(0.0f, m_TransitionBlackoutTimer - dt);
             if (m_TransitionBlackoutTimer <= 0.0f) {
-                if (m_TransitionDestination == TransitionDestination::UpperWorld) {
-                    LoadLevel(true);
+                if (m_TransitionDestination == TransitionDestination::LevelOneTwoExitArea) {
+                    LoadLevelOneTwoExitArea(true);
                 } else {
                     LoadLevelOneTwo();
                 }
