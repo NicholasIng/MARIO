@@ -279,12 +279,12 @@ bool convert_sketch(
         { PackRGB(182, 73,  0),   { Cell::Brick,         isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png" } },
         { PackRGB(146, 73,  0),   { isUndergroundLevel ? Cell::Wall : Cell::Brick, isUndergroundLevel ? "SMB_Underground_Hard_Block.png" : "Brick.png" } },
         { PackRGB(255, 255, 0),   { Cell::Coin,          isUndergroundLevel ? "ug_coin1.png" : "Coin.png" } },
-        { PackRGB(255, 73,  85),  { Cell::QuestionBlock, "Question.png", LootType::ProgressivePowerUp } },
+        { PackRGB(255, 73,  85),  { Cell::QuestionBlock, isUndergroundLevel ? "ug_question1.png" : "Question.png", LootType::ProgressivePowerUp } },
         { PackRGB(255, 135, 143), { Cell::QuestionBlock, isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png", LootType::RedMushroom, 1, true } },
-        { PackRGB(255, 146, 85),  { Cell::QuestionBlock, "Question.png", LootType::Coin } },
+        { PackRGB(255, 146, 85),  { Cell::QuestionBlock, isUndergroundLevel ? "ug_question1.png" : "Question.png", LootType::Coin } },
         { PackRGB(0,   20, 255),  { Cell::QuestionBlock, isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png", LootType::Star, 1, true } },
         { PackRGB(0,   100, 0),   { Cell::QuestionBlock, isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png", LootType::GreenMushroom, 1, true } },
-        { PackRGB(121, 255, 107), { Cell::QuestionBlock, "Question.png", LootType::GreenMushroom, 1, false, true } },
+        { PackRGB(121, 255, 107), { Cell::QuestionBlock, isUndergroundLevel ? "ug_question1.png" : "Question.png", LootType::GreenMushroom, 1, false, true } },
         { PackRGB(243, 125, 45),  { Cell::QuestionBlock, isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png", LootType::Coin, 11, true } },
         { PackRGB(0,   146, 0),   { Cell::Pipe,          "Pipe.png" } },
         { PackRGB(0,   182, 0),   { Cell::Pipe,          "Pipe.png" } },
@@ -313,6 +313,8 @@ bool convert_sketch(
     const std::string pipeTopRight = MapManager::ResolveTilePath(Cell::Pipe, "pipetop_right.png");
     const std::string pipeBottomLeft = MapManager::ResolveTilePath(Cell::Pipe, "pipebottom_left.png");
     const std::string pipeBottomRight = MapManager::ResolveTilePath(Cell::Pipe, "pipebottom_right.png");
+    const std::string pipeBodyResolved = MapManager::ResolveTilePath(Cell::Pipe, "pipebody.png");
+    const std::string pipeResolved = MapManager::ResolveTilePath(Cell::Pipe, "Pipe.png");
     std::string mountainResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("mountains.png");
     std::string bushResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("Bush.png");
     std::string cloudResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("Clouds_2.png");
@@ -628,15 +630,35 @@ bool convert_sketch(
                         q.push({nx, ny});
                     }
                 }
+                const int spanX = maxX - minX + 1;
 
-                for (const auto& [cellX, cellY] : cells) {
-                    const bool isTopRow = cellY == minY;
-                    const bool isLeftColumn = cellX == minX;
-                    const std::string& pipePiece =
-                        isTopRow
-                            ? (isLeftColumn ? pipeTopLeft : pipeTopRight)
-                            : (isLeftColumn ? pipeBottomLeft : pipeBottomRight);
-                    map.AddTile(cellX, cellY, Cell::Pipe, pipePiece);
+                if (isUndergroundLevel &&
+                    !pipeBodyResolved.empty() &&
+                    fs::exists(pipeBodyResolved) &&
+                    spanX >= 2) {
+                    if (!pipeResolved.empty() && fs::exists(pipeResolved)) {
+                        map.AddTileSprite(minX, minY, spanX, 1, Cell::Pipe, pipeResolved);
+                    } else {
+                        for (int cellX = minX; cellX <= maxX; ++cellX) {
+                            const bool isLeftColumn = cellX == minX;
+                            const std::string& pipePiece = isLeftColumn ? pipeTopLeft : pipeTopRight;
+                            map.AddTile(cellX, minY, Cell::Pipe, pipePiece);
+                        }
+                    }
+
+                    if (maxY > minY) {
+                        map.AddTileSprite(minX, minY + 1, spanX, maxY - minY, Cell::Pipe, pipeBodyResolved);
+                    }
+                } else {
+                    for (const auto& [cellX, cellY] : cells) {
+                        const bool isTopRow = cellY == minY;
+                        const bool isLeftColumn = cellX == minX;
+                        const std::string& pipePiece =
+                            isTopRow
+                                ? (isLeftColumn ? pipeTopLeft : pipeTopRight)
+                                : (isLeftColumn ? pipeBottomLeft : pipeBottomRight);
+                        map.AddTile(cellX, cellY, Cell::Pipe, pipePiece);
+                    }
                 }
 
                 if (isUndergroundLevel) {
@@ -680,7 +702,6 @@ bool convert_sketch(
             }
         }
     } else {
-        std::string pipeResolved = MapManager::ResolveTilePath(Cell::Pipe, "Pipe.png");
         if (!pipeResolved.empty() && fs::exists(pipeResolved)) {
             AddComponentSprites(pipeMask, false, Cell::Pipe, pipeResolved);
         }

@@ -379,9 +379,9 @@ public:
             float frameDuration = 0.12f;
             if (type == Cell::QuestionBlock) {
                 frames = {
-                    ResolveTilePath(Cell::QuestionBlock, "Question1.png"),
-                    ResolveTilePath(Cell::QuestionBlock, "Question2.png"),
-                    ResolveTilePath(Cell::QuestionBlock, "Question3.png")
+                    ResolveTilePath(Cell::QuestionBlock, m_IsUndergroundTheme ? "ug_question1.png" : "Question1.png"),
+                    ResolveTilePath(Cell::QuestionBlock, m_IsUndergroundTheme ? "ug_question2.png" : "Question2.png"),
+                    ResolveTilePath(Cell::QuestionBlock, m_IsUndergroundTheme ? "ug_question3.png" : "Question3.png")
                 };
             } else {
                 frames = {
