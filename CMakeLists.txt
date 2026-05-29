@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Mario)
+project(REPLACE_WITH_YOUR_PROJECT_NAME)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -34,7 +34,7 @@ list(TRANSFORM INCLUDE_FILES PREPEND ${INCLUDE_DIR}/)
 add_executable(${PROJECT_NAME}
     ${SRC_DIR}/main.cpp
     ${SRC_FILES}
-    ${INCLUDE_FILES}
+    ${HEADER_FILES}
 )
 
 if(MSVC)

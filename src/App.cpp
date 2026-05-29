@@ -1,5 +1,29 @@
-﻿#include "App.hpp"
-#include "MapManager.hpp"
+#include "App.hpp"
 
-// global pointer for Mario collision
-std::unique_ptr<MapManager> g_MapManager;
+#include "Util/Image.hpp"
+#include "Util/Input.hpp"
+#include "Util/Keycode.hpp"
+#include "Util/Logger.hpp"
+
+void App::Start() {
+    LOG_TRACE("Start");
+    m_CurrentState = State::UPDATE;
+}
+
+void App::Update() {
+    
+    //TODO: do your things here and delete this line <3
+    
+    /*
+     * Do not touch the code below as they serve the purpose for
+     * closing the window.
+     */
+    if (Util::Input::IsKeyUp(Util::Keycode::ESCAPE) ||
+        Util::Input::IfExit()) {
+        m_CurrentState = State::END;
+    }
+}
+
+void App::End() { // NOLINT(this method will mutate members in the future)
+    LOG_TRACE("End");
+}
