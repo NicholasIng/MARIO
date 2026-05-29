@@ -84,6 +84,10 @@ void App::UpdateTransitionScene(float dt) {
             if (m_TransitionPipeMotion == TransitionPipeMotion::HorizontalRight) {
                 m_Mario->m_Transform.translation.y = m_TransitionPipeEntryY;
                 m_Mario->m_Transform.translation.x += TRANSITION_PIPE_SINK_SPEED * dt;
+                if (m_TransitionPipeVisibleDistance > 0.0f &&
+                    m_Mario->m_Transform.translation.x >= m_TransitionPipeEntryX + m_TransitionPipeVisibleDistance) {
+                    m_Mario->SetVisible(false);
+                }
             } else if (m_TransitionPipeMotion == TransitionPipeMotion::VerticalUp) {
                 m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
                 m_Mario->m_Transform.translation.y += TRANSITION_PIPE_SINK_SPEED * dt;
@@ -119,6 +123,7 @@ void App::UpdateTransitionScene(float dt) {
                         m_TransitionPipeEntryX = m_Mario->m_Transform.translation.x;
                         m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
                         m_TransitionPipeSinkDistance = g_MapManager->GetTileSize() * 1.4f;
+                        m_TransitionPipeVisibleDistance = m_TransitionPipeSinkDistance;
                         m_Mario->m_Transform.translation.y =
                             m_TransitionPipeEntryY - m_TransitionPipeSinkDistance;
                         m_Mario->SetVisible(true);
@@ -587,10 +592,13 @@ void App::UpdateGameplay(float dt) {
             StartGoalSequence();
         }
         if (m_World == 1 && m_Level == 2 &&
-            g_MapManager && g_MapManager->HasTransitionPipe() &&
-            m_Mario->m_Transform.translation.x >= g_MapManager->GetTransitionPipeEntryX() - g_MapManager->GetTileSize() * 0.5f) {
-            BeginUndergroundExitTransition();
-            return;
+            g_MapManager && g_MapManager->HasTransitionPipe()) {
+            const glm::vec2 marioHalf = m_Mario->GetHalfExtents();
+            const float marioRight = m_Mario->m_Transform.translation.x + marioHalf.x;
+            if (marioRight >= g_MapManager->GetTransitionPipeEntryX() - g_MapManager->GetTileSize() * 0.25f) {
+                BeginUndergroundExitTransition();
+                return;
+            }
         }
     }
 

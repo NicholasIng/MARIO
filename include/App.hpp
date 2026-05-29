@@ -126,6 +126,7 @@ private:
     float m_TransitionPipeEntryX = 0.0f;
     float m_TransitionPipeEntryY = 0.0f;
     float m_TransitionPipeSinkDistance = 0.0f;
+    float m_TransitionPipeVisibleDistance = 0.0f;
     MusicTrack m_ActiveMusic = MusicTrack::None;
     bool m_WasMarioDead = false;
     bool m_DeathWasTimeout = false;

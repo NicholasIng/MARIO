@@ -20,20 +20,29 @@
 
 using namespace AppDetail;
 
+namespace {
+constexpr bool DEBUG_START_AT_LEVEL_ONE_TWO = true;
+}
+
 void App::Start() {
     LOG_TRACE("Start");
 
     InitializeAudio();
     ResetGameSession();
-    LoadLevel();
+    if (DEBUG_START_AT_LEVEL_ONE_TWO) {
+        LoadLevelOneTwo(false);
+        StartLevelIntro(LEVEL_INTRO_DURATION);
+    } else {
+        LoadLevel();
+        m_ScreenState = ScreenState::Title;
+        PlayTitleMusic();
+    }
 
     LOG_TRACE("Map size = {} x {}", g_MapManager->GetWidth(), g_MapManager->GetHeight());
     LOG_TRACE("Mario start pos = {}, {}",
         m_Mario->m_Transform.translation.x,
         m_Mario->m_Transform.translation.y);
 
-    m_ScreenState = ScreenState::Title;
-    PlayTitleMusic();
     m_CurrentState = State::UPDATE;
 }
 

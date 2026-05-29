@@ -43,6 +43,7 @@ void App::ResetGameSession() {
     m_TransitionPipeEntryX = 0.0f;
     m_TransitionPipeEntryY = 0.0f;
     m_TransitionPipeSinkDistance = 0.0f;
+    m_TransitionPipeVisibleDistance = 0.0f;
     m_LevelIntroPurpose = LevelIntroPurpose::StartLevel;
 }
 
@@ -87,6 +88,7 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
     m_TransitionPipeEntryX = 0.0f;
     m_TransitionPipeEntryY = 0.0f;
     m_TransitionPipeSinkDistance = 0.0f;
+    m_TransitionPipeVisibleDistance = 0.0f;
     m_SkyColor = Util::Color(
         static_cast<unsigned char>(SKY_BLUE_R),
         static_cast<unsigned char>(SKY_BLUE_G),
@@ -304,6 +306,7 @@ void App::LoadTransitionScene() {
     }
     m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
     m_TransitionPipeSinkDistance = tileSize * 1.2f;
+    m_TransitionPipeVisibleDistance = m_TransitionPipeSinkDistance;
     m_TransitionExitTimer = TRANSITION_BLACKOUT_DURATION;
     m_TransitionBlackoutTimer = 0.0f;
     m_TransitionPipeReached = false;
@@ -324,18 +327,19 @@ void App::BeginUndergroundExitTransition() {
     m_ScreenState = ScreenState::TransitionScene;
     m_TransitionDestination = TransitionDestination::LevelOneTwoExitArea;
     m_TransitionPipeMotion = TransitionPipeMotion::HorizontalRight;
-    m_TransitionPipeEntryX = g_MapManager->GetTransitionPipeEntryX();
+    m_TransitionPipeEntryX = m_Mario->m_Transform.translation.x;
     m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
-    m_TransitionPipeSinkDistance = g_MapManager->GetTileSize() * 1.8f;
+    m_TransitionPipeSinkDistance = g_MapManager->GetTileSize() * 2.0f;
+    m_TransitionPipeVisibleDistance = g_MapManager->GetTileSize() * 0.8f;
     m_TransitionExitTimer = TRANSITION_BLACKOUT_DURATION;
     m_TransitionBlackoutTimer = 0.0f;
     m_TransitionPipeReached = false;
     m_TransitionPipeSoundPlayed = false;
     m_TransitionMarioHidden = false;
-    m_TransitionAutoWalkStarted = true;
+    m_TransitionAutoWalkStarted = false;
     m_Fireballs.clear();
     m_FireballCooldown = 0.0f;
-    m_Mario->StartGoalWalk(m_TransitionPipeEntryX);
+    m_TransitionPipeReached = true;
 }
 
 void App::HandleMarioDeath() {

@@ -256,9 +256,13 @@ bool convert_sketch(
     map.SetMapSize(width, layerHeight);
 
     const std::string loweredPath = ToLower(path);
+    const bool isOutdoorExitArea =
+        loweredPath.find("levelsketch1-1") != std::string::npos ||
+        loweredPath.find("outdoorexitsketch") != std::string::npos;
     const bool isUndergroundLevel =
-        loweredPath.find("levelsketch1") != std::string::npos ||
-        loweredPath.find("1-2") != std::string::npos;
+        !isOutdoorExitArea &&
+        (loweredPath.find("levelsketch1") != std::string::npos ||
+         loweredPath.find("1-2") != std::string::npos);
     map.SetUndergroundTheme(isUndergroundLevel);
 
     background_color = isUndergroundLevel
@@ -277,7 +281,7 @@ bool convert_sketch(
     std::unordered_map<uint32_t, TileEntry> tileMap = {
         { PackRGB(0,   0,   0),   { Cell::Wall,          isUndergroundLevel ? "SMB_Ground_Underground.png" : "Ground.png" } },
         { PackRGB(182, 73,  0),   { Cell::Brick,         isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png" } },
-        { PackRGB(146, 73,  0),   { isUndergroundLevel ? Cell::Wall : Cell::Brick, isUndergroundLevel ? "SMB_Underground_Hard_Block.png" : "Brick.png" } },
+        { PackRGB(146, 73,  0),   { (isUndergroundLevel || isOutdoorExitArea) ? Cell::Wall : Cell::Brick, isUndergroundLevel ? "SMB_Underground_Hard_Block.png" : (isOutdoorExitArea ? "HardBlock.png" : "Brick.png") } },
         { PackRGB(255, 255, 0),   { Cell::Coin,          isUndergroundLevel ? "ug_coin1.png" : "Coin.png" } },
         { PackRGB(255, 73,  85),  { Cell::QuestionBlock, isUndergroundLevel ? "ug_question1.png" : "Question.png", LootType::ProgressivePowerUp } },
         { PackRGB(255, 135, 143), { Cell::QuestionBlock, isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png", LootType::RedMushroom, 1, true } },
@@ -309,21 +313,35 @@ bool convert_sketch(
         LOG_INFO("Using Stair asset: {}", stairResolved);
     }
 
-    const std::string pipeTopLeft = MapManager::ResolveTilePath(Cell::Pipe, "pipetop_left.png");
-    const std::string pipeTopRight = MapManager::ResolveTilePath(Cell::Pipe, "pipetop_right.png");
-    const std::string pipeBottomLeft = MapManager::ResolveTilePath(Cell::Pipe, "pipebottom_left.png");
-    const std::string pipeBottomRight = MapManager::ResolveTilePath(Cell::Pipe, "pipebottom_right.png");
+    auto ResolvePipePiece = [](const std::string& filename) {
+        const fs::path pipePath = MapManager::ResourceRoot() / "image" / "Pipes" / filename;
+        if (fs::exists(pipePath)) {
+            return pipePath.string();
+        }
+        return MapManager::ResolveTilePath(Cell::Pipe, filename);
+    };
+
+    const std::string pipeTopLeft = ResolvePipePiece("pipetop_left.png");
+    const std::string pipeTopRight = ResolvePipePiece("pipetop_right.png");
+    const std::string pipeBottomLeft = ResolvePipePiece("pipebottom_left.png");
+    const std::string pipeBottomRight = ResolvePipePiece("pipebottom_right.png");
     const std::string pipeBodyResolved = MapManager::ResolveTilePath(Cell::Pipe, "pipebody.png");
     const std::string pipeResolved = MapManager::ResolveTilePath(Cell::Pipe, "Pipe.png");
+    const std::string exitPipeTopLeft = ResolvePipePiece("pipe_tl.png");
+    const std::string exitPipeTopRight = ResolvePipePiece("pipe_tr.png");
+    const std::string exitPipeBodyLeft = ResolvePipePiece("pipe_bl.png");
+    const std::string exitPipeBodyRight = ResolvePipePiece("pipe_br.png");
+    const std::string exitMouthTopLeft = ResolvePipePiece("mpipe_tl.png");
+    const std::string exitMouthTopMiddle = ResolvePipePiece("mpipe_mt.png");
+    const std::string exitMouthTopRight = ResolvePipePiece("mpipe_tr.png");
+    const std::string exitMouthBottomLeft = ResolvePipePiece("mpipe_bl.png");
+    const std::string exitMouthBottomMiddle = ResolvePipePiece("mpipe_mb.png");
+    const std::string exitMouthBottomRight = ResolvePipePiece("mpipe_br.png");
     std::string mountainResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("mountains.png");
     std::string bushResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("Bush.png");
     std::string cloudResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("Clouds_2.png");
     std::string castleResolved = MapManager::ResolveBackgroundPath("castle1.png");
     std::string pipeForkedResolved = MapManager::ResolveBackgroundPath("WarpPipeForked.png");
-    std::string tallPipeForkedResolved = MapManager::ResolveBackgroundPath("WarpPipeForkedTall.png");
-    if (tallPipeForkedResolved.empty() || !fs::exists(tallPipeForkedResolved)) {
-        tallPipeForkedResolved = pipeForkedResolved;
-    }
     std::vector<std::vector<char>> pipeMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> mountainMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> bushMask(width, std::vector<char>(layerHeight, 0));
@@ -598,6 +616,24 @@ bool convert_sketch(
         !pipeTopRight.empty() && fs::exists(pipeTopRight) &&
         !pipeBottomLeft.empty() && fs::exists(pipeBottomLeft) &&
         !pipeBottomRight.empty() && fs::exists(pipeBottomRight);
+    const bool haveExitPipeSet =
+        !exitPipeTopLeft.empty() && fs::exists(exitPipeTopLeft) &&
+        !exitPipeTopRight.empty() && fs::exists(exitPipeTopRight) &&
+        !exitPipeBodyLeft.empty() && fs::exists(exitPipeBodyLeft) &&
+        !exitPipeBodyRight.empty() && fs::exists(exitPipeBodyRight) &&
+        !exitMouthTopLeft.empty() && fs::exists(exitMouthTopLeft) &&
+        !exitMouthTopMiddle.empty() && fs::exists(exitMouthTopMiddle) &&
+        !exitMouthTopRight.empty() && fs::exists(exitMouthTopRight) &&
+        !exitMouthBottomLeft.empty() && fs::exists(exitMouthBottomLeft) &&
+        !exitMouthBottomMiddle.empty() && fs::exists(exitMouthBottomMiddle) &&
+        !exitMouthBottomRight.empty() && fs::exists(exitMouthBottomRight);
+    auto AddForegroundPipeTile = [&](int gridX, int gridY, const std::string& texturePath) {
+        if (gridX < 0 || gridX >= width || gridY < 0 || gridY >= layerHeight) {
+            return;
+        }
+        map.AddTile(gridX, gridY, Cell::Pipe, texturePath);
+        map.AddForegroundSprite(gridX, gridY, 1, 1, texturePath);
+    };
 
     if (havePipeSet) {
         std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
@@ -638,30 +674,58 @@ bool convert_sketch(
                 bool handledUndergroundExitPipe = false;
                 if (isUndergroundLevel) {
                     if (!undergroundExitPipeVisualAdded &&
-                        !tallPipeForkedResolved.empty() &&
-                        fs::exists(tallPipeForkedResolved) &&
+                        haveExitPipeSet &&
                         minX > static_cast<int>(width * 0.75f) &&
                         spanX >= 4) {
-                        Util::Image forkedPipeImage(tallPipeForkedResolved);
-                        const glm::vec2 forkedSize = forkedPipeImage.GetSize();
-                        const int spriteTileWidth =
-                            std::max(1, static_cast<int>(std::round((forkedSize.x * 3.0f) / map.GetTileSize())));
-                        const int spriteTileHeight =
-                            std::max(1, static_cast<int>(std::round((forkedSize.y * 3.0f) / map.GetTileSize())));
-                        const int startX = std::clamp(
-                            maxX - spriteTileWidth + 1,
-                            0,
-                            std::max(0, width - spriteTileWidth)
-                        );
-                        const int startY = std::clamp(
-                            maxY - spriteTileHeight + 1,
-                            0,
-                            std::max(0, layerHeight - spriteTileHeight)
-                        );
-                        map.AddForegroundSprite(startX, startY, spriteTileWidth, spriteTileHeight, tallPipeForkedResolved);
+                        const int verticalLeftX = std::clamp(maxX - 1, 1, std::max(1, width - 2));
+                        const int smallLeftX = std::max(0, verticalLeftX - 4);
+                        const int mouthLeftX = smallLeftX + 2;
+                        const int mouthRightX = verticalLeftX - 1;
+                        const int mouthTopY = std::max(minY, maxY - 1);
+                        const int mouthBottomY = maxY;
+
+                        for (int pipeY = 0; pipeY <= maxY; ++pipeY) {
+                            AddForegroundPipeTile(
+                                verticalLeftX,
+                                pipeY,
+                                pipeY == 0 ? exitPipeTopLeft : exitPipeBodyLeft
+                            );
+                            AddForegroundPipeTile(
+                                verticalLeftX + 1,
+                                pipeY,
+                                pipeY == 0 ? exitPipeTopRight : exitPipeBodyRight
+                            );
+                        }
+
+                        AddForegroundPipeTile(smallLeftX, mouthTopY, exitMouthTopLeft);
+                        AddForegroundPipeTile(smallLeftX + 1, mouthTopY, exitMouthTopRight);
+                        AddForegroundPipeTile(smallLeftX, mouthBottomY, exitMouthBottomLeft);
+                        AddForegroundPipeTile(smallLeftX + 1, mouthBottomY, exitMouthBottomRight);
+
+                        for (int pipeX = mouthLeftX; pipeX <= mouthRightX; ++pipeX) {
+                            const bool isRightEnd = pipeX == mouthRightX;
+                            AddForegroundPipeTile(
+                                pipeX,
+                                mouthTopY,
+                                isRightEnd ? exitMouthTopRight : exitMouthTopMiddle
+                            );
+                            AddForegroundPipeTile(
+                                pipeX,
+                                mouthBottomY,
+                                isRightEnd ? exitMouthBottomRight : exitMouthBottomMiddle
+                            );
+                        }
+
                         const float entryX =
-                            map.GetWorldLeft() + (static_cast<float>(startX) + 0.5f) * map.GetTileSize();
+                            map.GetWorldLeft() + (static_cast<float>(smallLeftX) + 0.5f) * map.GetTileSize();
                         map.SetTransitionPipeEntryX(entryX);
+                        for (int skipX = smallLeftX; skipX < width; ++skipX) {
+                            for (int skipY = 0; skipY < layerHeight; ++skipY) {
+                                if (pipeMask[skipX][skipY]) {
+                                    visited[skipX][skipY] = 1;
+                                }
+                            }
+                        }
                         undergroundExitPipeVisualAdded = true;
                         handledUndergroundExitPipe = true;
                     } else if (spanX >= 2) {
@@ -722,7 +786,118 @@ bool convert_sketch(
     if (!castleResolved.empty() && fs::exists(castleResolved)) {
         AddMarkerScaledSprite(castleMask, castleResolved);
     }
-    if (!pipeForkedResolved.empty() && fs::exists(pipeForkedResolved)) {
+    const bool haveForkedPipePieces =
+        !pipeForkedResolved.empty() && fs::exists(pipeForkedResolved) &&
+        haveExitPipeSet;
+    auto AddForkedPipePieces = [&]() {
+        Util::Image pipeImage(pipeForkedResolved);
+        const glm::vec2 pipeImageSize = pipeImage.GetSize();
+        if (pipeImageSize.x <= 0.0f || pipeImageSize.y <= 0.0f) {
+            return false;
+        }
+
+        const int spriteTileWidth =
+            std::max(2, static_cast<int>(std::round((pipeImageSize.x * 3.0f) / map.GetTileSize())));
+        const int spriteTileHeight =
+            std::max(3, static_cast<int>(std::round((pipeImageSize.y * 3.0f) / map.GetTileSize())));
+        const int verticalSpanX = 2;
+
+        std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
+        for (int sx = 0; sx < width; ++sx) {
+            for (int sy = 0; sy < layerHeight; ++sy) {
+                if (!pipeForkedMask[sx][sy] || visited[sx][sy]) continue;
+
+                int minX = sx;
+                int maxX = sx;
+                int minY = sy;
+                int maxY = sy;
+                std::queue<std::pair<int, int>> q;
+                q.push({sx, sy});
+                visited[sx][sy] = 1;
+
+                while (!q.empty()) {
+                    auto [cx, cy] = q.front();
+                    q.pop();
+                    minX = std::min(minX, cx);
+                    maxX = std::max(maxX, cx);
+                    minY = std::min(minY, cy);
+                    maxY = std::max(maxY, cy);
+
+                    const int dx[4] = {1, -1, 0, 0};
+                    const int dy[4] = {0, 0, 1, -1};
+                    for (int i = 0; i < 4; ++i) {
+                        const int nx = cx + dx[i];
+                        const int ny = cy + dy[i];
+                        if (nx < 0 || nx >= width || ny < 0 || ny >= layerHeight) continue;
+                        if (visited[nx][ny] || !pipeForkedMask[nx][ny]) continue;
+                        visited[nx][ny] = 1;
+                        q.push({nx, ny});
+                    }
+                }
+
+                const int markerCenterX = (minX + maxX) / 2;
+                const int markerBaseY = maxY;
+                const int startX =
+                    std::clamp(markerCenterX - spriteTileWidth / 2, 0, std::max(0, width - spriteTileWidth));
+                const int startY =
+                    std::clamp(markerBaseY - spriteTileHeight + 1, 0, std::max(0, layerHeight - spriteTileHeight));
+                const int endY = std::min(layerHeight - 1, startY + spriteTileHeight - 1);
+                const int verticalLeftX =
+                    std::clamp(startX + spriteTileWidth - verticalSpanX, 0, std::max(0, width - verticalSpanX));
+                const int verticalRightX = verticalLeftX + 1;
+
+                for (int pipeY = startY; pipeY <= endY; ++pipeY) {
+                    map.AddForegroundSprite(
+                        verticalLeftX,
+                        pipeY,
+                        1,
+                        1,
+                        pipeY == startY ? exitPipeTopLeft : exitPipeBodyLeft
+                    );
+                    map.AddForegroundSprite(
+                        verticalRightX,
+                        pipeY,
+                        1,
+                        1,
+                        pipeY == startY ? exitPipeTopRight : exitPipeBodyRight
+                    );
+                }
+
+                const int mouthBottomY = endY;
+                const int mouthTopY = std::max(startY, mouthBottomY - 1);
+                const int mouthLeftX = startX;
+                const int mouthRightX = std::max(mouthLeftX + 1, verticalLeftX - 1);
+
+                for (int pipeX = mouthLeftX; pipeX <= mouthRightX; ++pipeX) {
+                    const bool isLeftEnd = pipeX == mouthLeftX;
+                    const bool isRightEnd = pipeX == mouthRightX;
+                    map.AddForegroundSprite(
+                        pipeX,
+                        mouthTopY,
+                        1,
+                        1,
+                        isLeftEnd ? exitMouthTopLeft : (isRightEnd ? exitMouthTopRight : exitMouthTopMiddle)
+                    );
+                    map.AddForegroundSprite(
+                        pipeX,
+                        mouthBottomY,
+                        1,
+                        1,
+                        isLeftEnd ? exitMouthBottomLeft : (isRightEnd ? exitMouthBottomRight : exitMouthBottomMiddle)
+                    );
+                }
+
+                const float entryX =
+                    map.GetWorldLeft() + (static_cast<float>(verticalLeftX) + 0.5f) * map.GetTileSize();
+                map.SetTransitionPipeEntryX(entryX);
+            }
+        }
+
+        return true;
+    };
+    if (haveForkedPipePieces) {
+        AddForkedPipePieces();
+    } else if (!pipeForkedResolved.empty() && fs::exists(pipeForkedResolved)) {
         AddMarkerScaledSprite(
             pipeForkedMask,
             pipeForkedResolved,
