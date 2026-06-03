@@ -399,6 +399,11 @@ void App::UpdateGameplay(float dt) {
     if (!powerupFreezeActive) {
         m_FireballCooldown = std::max(0.0f, m_FireballCooldown - dt);
     }
+    if (!autoGoalSequence && m_Mario && !m_Mario->IsDead() &&
+        Util::Input::IsKeyDown(Util::Keycode::NUM_0)) {
+        m_Mario->SetDebugStarPowerEnabled(!m_Mario->HasStarPower());
+        UpdateGameplayMusic();
+    }
     if (!autoGoalSequence && !powerupFreezeActive &&
         m_Mario && m_Mario->IsFire() && !m_Mario->IsDead() &&
         Util::Input::IsKeyDown(Util::Keycode::F) &&
@@ -504,6 +509,14 @@ void App::UpdateGameplay(float dt) {
                 enemy->Stomp();
                 m_Mario->BounceAfterStomp();
                 PlaySfx(m_Audio.stomp.get());
+            } else if (stationaryShellTopContact) {
+                enemy->KickShell(shellKickDirection);
+                enemy->m_Transform.translation.x =
+                    m_Mario->m_Transform.translation.x +
+                    shellKickDirection * (marioHalf.x + enemyHalf.x + 2.0f);
+                m_Mario->BounceAfterStomp();
+                PlaySfx(m_Audio.kick.get());
+                continue;
             } else if (sideShellContact) {
                 enemy->KickShell(shellKickDirection);
                 enemy->m_Transform.translation.x =
@@ -511,7 +524,7 @@ void App::UpdateGameplay(float dt) {
                     shellKickDirection * (marioHalf.x + enemyHalf.x + 2.0f);
                 PlaySfx(m_Audio.kick.get());
                 continue;
-            } else if (stationaryShellTopContact || stationaryShellState) {
+            } else if (stationaryShellState) {
                 continue;
             } else if (enemy->IsHarmlessToPlayer()) {
                 continue;

@@ -21,7 +21,7 @@
 using namespace AppDetail;
 
 namespace {
-constexpr bool DEBUG_START_AT_LEVEL_ONE_TWO = true;
+constexpr bool DEBUG_START_AT_LEVEL_ONE_TWO = false;
 }
 
 void App::Start() {

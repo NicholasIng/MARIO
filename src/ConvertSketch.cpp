@@ -259,8 +259,16 @@ bool convert_sketch(
     const bool isOutdoorExitArea =
         loweredPath.find("levelsketch1-1") != std::string::npos ||
         loweredPath.find("outdoorexitsketch") != std::string::npos;
+    const bool isTransitionSceneSketch =
+        loweredPath.find("transition1") != std::string::npos;
     const bool isUndergroundLevel =
         !isOutdoorExitArea &&
+        !isTransitionSceneSketch &&
+        (loweredPath.find("levelsketch1") != std::string::npos ||
+         loweredPath.find("1-2") != std::string::npos);
+    const bool shouldUseMarkerSpawn =
+        !isOutdoorExitArea &&
+        !isTransitionSceneSketch &&
         (loweredPath.find("levelsketch1") != std::string::npos ||
          loweredPath.find("1-2") != std::string::npos);
     map.SetUndergroundTheme(isUndergroundLevel);
@@ -355,6 +363,7 @@ bool convert_sketch(
     std::vector<std::vector<char>> movingPlatformMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> goombaMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> koopaMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> redKoopaMask(width, std::vector<char>(layerHeight, 0));
     std::vector<glm::vec2> venusSpawnPositions;
     bool undergroundExitPipeVisualAdded = false;
 
@@ -441,6 +450,8 @@ bool convert_sketch(
                     pipeForkedMask[x][y] = 1;
                 } else if (r == 0 && g == 255 && b == 42) {
                     koopaMask[x][y] = 1;
+                } else if (r == 255 && g == 127 && b == 0) {
+                    redKoopaMask[x][y] = 1;
                 } else if (r == 182 && g == 73 && b == 0) {
                     goombaMask[x][y] = 1;
                 }
@@ -757,7 +768,7 @@ bool convert_sketch(
                         }
 
                         const float entryX =
-                            map.GetWorldLeft() + (static_cast<float>(forkedBottomMinX) + 0.5f) * map.GetTileSize();
+                            map.GetWorldLeft() + (static_cast<float>(forkedBottomMinX) - 1.5f) * map.GetTileSize();
                         map.SetTransitionPipeEntryX(entryX);
                         undergroundExitPipeVisualAdded = true;
                         handledUndergroundExitPipe = true;
@@ -875,6 +886,7 @@ bool convert_sketch(
         AddMarkerScaledSprite(castleMask, castleResolved);
     }
     const bool haveForkedPipePieces =
+        !isTransitionSceneSketch &&
         !pipeForkedResolved.empty() && fs::exists(pipeForkedResolved) &&
         haveExitPipeSet;
     auto AddForkedPipePieces = [&]() {
@@ -1158,6 +1170,7 @@ bool convert_sketch(
 
         appendEnemySpawns(goombaMask, EnemyKind::Goomba);
         appendEnemySpawns(koopaMask, EnemyKind::GreenKoopa);
+        appendEnemySpawns(redKoopaMask, EnemyKind::RedKoopa);
     }
 
     std::string hardBlockPath = MapManager::ResolveTilePath(
@@ -1243,12 +1256,14 @@ bool convert_sketch(
 
     bool spawnFound = false;
     if (spawnMarkerFound) {
-        mario.m_Transform.translation = ComputeGroundedSpawnPosition(
-            map,
-            marioSpawnX,
-            marioSpawnY,
-            mario.GetHalfExtents().y
-        );
+        mario.m_Transform.translation = shouldUseMarkerSpawn
+            ? ComputeMarkerSpawnPosition(map, marioSpawnX, marioSpawnY)
+            : ComputeGroundedSpawnPosition(
+                map,
+                marioSpawnX,
+                marioSpawnY,
+                mario.GetHalfExtents().y
+            );
         spawnFound = true;
     }
 
