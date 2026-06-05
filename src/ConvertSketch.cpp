@@ -843,6 +843,24 @@ bool convert_sketch(
                             );
                         }
 
+                        const std::string hardBlockPath =
+                            MapManager::ResolveTilePath(Cell::Wall, "SMB_Underground_Hard_Block.png");
+                        for (const auto& [cellX, cellY] : cells) {
+                            const bool inVerticalPipe =
+                                cellX >= verticalLeftX &&
+                                cellX <= verticalLeftX + 1 &&
+                                cellY >= 0 &&
+                                cellY <= maxY;
+                            const bool inMouth =
+                                cellX >= smallLeftX &&
+                                cellX <= mouthRightX &&
+                                cellY >= mouthTopY &&
+                                cellY <= mouthBottomY;
+                            if (!inVerticalPipe && !inMouth) {
+                                map.AddTile(cellX, cellY, Cell::Wall, hardBlockPath);
+                            }
+                        }
+
                         const float entryX =
                             map.GetWorldLeft() + (static_cast<float>(smallLeftX) + 0.5f) * map.GetTileSize();
                         map.SetTransitionPipeEntryX(entryX);
