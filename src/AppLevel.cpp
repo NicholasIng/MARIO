@@ -106,6 +106,8 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
     );
     m_CastleObject = nullptr;
     m_CastleImage = nullptr;
+    m_StartCastleObject = nullptr;
+    m_StartCastleImage = nullptr;
 
     if (preserveProgress) {
         m_Score = savedScore;
@@ -132,7 +134,13 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
     glClearColor(m_SkyColor.r / 255.0f, m_SkyColor.g / 255.0f, m_SkyColor.b / 255.0f, 1.0f);
 
     for (const auto& spawn : enemySpawns) {
-        m_PendingEnemySpawns.push_back({ spawn.position, spawn.kind, false });
+        m_PendingEnemySpawns.push_back({
+            spawn.position,
+            spawn.kind,
+            spawn.flightTopTiles,
+            spawn.flightBottomTiles,
+            false
+        });
     }
 
     if (!foundSpawn) {
@@ -244,14 +252,101 @@ void App::LoadLevelOneThree(bool preserveMarioState) {
     m_World = 1;
     m_Level = 3;
     LoadSceneSketch(ResolveLevelOneThreeSketchPath(), true);
+    PlaceGoalCastle("Castle.png");
+    PlaceLevelStartCastleAndSpawn();
     if (!preserveMarioState && m_Mario) {
         m_Mario->RestorePowerState(Mario::PowerState::Small);
-        AlignMarioSpawnToGround();
         m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
     }
     m_LevelTimer = STARTING_TIMER;
     m_DisplayedLevelTime = STARTING_TIMER;
     RefreshHudText();
+}
+
+void App::PlaceGoalCastle(const std::string& imageName) {
+    m_CastleObject = std::make_shared<Util::GameObject>();
+    m_CastleImage = std::make_shared<Util::Image>(AssetPaths::Image(imageName));
+    m_CastleObject->SetDrawable(m_CastleImage);
+    m_CastleObject->SetZIndex(5.0f);
+
+    if (!g_MapManager || !m_CastleImage) {
+        return;
+    }
+
+    const glm::vec2 castleSize = m_CastleImage->GetSize();
+    float castleScale = 3.0f;
+    float castleWidth = castleSize.x > 0.0f ? castleSize.x : g_MapManager->GetTileSize() * CASTLE_TARGET_HEIGHT_TILES;
+    float castleHeight = castleSize.y > 0.0f ? castleSize.y : g_MapManager->GetTileSize() * CASTLE_TARGET_HEIGHT_TILES;
+    castleWidth *= castleScale;
+    castleHeight *= castleScale;
+
+    const float minCastleCenter = g_MapManager->GetWorldLeft() + castleWidth * 0.5f;
+    const float maxCastleCenter = g_MapManager->GetWorldRight()
+        - castleWidth * 0.5f
+        - g_MapManager->GetTileSize() * CASTLE_END_INSET_TILES;
+    const float desiredCastleX = g_MapManager->HasGoal()
+        ? g_MapManager->GetGoalX() + g_MapManager->GetTileSize() * CASTLE_OFFSET_TILES
+        : g_MapManager->GetWorldRight() - castleWidth * 0.5f - g_MapManager->GetTileSize();
+    const float castleX = std::clamp(desiredCastleX, minCastleCenter, maxCastleCenter);
+    const float castleGroundY = g_MapManager->HasGoal()
+        ? g_MapManager->GetGoalGroundY() - g_MapManager->GetTileSize()
+        : -(g_MapManager->GetHeight() * g_MapManager->GetTileSize()) / 2.0f;
+    const float castleY = castleGroundY + castleHeight * 0.5f;
+
+    m_CastleDoorX = castleX;
+    m_CastleObject->m_Transform.translation = { castleX, castleY };
+    m_CastleObject->m_Transform.scale = { castleScale, castleScale };
+}
+
+void App::PlaceLevelStartCastleAndSpawn() {
+    if (!g_MapManager || !m_Mario) {
+        return;
+    }
+
+    m_StartCastleObject = std::make_shared<Util::GameObject>();
+    m_StartCastleImage = std::make_shared<Util::Image>(AssetPaths::Image("castle1.png"));
+    m_StartCastleObject->SetDrawable(m_StartCastleImage);
+    m_StartCastleObject->SetZIndex(5.0f);
+
+    const float tileSize = g_MapManager->GetTileSize();
+    const float targetHeight = tileSize * CASTLE_TARGET_HEIGHT_TILES;
+    const glm::vec2 castleSize = m_StartCastleImage->GetSize();
+    float castleScale = 1.0f;
+    float castleWidth = targetHeight;
+    if (castleSize.y > 0.0f) {
+        castleScale = targetHeight / castleSize.y;
+        castleWidth = castleSize.x * castleScale;
+    }
+
+    const float castleX = g_MapManager->GetWorldLeft() + castleWidth * 0.5f + tileSize;
+    const float spawnX = castleX;
+    const float mapTop = (g_MapManager->GetHeight() * tileSize) / 2.0f;
+    const int gridX = std::clamp(
+        static_cast<int>(std::floor((spawnX - g_MapManager->GetWorldLeft()) / tileSize)),
+        0,
+        std::max(0, g_MapManager->GetWidth() - 1)
+    );
+
+    float surfaceTop = -(g_MapManager->GetHeight() * tileSize) / 2.0f;
+    for (int gridY = 0; gridY < g_MapManager->GetHeight(); ++gridY) {
+        if (!MapManager::IsSolidCell(g_MapManager->GetCell(gridX, gridY))) {
+            continue;
+        }
+        surfaceTop = mapTop - gridY * tileSize;
+        break;
+    }
+
+    m_StartCastleObject->m_Transform.translation = {
+        castleX,
+        surfaceTop + targetHeight * 0.5f
+    };
+    m_StartCastleObject->m_Transform.scale = { castleScale, castleScale };
+
+    m_Mario->m_Transform.translation = {
+        spawnX,
+        surfaceTop + m_Mario->GetHalfExtents().y
+    };
+    m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
 }
 
 void App::AlignMarioSpawnToGround() {

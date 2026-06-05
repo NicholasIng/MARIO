@@ -37,6 +37,8 @@ private:
     struct PendingEnemySpawn {
         glm::vec2 position;
         EnemyKind kind = EnemyKind::Goomba;
+        float flightTopTiles = 2.0f;
+        float flightBottomTiles = 2.0f;
         bool activated = false;
     };
     struct SpriteText {
@@ -102,6 +104,8 @@ private:
     std::vector<std::unique_ptr<Debris>> m_Debris;
     std::shared_ptr<Util::GameObject> m_CastleObject;
     std::shared_ptr<Util::Image> m_CastleImage;
+    std::shared_ptr<Util::GameObject> m_StartCastleObject;
+    std::shared_ptr<Util::Image> m_StartCastleImage;
 
     // camera/view like the youtuber's view_x
     float m_ViewX = 0.0f;
@@ -213,6 +217,8 @@ private:
     void ReloadCurrentLevel();
     bool LoadSceneSketch(const std::string& sketchPath, bool preserveProgress);
     void AlignMarioSpawnToGround();
+    void PlaceGoalCastle(const std::string& imageName);
+    void PlaceLevelStartCastleAndSpawn();
     std::string ResolveTransitionSketchPath() const;
     std::string ResolveLevelOneTwoSketchPath() const;
     std::string ResolveLevelOneThreeSketchPath() const;

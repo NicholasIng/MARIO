@@ -21,7 +21,7 @@
 using namespace AppDetail;
 
 namespace {
-constexpr bool DEBUG_START_AT_LEVEL_ONE_THREE = true;
+constexpr bool DEBUG_START_AT_LEVEL_ONE_TWO = true;
 }
 
 void App::Start() {
@@ -29,8 +29,8 @@ void App::Start() {
 
     InitializeAudio();
     ResetGameSession();
-    if (DEBUG_START_AT_LEVEL_ONE_THREE) {
-        LoadLevelOneThree(false);
+    if (DEBUG_START_AT_LEVEL_ONE_TWO) {
+        LoadLevelOneTwo(false);
         StartLevelIntro(LEVEL_INTRO_DURATION);
     } else {
         LoadLevel();

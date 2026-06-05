@@ -122,6 +122,15 @@ void App::RenderSceneWorld(bool drawCastle) {
     }
 
     if (drawCastle &&
+        m_StartCastleObject != nullptr &&
+        g_MapManager != nullptr) {
+        const glm::vec2 oldPos = m_StartCastleObject->m_Transform.translation;
+        m_StartCastleObject->m_Transform.translation.x -= m_ViewX;
+        m_StartCastleObject->Draw();
+        m_StartCastleObject->m_Transform.translation = oldPos;
+    }
+
+    if (drawCastle &&
         m_CastleObject != nullptr &&
         g_MapManager != nullptr) {
         const glm::vec2 oldPos = m_CastleObject->m_Transform.translation;

@@ -150,6 +150,10 @@ static bool IsMovingPlatformColor(Uint8 r, Uint8 g, Uint8 b) {
     return PackRGB(r, g, b) == PackRGB(255, 205, 0);
 }
 
+static bool IsHorizontalMovingPlatformColor(Uint8 r, Uint8 g, Uint8 b) {
+    return PackRGB(r, g, b) == PackRGB(148, 119, 0);
+}
+
 static bool IsWoodColor(Uint8 r, Uint8 g, Uint8 b) {
     return PackRGB(r, g, b) == PackRGB(255, 115, 0);
 }
@@ -374,6 +378,7 @@ bool convert_sketch(
     std::vector<std::vector<char>> goombaMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> koopaMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> redKoopaMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> redKoopaWingedMask(width, std::vector<char>(layerHeight, 0));
     std::vector<glm::vec2> venusSpawnPositions;
     bool undergroundExitPipeVisualAdded = false;
 
@@ -396,6 +401,10 @@ bool convert_sketch(
                 }
                 if (IsMovingPlatformColor(r, g, b)) {
                     movingPlatformMask[x][y] = 1;
+                    continue;
+                }
+                if (IsHorizontalMovingPlatformColor(r, g, b)) {
+                    movingPlatformMask[x][y] = 2;
                     continue;
                 }
                 if (IsWoodColor(r, g, b)) {
@@ -470,6 +479,8 @@ bool convert_sketch(
                     koopaMask[x][y] = 1;
                 } else if (r == 255 && g == 127 && b == 0) {
                     redKoopaMask[x][y] = 1;
+                } else if (r == 185 && g == 103 && b == 103) {
+                    redKoopaWingedMask[x][y] = 1;
                 } else if (r == 182 && g == 73 && b == 0) {
                     goombaMask[x][y] = 1;
                 }
@@ -1097,11 +1108,21 @@ bool convert_sketch(
     }
 
     {
+        struct PlatformMarker {
+            char kind = 0;
+            int minX = 0;
+            int maxX = 0;
+            int minY = 0;
+            int maxY = 0;
+        };
+
+        std::vector<PlatformMarker> markers;
         std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
         for (int sx = 0; sx < width; ++sx) {
             for (int sy = 0; sy < layerHeight; ++sy) {
                 if (!movingPlatformMask[sx][sy] || visited[sx][sy]) continue;
 
+                const char platformKind = movingPlatformMask[sx][sy];
                 int minX = sx;
                 int maxX = sx;
                 int minY = sy;
@@ -1124,20 +1145,64 @@ bool convert_sketch(
                         const int nx = cx + dx[i];
                         const int ny = cy + dy[i];
                         if (nx < 0 || nx >= width || ny < 0 || ny >= layerHeight) continue;
-                        if (visited[nx][ny] || !movingPlatformMask[nx][ny]) continue;
+                        if (visited[nx][ny] || movingPlatformMask[nx][ny] != platformKind) continue;
                         visited[nx][ny] = 1;
                         q.push({nx, ny});
                     }
                 }
 
-                const int spanX = maxX - minX + 1;
-                const int spanY = maxY - minY + 1;
-                const int defaultTravelTiles = 4;
-                const int topGridY =
-                    (spanY > 1) ? minY : std::max(0, maxY - (defaultTravelTiles - 1));
-                const int bottomGridY = maxY;
-                map.AddMovingPlatform(minX, topGridY, bottomGridY, spanX, "platform.png");
+                markers.push_back({ platformKind, minX, maxX, minY, maxY });
             }
+        }
+
+        std::vector<char> used(markers.size(), 0);
+        const int horizontalPlatformCount = static_cast<int>(
+            std::count_if(markers.begin(), markers.end(), [](const PlatformMarker& marker) {
+                return marker.kind == 2;
+            })
+        );
+        int horizontalPlatformIndex = 0;
+        for (std::size_t i = 0; i < markers.size(); ++i) {
+            if (used[i]) continue;
+
+            const PlatformMarker& marker = markers[i];
+            const int spanX = marker.maxX - marker.minX + 1;
+            const int spanY = marker.maxY - marker.minY + 1;
+
+            if (marker.kind == 2) {
+                const bool isFinalHorizontalPlatform =
+                    horizontalPlatformIndex == horizontalPlatformCount - 1;
+                const bool shouldStaggerStart =
+                    !isFinalHorizontalPlatform && horizontalPlatformIndex == 1;
+                const int leftGridX = marker.minX - 4;
+                const int rightGridX = isFinalHorizontalPlatform ? marker.minX + 4 : marker.minX;
+                map.AddMovingPlatform(marker.minX,
+                                      marker.minY,
+                                      marker.maxY,
+                                      spanX,
+                                      "platform.png",
+                                      72.0f,
+                                      0.0f,
+                                      MapManager::MovingPlatformMotion::Horizontal,
+                                      4,
+                                      leftGridX,
+                                      rightGridX,
+                                      true,
+                                      shouldStaggerStart ? 1.35f : 0.0f);
+                ++horizontalPlatformIndex;
+            } else {
+                const int topGridY = marker.minY;
+                const int bottomGridY = (spanY > 1) ? marker.maxY : layerHeight - 1;
+                map.AddMovingPlatform(marker.minX,
+                                      topGridY,
+                                      bottomGridY,
+                                      spanX,
+                                      "platform.png",
+                                      72.0f,
+                                      0.18f,
+                                      MapManager::MovingPlatformMotion::Vertical);
+            }
+            used[i] = 1;
         }
     }
 
@@ -1214,7 +1279,9 @@ bool convert_sketch(
         const auto appendEnemySpawns = [&](const std::vector<std::vector<char>>& mask, EnemyKind kind) {
             std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
             const float halfHeight =
-                (kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? 36.0f : 24.0f;
+                (kind == EnemyKind::GreenKoopa ||
+                 kind == EnemyKind::RedKoopa ||
+                 kind == EnemyKind::RedKoopaWinged) ? 36.0f : 24.0f;
             for (int sx = 0; sx < width; ++sx) {
                 for (int sy = 0; sy < layerHeight; ++sy) {
                     if (!mask[sx][sy] || visited[sx][sy]) continue;
@@ -1246,6 +1313,14 @@ bool convert_sketch(
                     }
 
                     const int centerX = (minX + maxX) / 2;
+                    if (kind == EnemyKind::RedKoopaWinged) {
+                        enemy_spawns->push_back({
+                            ComputeMarkerSpawnPosition(map, centerX, minY),
+                            kind
+                        });
+                        continue;
+                    }
+
                     enemy_spawns->push_back({
                         ComputeGroundedSpawnPosition(map, centerX, minY, halfHeight),
                         kind
@@ -1257,6 +1332,17 @@ bool convert_sketch(
         appendEnemySpawns(goombaMask, EnemyKind::Goomba);
         appendEnemySpawns(koopaMask, EnemyKind::GreenKoopa);
         appendEnemySpawns(redKoopaMask, EnemyKind::RedKoopa);
+        appendEnemySpawns(redKoopaWingedMask, EnemyKind::RedKoopaWinged);
+        bool firstWingedRedKoopa = true;
+        for (auto& spawn : *enemy_spawns) {
+            if (spawn.kind != EnemyKind::RedKoopaWinged) continue;
+
+            if (firstWingedRedKoopa) {
+                spawn.flightTopTiles = 5.0f;
+                spawn.flightBottomTiles = 1.0f;
+                firstWingedRedKoopa = false;
+            }
+        }
     }
 
     std::string hardBlockPath = MapManager::ResolveTilePath(
