@@ -15,17 +15,27 @@ Enemy::Enemy(float x, float y, EnemyKind kind)
       m_Direction(-1.0f),
       m_Speed((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? KOOPA_WALK_SPEED : GOOMBA_WALK_SPEED),
       m_LeftPath((g_MapManager && g_MapManager->IsUndergroundTheme())
-          ? (kind == EnemyKind::Venus ? AssetPaths::Image("ug_venus.png") : ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("ug_koopa_l.png") : AssetPaths::Image("ug_goomba_l.png")))
-          : (kind == EnemyKind::Venus ? AssetPaths::Image("ug_venus.png") : ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("koopa_l.png") : AssetPaths::Image("Goomba_l.png")))),
+          ? (kind == EnemyKind::Venus ? AssetPaths::Image("ug_venus.png")
+             : (kind == EnemyKind::RedKoopa ? AssetPaths::Image("redkoopa1.png")
+                : ((kind == EnemyKind::GreenKoopa) ? AssetPaths::Image("ug_koopa_l.png") : AssetPaths::Image("ug_goomba_l.png"))))
+          : (kind == EnemyKind::Venus ? AssetPaths::Image("ug_venus.png")
+             : (kind == EnemyKind::RedKoopa ? AssetPaths::Image("redkoopa1.png")
+                : ((kind == EnemyKind::GreenKoopa) ? AssetPaths::Image("koopa_l.png") : AssetPaths::Image("Goomba_l.png"))))),
       m_RightPath((g_MapManager && g_MapManager->IsUndergroundTheme())
-          ? (kind == EnemyKind::Venus ? AssetPaths::Image("ug_venus2.png") : ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("ug_koopa_r.png") : AssetPaths::Image("ug_goomba_r.png")))
-          : (kind == EnemyKind::Venus ? AssetPaths::Image("ug_venus2.png") : ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("koopa_r.png") : AssetPaths::Image("Goomba_r.png")))),
+          ? (kind == EnemyKind::Venus ? AssetPaths::Image("ug_venus2.png")
+             : (kind == EnemyKind::RedKoopa ? AssetPaths::Image("redkoopa2.png")
+                : ((kind == EnemyKind::GreenKoopa) ? AssetPaths::Image("ug_koopa_r.png") : AssetPaths::Image("ug_goomba_r.png"))))
+          : (kind == EnemyKind::Venus ? AssetPaths::Image("ug_venus2.png")
+             : (kind == EnemyKind::RedKoopa ? AssetPaths::Image("redkoopa2.png")
+                : ((kind == EnemyKind::GreenKoopa) ? AssetPaths::Image("koopa_r.png") : AssetPaths::Image("Goomba_r.png"))))),
       m_ShellPath((g_MapManager && g_MapManager->IsUndergroundTheme())
-          ? ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("ug_koopa_shell.png") : AssetPaths::Image("ug_goomba_death.png"))
-          : ((kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? AssetPaths::Image("koopa_shell.png") : AssetPaths::Image("Goombadeath.png"))),
+          ? (kind == EnemyKind::RedKoopa ? AssetPaths::Image("redkoopa_shell.png")
+             : ((kind == EnemyKind::GreenKoopa) ? AssetPaths::Image("ug_koopa_shell.png") : AssetPaths::Image("ug_goomba_death.png")))
+          : (kind == EnemyKind::RedKoopa ? AssetPaths::Image("redkoopa_shell.png")
+             : ((kind == EnemyKind::GreenKoopa) ? AssetPaths::Image("koopa_shell.png") : AssetPaths::Image("Goombadeath.png")))),
       m_ShellRecoverPath((g_MapManager && g_MapManager->IsUndergroundTheme())
-          ? AssetPaths::Image("ug_koopa_shell2.png")
-          : AssetPaths::Image("koopa_shell2.png")),
+          ? (kind == EnemyKind::RedKoopa ? AssetPaths::Image("redkoopa_shell2.png") : AssetPaths::Image("ug_koopa_shell2.png"))
+          : (kind == EnemyKind::RedKoopa ? AssetPaths::Image("redkoopa_shell2.png") : AssetPaths::Image("koopa_shell2.png"))),
       m_DeathPath((g_MapManager && g_MapManager->IsUndergroundTheme())
           ? AssetPaths::Image("ug_goomba_death.png")
           : AssetPaths::Image("Goombadeath.png")) {
@@ -98,7 +108,9 @@ void Enemy::EnterRecovering() {
 
 void Enemy::KickShell(float direction) {
     if (!IsKoopa()) return;
-    if (m_State != State::ShellIdle && m_State != State::Recovering) return;
+    if (m_State != State::RetreatingIntoShell &&
+        m_State != State::ShellIdle &&
+        m_State != State::Recovering) return;
 
     m_State = State::ShellSliding;
     m_RetreatTimer = 0.0f;

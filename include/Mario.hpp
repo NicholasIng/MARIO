@@ -24,6 +24,7 @@ public:
     void BounceAfterStomp();
     void StartGoalSequence(float poleX, float flagX, float flagBottomY, float groundY, float slideStartY);
     void StartGoalWalk(float targetX);
+    void SetDebugStarPowerEnabled(bool enabled);
     bool IsGoalSequenceActive() const {
         return m_GoalSequenceState != GoalSequenceState::None &&
                m_GoalSequenceState != GoalSequenceState::Finished;

@@ -89,6 +89,25 @@ void Mario::ActivateStarPower() {
     SetVisible(true);
 }
 
+void Mario::SetDebugStarPowerEnabled(bool enabled) {
+    if (enabled) {
+        m_TargetPowerState = m_PowerState;
+        m_TransformType = TransformType::None;
+        m_TransformTimer = 0.0f;
+        m_TransformShowBigFrame = false;
+        ActivateStarPower();
+        return;
+    }
+
+    m_StarPowerTimer = 0.0f;
+    if (m_TransformType == TransformType::StarTransition) {
+        m_TransformType = TransformType::None;
+        m_TransformTimer = 0.0f;
+        RestoreStoredMotion();
+    }
+    SetVisible(true);
+}
+
 void Mario::RestoreStoredMotion() {
     m_VelocityX = m_StoredVelocityX;
     m_VelocityY = m_StoredVelocityY;

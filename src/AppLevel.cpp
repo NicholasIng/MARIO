@@ -48,6 +48,15 @@ void App::ResetGameSession() {
 }
 
 bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) {
+    const std::string loweredSketchPath = [&]() {
+        std::string value = sketchPath;
+        std::transform(value.begin(), value.end(), value.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        return value;
+    }();
+    const bool shouldKeepMarkerSpawn =
+        loweredSketchPath.find("levelsketch1.png") != std::string::npos;
+
     const int savedScore = m_Score;
     const int savedCoins = m_Coins;
     const int savedLives = m_Lives;
@@ -132,7 +141,9 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
     if (preserveMarioState) {
         m_Mario->RestorePowerState(savedPowerState);
     }
-    AlignMarioSpawnToGround();
+    if (!shouldKeepMarkerSpawn) {
+        AlignMarioSpawnToGround();
+    }
     m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
 
     m_ViewX = 0.0f;
@@ -179,7 +190,6 @@ void App::LoadLevelOneTwo(bool preserveMarioState) {
     LoadSceneSketch(ResolveLevelOneTwoSketchPath(), true);
     if (!preserveMarioState && m_Mario) {
         m_Mario->RestorePowerState(Mario::PowerState::Small);
-        AlignMarioSpawnToGround();
         m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
     }
     m_LevelTimer = STARTING_TIMER;
@@ -200,6 +210,47 @@ void App::LoadLevelOneTwoExitArea(bool preserveMarioState) {
         AlignMarioSpawnToGround();
         m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
     }
+    m_CastleObject = std::make_shared<Util::GameObject>();
+    m_CastleImage = std::make_shared<Util::Image>(AssetPaths::Image("castle1.png"));
+    m_CastleObject->SetDrawable(m_CastleImage);
+    m_CastleObject->SetZIndex(5.0f);
+    if (g_MapManager && g_MapManager->HasGoal() && m_CastleImage != nullptr) {
+        const float targetHeight = g_MapManager->GetTileSize() * CASTLE_TARGET_HEIGHT_TILES;
+        const glm::vec2 castleSize = m_CastleImage->GetSize();
+        float castleScale = 1.0f;
+        float castleWidth = targetHeight;
+        if (castleSize.y > 0.0f) {
+            castleScale = targetHeight / castleSize.y;
+            castleWidth = castleSize.x * castleScale;
+        }
+
+        const float minCastleCenter = g_MapManager->GetWorldLeft() + castleWidth * 0.5f;
+        const float maxCastleCenter = g_MapManager->GetWorldRight()
+            - castleWidth * 0.5f
+            - g_MapManager->GetTileSize() * CASTLE_END_INSET_TILES;
+        const float desiredCastleX = g_MapManager->GetGoalX() + g_MapManager->GetTileSize() * CASTLE_OFFSET_TILES;
+        const float castleX = std::clamp(desiredCastleX, minCastleCenter, maxCastleCenter);
+        const float castleGroundY = g_MapManager->GetGoalGroundY() - g_MapManager->GetTileSize();
+        const float castleY = castleGroundY + targetHeight * 0.5f;
+
+        m_CastleObject->m_Transform.translation = { castleX, castleY };
+        m_CastleObject->m_Transform.scale = { castleScale, castleScale };
+        m_CastleDoorX = castleX;
+    }
+    RefreshHudText();
+}
+
+void App::LoadLevelOneThree(bool preserveMarioState) {
+    m_World = 1;
+    m_Level = 3;
+    LoadSceneSketch(ResolveLevelOneThreeSketchPath(), true);
+    if (!preserveMarioState && m_Mario) {
+        m_Mario->RestorePowerState(Mario::PowerState::Small);
+        AlignMarioSpawnToGround();
+        m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
+    }
+    m_LevelTimer = STARTING_TIMER;
+    m_DisplayedLevelTime = STARTING_TIMER;
     RefreshHudText();
 }
 
@@ -247,6 +298,10 @@ void App::ReloadCurrentLevel() {
         LoadLevelOneTwo(false);
         return;
     }
+    if (m_World == 1 && m_Level == 3) {
+        LoadLevelOneThree(false);
+        return;
+    }
     LoadLevel();
 }
 
@@ -268,7 +323,17 @@ std::string App::ResolveLevelOneTwoSketchPath() const {
     return AssetPaths::Image("LevelSketch1.png");
 }
 
+std::string App::ResolveLevelOneThreeSketchPath() const {
+    return AssetPaths::Image("LevelSketch1-3.png");
+}
+
 void App::BeginPostGoalTransition() {
+    if (m_World == 1 && m_Level == 2) {
+        LoadLevelOneThree(true);
+        StartLevelIntro(LEVEL_INTRO_DURATION);
+        return;
+    }
+
     StopMusic();
     m_World = 1;
     m_Level = 2;

@@ -47,7 +47,9 @@ public:
     bool IsShellSliding() const { return IsKoopa() && m_State == State::ShellSliding; }
     bool IsKickableShell() const {
         return IsKoopa() &&
-               (m_State == State::ShellIdle || m_State == State::Recovering);
+               (m_State == State::RetreatingIntoShell ||
+                m_State == State::ShellIdle ||
+                m_State == State::Recovering);
     }
     bool IsHarmlessToPlayer() const {
         if (IsVenus()) {

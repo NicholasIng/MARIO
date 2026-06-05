@@ -150,6 +150,14 @@ static bool IsMovingPlatformColor(Uint8 r, Uint8 g, Uint8 b) {
     return PackRGB(r, g, b) == PackRGB(255, 205, 0);
 }
 
+static bool IsWoodColor(Uint8 r, Uint8 g, Uint8 b) {
+    return PackRGB(r, g, b) == PackRGB(255, 115, 0);
+}
+
+static bool IsTreeColor(Uint8 r, Uint8 g, Uint8 b) {
+    return PackRGB(r, g, b) == PackRGB(71, 255, 40);
+}
+
 static bool FindMarioSpawnMarker(SDL_Surface* surface,
                                  int layerHeight,
                                  int& outGridX,
@@ -259,10 +267,14 @@ bool convert_sketch(
     const bool isOutdoorExitArea =
         loweredPath.find("levelsketch1-1") != std::string::npos ||
         loweredPath.find("outdoorexitsketch") != std::string::npos;
+    const bool isTransitionSceneSketch =
+        loweredPath.find("transition1") != std::string::npos;
     const bool isUndergroundLevel =
         !isOutdoorExitArea &&
-        (loweredPath.find("levelsketch1") != std::string::npos ||
+        !isTransitionSceneSketch &&
+        (loweredPath.find("levelsketch1.png") != std::string::npos ||
          loweredPath.find("1-2") != std::string::npos);
+    const bool shouldUseMarkerSpawn = loweredPath.find("levelsketch1.png") != std::string::npos;
     map.SetUndergroundTheme(isUndergroundLevel);
 
     background_color = isUndergroundLevel
@@ -282,7 +294,7 @@ bool convert_sketch(
         { PackRGB(0,   0,   0),   { Cell::Wall,          isUndergroundLevel ? "SMB_Ground_Underground.png" : "Ground.png" } },
         { PackRGB(182, 73,  0),   { Cell::Brick,         isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png" } },
         { PackRGB(146, 73,  0),   { (isUndergroundLevel || isOutdoorExitArea) ? Cell::Wall : Cell::Brick, isUndergroundLevel ? "SMB_Underground_Hard_Block.png" : (isOutdoorExitArea ? "HardBlock.png" : "Brick.png") } },
-        { PackRGB(255, 255, 0),   { Cell::Coin,          isUndergroundLevel ? "ug_coin1.png" : "Coin.png" } },
+        { PackRGB(255, 255, 0),   { Cell::Coin,          isUndergroundLevel ? "ug_coin1.png" : "coin1.png" } },
         { PackRGB(255, 73,  85),  { Cell::QuestionBlock, isUndergroundLevel ? "ug_question1.png" : "Question.png", LootType::ProgressivePowerUp } },
         { PackRGB(255, 135, 143), { Cell::QuestionBlock, isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png", LootType::RedMushroom, 1, true } },
         { PackRGB(255, 146, 85),  { Cell::QuestionBlock, isUndergroundLevel ? "ug_question1.png" : "Question.png", LootType::Coin } },
@@ -327,6 +339,7 @@ bool convert_sketch(
     const std::string pipeBottomRight = ResolvePipePiece("pipebottom_right.png");
     const std::string pipeBodyResolved = MapManager::ResolveTilePath(Cell::Pipe, "pipebody.png");
     const std::string pipeResolved = MapManager::ResolveTilePath(Cell::Pipe, "Pipe.png");
+    const std::string warpPipeBottomResolved = MapManager::ResolveBackgroundPath("WarpPipeBottom.png");
     const std::string exitPipeTopLeft = ResolvePipePiece("pipe_tl.png");
     const std::string exitPipeTopRight = ResolvePipePiece("pipe_tr.png");
     const std::string exitPipeBodyLeft = ResolvePipePiece("pipe_bl.png");
@@ -341,17 +354,26 @@ bool convert_sketch(
     std::string bushResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("Bush.png");
     std::string cloudResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("Clouds_2.png");
     std::string castleResolved = MapManager::ResolveBackgroundPath("castle1.png");
+    std::string woodResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("wood.png");
+    std::string treeLeftResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("tree_left.png");
+    std::string treeMiddleResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("tree_middle.png");
+    std::string treeRightResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("tree_right.png");
     std::string pipeForkedResolved = MapManager::ResolveBackgroundPath("WarpPipeForked.png");
     std::vector<std::vector<char>> pipeMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> mountainMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> bushMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> cloudMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> woodMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> treeMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> flagMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> castleMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> pipeForkedMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> forkedPipeBottomMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> forkedPipeBodyMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> movingPlatformMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> goombaMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> koopaMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> redKoopaMask(width, std::vector<char>(layerHeight, 0));
     std::vector<glm::vec2> venusSpawnPositions;
     bool undergroundExitPipeVisualAdded = false;
 
@@ -376,6 +398,14 @@ bool convert_sketch(
                     movingPlatformMask[x][y] = 1;
                     continue;
                 }
+                if (IsWoodColor(r, g, b)) {
+                    woodMask[x][y] = 1;
+                    continue;
+                }
+                if (IsTreeColor(r, g, b)) {
+                    treeMask[x][y] = 1;
+                    continue;
+                }
 
                 uint32_t key = PackRGB(r,g,b);
                 auto it = tileMap.find(key);
@@ -389,6 +419,11 @@ bool convert_sketch(
                 if (matchedTile != nullptr) {
                     if (matchedTile->type == Cell::Pipe) {
                         pipeMask[x][y] = 1;
+                        if (r == 0 && g == 219 && b == 0) {
+                            forkedPipeBottomMask[x][y] = 1;
+                        } else if (r == 0 && g == 182 && b == 0) {
+                            forkedPipeBodyMask[x][y] = 1;
+                        }
                     } else {
                         std::string resolvedPath = MapManager::ResolveTilePath(matchedTile->type, matchedTile->requested);
                         if (resolvedPath.empty() || !fs::exists(resolvedPath)) {
@@ -433,6 +468,8 @@ bool convert_sketch(
                     pipeForkedMask[x][y] = 1;
                 } else if (r == 0 && g == 255 && b == 42) {
                     koopaMask[x][y] = 1;
+                } else if (r == 255 && g == 127 && b == 0) {
+                    redKoopaMask[x][y] = 1;
                 } else if (r == 182 && g == 73 && b == 0) {
                     goombaMask[x][y] = 1;
                 }
@@ -470,6 +507,16 @@ bool convert_sketch(
 
                 if (IsPipeForkedColor(r, g, b)) {
                     pipeForkedMask[x][y] = 1;
+                    continue;
+                }
+
+                if (IsWoodColor(r, g, b)) {
+                    woodMask[x][y] = 1;
+                    continue;
+                }
+
+                if (IsTreeColor(r, g, b)) {
+                    treeMask[x][y] = 1;
                     continue;
                 }
 
@@ -616,6 +663,10 @@ bool convert_sketch(
         !pipeTopRight.empty() && fs::exists(pipeTopRight) &&
         !pipeBottomLeft.empty() && fs::exists(pipeBottomLeft) &&
         !pipeBottomRight.empty() && fs::exists(pipeBottomRight);
+    const bool haveWarpPipeBottom =
+        !warpPipeBottomResolved.empty() && fs::exists(warpPipeBottomResolved);
+    const bool havePipeBodyTexture =
+        !pipeBodyResolved.empty() && fs::exists(pipeBodyResolved);
     const bool haveExitPipeSet =
         !exitPipeTopLeft.empty() && fs::exists(exitPipeTopLeft) &&
         !exitPipeTopRight.empty() && fs::exists(exitPipeTopRight) &&
@@ -633,6 +684,14 @@ bool convert_sketch(
         }
         map.AddTile(gridX, gridY, Cell::Pipe, texturePath);
         map.AddForegroundSprite(gridX, gridY, 1, 1, texturePath);
+    };
+    auto GetMarkerSpriteTileSize = [&](const std::string& resolvedPath) {
+        Util::Image image(resolvedPath);
+        const glm::vec2 imageSize = image.GetSize();
+        return std::pair<int, int>{
+            std::max(1, static_cast<int>(std::round((imageSize.x * 3.0f) / map.GetTileSize()))),
+            std::max(1, static_cast<int>(std::round((imageSize.y * 3.0f) / map.GetTileSize())))
+        };
     };
 
     if (havePipeSet) {
@@ -673,7 +732,75 @@ bool convert_sketch(
                 const int spanX = maxX - minX + 1;
                 bool handledUndergroundExitPipe = false;
                 if (isUndergroundLevel) {
+                    bool hasForkedBottomMarker = false;
+                    int forkedBottomMinX = width;
+                    int forkedBottomMaxX = -1;
+                    int forkedBottomMinY = layerHeight;
+                    int forkedBottomMaxY = -1;
+                    bool hasForkedBodyMarker = false;
+                    int forkedBodyMinX = width;
+                    int forkedBodyMaxX = -1;
+                    int forkedBodyMinY = layerHeight;
+                    int forkedBodyMaxY = -1;
+
+                    for (const auto& [cellX, cellY] : cells) {
+                        if (forkedPipeBottomMask[cellX][cellY]) {
+                            hasForkedBottomMarker = true;
+                            forkedBottomMinX = std::min(forkedBottomMinX, cellX);
+                            forkedBottomMaxX = std::max(forkedBottomMaxX, cellX);
+                            forkedBottomMinY = std::min(forkedBottomMinY, cellY);
+                            forkedBottomMaxY = std::max(forkedBottomMaxY, cellY);
+                        }
+                        if (forkedPipeBodyMask[cellX][cellY]) {
+                            hasForkedBodyMarker = true;
+                            forkedBodyMinX = std::min(forkedBodyMinX, cellX);
+                            forkedBodyMaxX = std::max(forkedBodyMaxX, cellX);
+                            forkedBodyMinY = std::min(forkedBodyMinY, cellY);
+                            forkedBodyMaxY = std::max(forkedBodyMaxY, cellY);
+                        }
+                    }
+
                     if (!undergroundExitPipeVisualAdded &&
+                        hasForkedBottomMarker &&
+                        hasForkedBodyMarker &&
+                        haveWarpPipeBottom &&
+                        havePipeBodyTexture) {
+                        const auto [bottomTileWidth, bottomTileHeight] = GetMarkerSpriteTileSize(warpPipeBottomResolved);
+                        const int bottomStartX =
+                            std::clamp(forkedBodyMinX - bottomTileWidth + 2, 0, std::max(0, width - bottomTileWidth));
+                        const int bottomStartY =
+                            std::clamp(forkedBottomMaxY - bottomTileHeight + 1, 0, std::max(0, layerHeight - bottomTileHeight));
+                        const int bodyTileWidth = std::max(1, forkedBodyMaxX - forkedBodyMinX + 1);
+                        const int bodySegmentCount = 6;
+                        const int bodyStartY = std::max(0, bottomStartY - bodySegmentCount);
+
+                        map.AddForegroundSprite(
+                            bottomStartX,
+                            bottomStartY,
+                            bottomTileWidth,
+                            bottomTileHeight,
+                            warpPipeBottomResolved
+                        );
+                        for (int segment = 0; segment < bodySegmentCount; ++segment) {
+                            const int segmentY = bodyStartY + segment;
+                            if (segmentY < 0 || segmentY >= layerHeight) {
+                                continue;
+                            }
+                            map.AddForegroundSprite(
+                                forkedBodyMinX,
+                                segmentY,
+                                bodyTileWidth,
+                                1,
+                                pipeBodyResolved
+                            );
+                        }
+
+                        const float entryX =
+                            map.GetWorldLeft() + (static_cast<float>(forkedBottomMinX) - 1.5f) * map.GetTileSize();
+                        map.SetTransitionPipeEntryX(entryX);
+                        undergroundExitPipeVisualAdded = true;
+                        handledUndergroundExitPipe = true;
+                    } else if (!undergroundExitPipeVisualAdded &&
                         haveExitPipeSet &&
                         minX > static_cast<int>(width * 0.75f) &&
                         spanX >= 4) {
@@ -801,10 +928,51 @@ bool convert_sketch(
     if (!cloudResolved.empty() && fs::exists(cloudResolved)) {
         AddComponentSprites(cloudMask, true, Cell::Empty, cloudResolved);
     }
+    if (!woodResolved.empty() && fs::exists(woodResolved)) {
+        for (int x = 0; x < width; ++x) {
+            for (int y = 0; y < layerHeight; ++y) {
+                if (woodMask[x][y]) {
+                    map.AddBackgroundTile(x, y, woodResolved);
+                }
+            }
+        }
+    }
+    if (!treeLeftResolved.empty() && fs::exists(treeLeftResolved) &&
+        !treeMiddleResolved.empty() && fs::exists(treeMiddleResolved) &&
+        !treeRightResolved.empty() && fs::exists(treeRightResolved)) {
+        for (int y = 0; y < layerHeight; ++y) {
+            int x = 0;
+            while (x < width) {
+                if (!treeMask[x][y]) {
+                    ++x;
+                    continue;
+                }
+
+                int startX = x;
+                while (x + 1 < width && treeMask[x + 1][y]) {
+                    ++x;
+                }
+                const int endX = x;
+                const int spanX = endX - startX + 1;
+
+                if (spanX == 1) {
+                    map.AddTile(startX, y, Cell::Wall, treeMiddleResolved);
+                } else {
+                    map.AddTile(startX, y, Cell::Wall, treeLeftResolved);
+                    for (int fillX = startX + 1; fillX < endX; ++fillX) {
+                        map.AddTile(fillX, y, Cell::Wall, treeMiddleResolved);
+                    }
+                    map.AddTile(endX, y, Cell::Wall, treeRightResolved);
+                }
+                ++x;
+            }
+        }
+    }
     if (!castleResolved.empty() && fs::exists(castleResolved)) {
         AddMarkerScaledSprite(castleMask, castleResolved);
     }
     const bool haveForkedPipePieces =
+        !isTransitionSceneSketch &&
         !pipeForkedResolved.empty() && fs::exists(pipeForkedResolved) &&
         haveExitPipeSet;
     auto AddForkedPipePieces = [&]() {
@@ -1088,6 +1256,7 @@ bool convert_sketch(
 
         appendEnemySpawns(goombaMask, EnemyKind::Goomba);
         appendEnemySpawns(koopaMask, EnemyKind::GreenKoopa);
+        appendEnemySpawns(redKoopaMask, EnemyKind::RedKoopa);
     }
 
     std::string hardBlockPath = MapManager::ResolveTilePath(
@@ -1173,12 +1342,14 @@ bool convert_sketch(
 
     bool spawnFound = false;
     if (spawnMarkerFound) {
-        mario.m_Transform.translation = ComputeGroundedSpawnPosition(
-            map,
-            marioSpawnX,
-            marioSpawnY,
-            mario.GetHalfExtents().y
-        );
+        mario.m_Transform.translation = shouldUseMarkerSpawn
+            ? ComputeMarkerSpawnPosition(map, marioSpawnX, marioSpawnY)
+            : ComputeGroundedSpawnPosition(
+                map,
+                marioSpawnX,
+                marioSpawnY,
+                mario.GetHalfExtents().y
+            );
         spawnFound = true;
     }
 
