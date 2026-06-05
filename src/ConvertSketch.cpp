@@ -150,6 +150,14 @@ static bool IsMovingPlatformColor(Uint8 r, Uint8 g, Uint8 b) {
     return PackRGB(r, g, b) == PackRGB(255, 205, 0);
 }
 
+static bool IsWoodColor(Uint8 r, Uint8 g, Uint8 b) {
+    return PackRGB(r, g, b) == PackRGB(255, 115, 0);
+}
+
+static bool IsTreeColor(Uint8 r, Uint8 g, Uint8 b) {
+    return PackRGB(r, g, b) == PackRGB(71, 255, 40);
+}
+
 static bool FindMarioSpawnMarker(SDL_Surface* surface,
                                  int layerHeight,
                                  int& outGridX,
@@ -264,13 +272,9 @@ bool convert_sketch(
     const bool isUndergroundLevel =
         !isOutdoorExitArea &&
         !isTransitionSceneSketch &&
-        (loweredPath.find("levelsketch1") != std::string::npos ||
+        (loweredPath.find("levelsketch1.png") != std::string::npos ||
          loweredPath.find("1-2") != std::string::npos);
-    const bool shouldUseMarkerSpawn =
-        !isOutdoorExitArea &&
-        !isTransitionSceneSketch &&
-        (loweredPath.find("levelsketch1") != std::string::npos ||
-         loweredPath.find("1-2") != std::string::npos);
+    const bool shouldUseMarkerSpawn = loweredPath.find("levelsketch1.png") != std::string::npos;
     map.SetUndergroundTheme(isUndergroundLevel);
 
     background_color = isUndergroundLevel
@@ -290,7 +294,7 @@ bool convert_sketch(
         { PackRGB(0,   0,   0),   { Cell::Wall,          isUndergroundLevel ? "SMB_Ground_Underground.png" : "Ground.png" } },
         { PackRGB(182, 73,  0),   { Cell::Brick,         isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png" } },
         { PackRGB(146, 73,  0),   { (isUndergroundLevel || isOutdoorExitArea) ? Cell::Wall : Cell::Brick, isUndergroundLevel ? "SMB_Underground_Hard_Block.png" : (isOutdoorExitArea ? "HardBlock.png" : "Brick.png") } },
-        { PackRGB(255, 255, 0),   { Cell::Coin,          isUndergroundLevel ? "ug_coin1.png" : "Coin.png" } },
+        { PackRGB(255, 255, 0),   { Cell::Coin,          isUndergroundLevel ? "ug_coin1.png" : "coin1.png" } },
         { PackRGB(255, 73,  85),  { Cell::QuestionBlock, isUndergroundLevel ? "ug_question1.png" : "Question.png", LootType::ProgressivePowerUp } },
         { PackRGB(255, 135, 143), { Cell::QuestionBlock, isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png", LootType::RedMushroom, 1, true } },
         { PackRGB(255, 146, 85),  { Cell::QuestionBlock, isUndergroundLevel ? "ug_question1.png" : "Question.png", LootType::Coin } },
@@ -350,11 +354,17 @@ bool convert_sketch(
     std::string bushResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("Bush.png");
     std::string cloudResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("Clouds_2.png");
     std::string castleResolved = MapManager::ResolveBackgroundPath("castle1.png");
+    std::string woodResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("wood.png");
+    std::string treeLeftResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("tree_left.png");
+    std::string treeMiddleResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("tree_middle.png");
+    std::string treeRightResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("tree_right.png");
     std::string pipeForkedResolved = MapManager::ResolveBackgroundPath("WarpPipeForked.png");
     std::vector<std::vector<char>> pipeMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> mountainMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> bushMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> cloudMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> woodMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> treeMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> flagMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> castleMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> pipeForkedMask(width, std::vector<char>(layerHeight, 0));
@@ -386,6 +396,14 @@ bool convert_sketch(
                 }
                 if (IsMovingPlatformColor(r, g, b)) {
                     movingPlatformMask[x][y] = 1;
+                    continue;
+                }
+                if (IsWoodColor(r, g, b)) {
+                    woodMask[x][y] = 1;
+                    continue;
+                }
+                if (IsTreeColor(r, g, b)) {
+                    treeMask[x][y] = 1;
                     continue;
                 }
 
@@ -489,6 +507,16 @@ bool convert_sketch(
 
                 if (IsPipeForkedColor(r, g, b)) {
                     pipeForkedMask[x][y] = 1;
+                    continue;
+                }
+
+                if (IsWoodColor(r, g, b)) {
+                    woodMask[x][y] = 1;
+                    continue;
+                }
+
+                if (IsTreeColor(r, g, b)) {
+                    treeMask[x][y] = 1;
                     continue;
                 }
 
@@ -881,6 +909,46 @@ bool convert_sketch(
     }
     if (!cloudResolved.empty() && fs::exists(cloudResolved)) {
         AddComponentSprites(cloudMask, true, Cell::Empty, cloudResolved);
+    }
+    if (!woodResolved.empty() && fs::exists(woodResolved)) {
+        for (int x = 0; x < width; ++x) {
+            for (int y = 0; y < layerHeight; ++y) {
+                if (woodMask[x][y]) {
+                    map.AddBackgroundTile(x, y, woodResolved);
+                }
+            }
+        }
+    }
+    if (!treeLeftResolved.empty() && fs::exists(treeLeftResolved) &&
+        !treeMiddleResolved.empty() && fs::exists(treeMiddleResolved) &&
+        !treeRightResolved.empty() && fs::exists(treeRightResolved)) {
+        for (int y = 0; y < layerHeight; ++y) {
+            int x = 0;
+            while (x < width) {
+                if (!treeMask[x][y]) {
+                    ++x;
+                    continue;
+                }
+
+                int startX = x;
+                while (x + 1 < width && treeMask[x + 1][y]) {
+                    ++x;
+                }
+                const int endX = x;
+                const int spanX = endX - startX + 1;
+
+                if (spanX == 1) {
+                    map.AddTile(startX, y, Cell::Wall, treeMiddleResolved);
+                } else {
+                    map.AddTile(startX, y, Cell::Wall, treeLeftResolved);
+                    for (int fillX = startX + 1; fillX < endX; ++fillX) {
+                        map.AddTile(fillX, y, Cell::Wall, treeMiddleResolved);
+                    }
+                    map.AddTile(endX, y, Cell::Wall, treeRightResolved);
+                }
+                ++x;
+            }
+        }
     }
     if (!castleResolved.empty() && fs::exists(castleResolved)) {
         AddMarkerScaledSprite(castleMask, castleResolved);

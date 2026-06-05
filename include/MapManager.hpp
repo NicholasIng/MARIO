@@ -212,7 +212,7 @@ public:
                 fallback = FindImageByFilename(imageRoot, "Pipe.png");
                 break;
             case Cell::Coin:
-                fallback = FindImageByFilename(imageRoot, "Coin.png");
+                fallback = FindImageByFilename(imageRoot, "coin1.png");
                 break;
             default:
                 break;

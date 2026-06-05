@@ -55,8 +55,7 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
         return value;
     }();
     const bool shouldKeepMarkerSpawn =
-        loweredSketchPath.find("levelsketch1") != std::string::npos &&
-        loweredSketchPath.find("levelsketch1-1") == std::string::npos;
+        loweredSketchPath.find("levelsketch1.png") != std::string::npos;
 
     const int savedScore = m_Score;
     const int savedCoins = m_Coins;
@@ -241,6 +240,20 @@ void App::LoadLevelOneTwoExitArea(bool preserveMarioState) {
     RefreshHudText();
 }
 
+void App::LoadLevelOneThree(bool preserveMarioState) {
+    m_World = 1;
+    m_Level = 3;
+    LoadSceneSketch(ResolveLevelOneThreeSketchPath(), true);
+    if (!preserveMarioState && m_Mario) {
+        m_Mario->RestorePowerState(Mario::PowerState::Small);
+        AlignMarioSpawnToGround();
+        m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
+    }
+    m_LevelTimer = STARTING_TIMER;
+    m_DisplayedLevelTime = STARTING_TIMER;
+    RefreshHudText();
+}
+
 void App::AlignMarioSpawnToGround() {
     if (!m_Mario || !g_MapManager) return;
 
@@ -285,6 +298,10 @@ void App::ReloadCurrentLevel() {
         LoadLevelOneTwo(false);
         return;
     }
+    if (m_World == 1 && m_Level == 3) {
+        LoadLevelOneThree(false);
+        return;
+    }
     LoadLevel();
 }
 
@@ -306,7 +323,17 @@ std::string App::ResolveLevelOneTwoSketchPath() const {
     return AssetPaths::Image("LevelSketch1.png");
 }
 
+std::string App::ResolveLevelOneThreeSketchPath() const {
+    return AssetPaths::Image("LevelSketch1-3.png");
+}
+
 void App::BeginPostGoalTransition() {
+    if (m_World == 1 && m_Level == 2) {
+        LoadLevelOneThree(true);
+        StartLevelIntro(LEVEL_INTRO_DURATION);
+        return;
+    }
+
     StopMusic();
     m_World = 1;
     m_Level = 2;

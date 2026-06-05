@@ -209,11 +209,13 @@ private:
     void LoadLevel(bool preserveProgress = false);
     void LoadLevelOneTwo(bool preserveMarioState = true);
     void LoadLevelOneTwoExitArea(bool preserveMarioState = true);
+    void LoadLevelOneThree(bool preserveMarioState = true);
     void ReloadCurrentLevel();
     bool LoadSceneSketch(const std::string& sketchPath, bool preserveProgress);
     void AlignMarioSpawnToGround();
     std::string ResolveTransitionSketchPath() const;
     std::string ResolveLevelOneTwoSketchPath() const;
+    std::string ResolveLevelOneThreeSketchPath() const;
     void BeginPostGoalTransition();
     void LoadTransitionScene();
     void BeginUndergroundExitTransition();
