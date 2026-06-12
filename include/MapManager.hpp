@@ -6,6 +6,7 @@
 #include <string>
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <filesystem>
 #include <set>
 #include <queue>
@@ -33,6 +34,12 @@ public:
     enum class MovingPlatformMotion {
         Vertical,
         Horizontal
+    };
+
+    enum class MovingPlatformCycle {
+        Bounce,
+        WrapDown,
+        WrapUp
     };
 
     struct MovingPlatformSnapshot {
@@ -78,6 +85,7 @@ private:
         float rightLimit = 0.0f;
         float waitTime = 0.18f;
         float waitTimer = 0.0f;
+        MovingPlatformCycle cycle = MovingPlatformCycle::Bounce;
     };
     std::vector<AnimatedTile> m_AnimatedTiles;
     std::vector<MovingPlatform> m_MovingPlatforms;
@@ -420,7 +428,9 @@ public:
                            int horizontalLeftGridX = -1,
                            int horizontalRightGridX = -1,
                            bool startAtRight = false,
-                           float initialWaitTime = 0.0f) {
+                           float initialWaitTime = 0.0f,
+                           MovingPlatformCycle cycle = MovingPlatformCycle::Bounce,
+                           float initialCycleOffset = 0.0f) {
         if (m_Width <= 0 || m_Height <= 0) return;
 
         const int clampedGridX = std::clamp(gridX, 0, std::max(0, m_Width - 1));
@@ -450,7 +460,10 @@ public:
         const float topCenterY = gridToCenterY(clampedTopGridY);
         const float bottomCenterY = gridToCenterY(clampedBottomGridY);
 
-        object->m_Transform.translation = { centerX, bottomCenterY };
+        object->m_Transform.translation = {
+            centerX,
+            cycle != MovingPlatformCycle::Bounce ? topCenterY : bottomCenterY
+        };
         object->m_Transform.scale = scale;
         object->SetZIndex(8.0f);
 
@@ -486,6 +499,25 @@ public:
         platform.previousCenter = object->m_Transform.translation;
         platform.waitTime = std::max(0.0f, waitTime);
         platform.waitTimer = std::max(0.0f, initialWaitTime);
+        platform.cycle = cycle;
+        if (platform.motion == MovingPlatformMotion::Vertical &&
+            platform.cycle != MovingPlatformCycle::Bounce) {
+            platform.topLimit = (m_Height * TILE_SIZE) / 2.0f + platform.halfExtents.y;
+            platform.bottomLimit = -(m_Height * TILE_SIZE) / 2.0f - platform.halfExtents.y;
+            platform.state = platform.cycle == MovingPlatformCycle::WrapDown
+                ? MovingPlatformState::MovingDown
+                : MovingPlatformState::MovingUp;
+            const float wrappedOffset = initialCycleOffset - std::floor(initialCycleOffset);
+            if (wrappedOffset > 0.0f) {
+                const float travelDistance = platform.topLimit - platform.bottomLimit;
+                object->m_Transform.translation.y =
+                    platform.cycle == MovingPlatformCycle::WrapDown
+                        ? platform.topLimit - travelDistance * wrappedOffset
+                        : platform.bottomLimit + travelDistance * wrappedOffset;
+            }
+            platform.waitTime = 0.0f;
+            platform.waitTimer = 0.0f;
+        }
         if (platform.waitTimer > 0.0f) {
             platform.state = startAtRight ? MovingPlatformState::WaitingTop
                                           : MovingPlatformState::WaitingBottom;
@@ -673,7 +705,7 @@ public:
             obj->m_Transform.translation = { xPos, yPos };
         }
 
-        obj->SetZIndex(20.0f);
+        obj->SetZIndex(40.0f);
         m_ForegroundObjects.push_back(obj);
     }
 
@@ -884,8 +916,15 @@ public:
             case MovingPlatformState::MovingUp:
                 nextPosition += platform.moveSpeed * dt;
                 if (nextPosition >= positiveLimit) {
-                    nextPosition = positiveLimit;
-                    if (platform.waitTime > 0.0f) {
+                    if (platform.cycle == MovingPlatformCycle::WrapUp) {
+                        const float overshoot = nextPosition - positiveLimit;
+                        nextPosition = negativeLimit + overshoot;
+                    } else {
+                        nextPosition = positiveLimit;
+                    }
+                    if (platform.cycle != MovingPlatformCycle::Bounce) {
+                        platform.state = MovingPlatformState::MovingUp;
+                    } else if (platform.waitTime > 0.0f) {
                         platform.state = MovingPlatformState::WaitingTop;
                         platform.waitTimer = platform.waitTime;
                     } else {
@@ -896,8 +935,15 @@ public:
             case MovingPlatformState::MovingDown:
                 nextPosition -= platform.moveSpeed * dt;
                 if (nextPosition <= negativeLimit) {
-                    nextPosition = negativeLimit;
-                    if (platform.waitTime > 0.0f) {
+                    if (platform.cycle == MovingPlatformCycle::WrapDown) {
+                        const float overshoot = negativeLimit - nextPosition;
+                        nextPosition = positiveLimit - overshoot;
+                    } else {
+                        nextPosition = negativeLimit;
+                    }
+                    if (platform.cycle != MovingPlatformCycle::Bounce) {
+                        platform.state = MovingPlatformState::MovingDown;
+                    } else if (platform.waitTime > 0.0f) {
                         platform.state = MovingPlatformState::WaitingBottom;
                         platform.waitTimer = platform.waitTime;
                     } else {
@@ -929,7 +975,7 @@ public:
 
     }
 
-    void Draw(float viewX) {
+    void DrawBackground(float viewX) {
         for (auto& obj : m_BackgroundObjects) {
             auto oldPos = obj->m_Transform.translation;
             obj->m_Transform.translation.x -= viewX;
@@ -943,14 +989,20 @@ public:
             m_GoalFlagObject->Draw();
             m_GoalFlagObject->m_Transform.translation = oldPos;
         }
+    }
 
+    void DrawTiles(float viewX) {
         for (auto& obj : m_Objects) {
             auto oldPos = obj->m_Transform.translation;
             obj->m_Transform.translation.x -= viewX;
             obj->Draw();
             obj->m_Transform.translation = oldPos;
         }
+    }
 
+    void Draw(float viewX) {
+        DrawBackground(viewX);
+        DrawTiles(viewX);
     }
 
     void DrawForeground(float viewX) {

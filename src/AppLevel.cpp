@@ -192,13 +192,20 @@ void App::LoadLevel(bool preserveProgress) {
     }
 }
 
-void App::LoadLevelOneTwo(bool preserveMarioState) {
+void App::LoadLevelOneTwo(bool preserveMarioState, bool fallFromAbove) {
     m_World = 1;
     m_Level = 2;
     LoadSceneSketch(ResolveLevelOneTwoSketchPath(), true);
+    if (m_Mario) {
+        m_Mario->SetVisible(true);
+    }
     if (!preserveMarioState && m_Mario) {
         m_Mario->RestorePowerState(Mario::PowerState::Small);
+        AlignMarioSpawnToGround();
         m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
+    }
+    if (fallFromAbove && m_Mario && g_MapManager) {
+        m_Mario->m_Transform.translation.y += g_MapManager->GetTileSize() * 7.0f;
     }
     m_LevelTimer = STARTING_TIMER;
     m_DisplayedLevelTime = STARTING_TIMER;

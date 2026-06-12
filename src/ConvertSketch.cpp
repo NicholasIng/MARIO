@@ -278,7 +278,6 @@ bool convert_sketch(
         !isTransitionSceneSketch &&
         (loweredPath.find("levelsketch1.png") != std::string::npos ||
          loweredPath.find("1-2") != std::string::npos);
-    const bool shouldUseMarkerSpawn = loweredPath.find("levelsketch1.png") != std::string::npos;
     map.SetUndergroundTheme(isUndergroundLevel);
 
     background_color = isUndergroundLevel
@@ -704,7 +703,6 @@ bool convert_sketch(
             std::max(1, static_cast<int>(std::round((imageSize.y * 3.0f) / map.GetTileSize())))
         };
     };
-
     if (havePipeSet) {
         std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
         for (int sx = 0; sx < width; ++sx) {
@@ -821,17 +819,18 @@ bool convert_sketch(
                         const int mouthRightX = verticalLeftX - 1;
                         const int mouthTopY = std::max(minY, maxY - 1);
                         const int mouthBottomY = maxY;
+                        const int verticalTopY = 0;
 
-                        for (int pipeY = 0; pipeY <= maxY; ++pipeY) {
+                        for (int pipeY = verticalTopY; pipeY <= maxY; ++pipeY) {
                             AddForegroundPipeTile(
                                 verticalLeftX,
                                 pipeY,
-                                pipeY == 0 ? exitPipeTopLeft : exitPipeBodyLeft
+                                pipeY == verticalTopY ? exitPipeTopLeft : exitPipeBodyLeft
                             );
                             AddForegroundPipeTile(
                                 verticalLeftX + 1,
                                 pipeY,
-                                pipeY == 0 ? exitPipeTopRight : exitPipeBodyRight
+                                pipeY == verticalTopY ? exitPipeTopRight : exitPipeBodyRight
                             );
                         }
 
@@ -860,7 +859,7 @@ bool convert_sketch(
                             const bool inVerticalPipe =
                                 cellX >= verticalLeftX &&
                                 cellX <= verticalLeftX + 1 &&
-                                cellY >= 0 &&
+                                cellY >= verticalTopY &&
                                 cellY <= maxY;
                             const bool inMouth =
                                 cellX >= smallLeftX &&
@@ -873,7 +872,7 @@ bool convert_sketch(
                         }
 
                         const float entryX =
-                            map.GetWorldLeft() + (static_cast<float>(smallLeftX) + 0.5f) * map.GetTileSize();
+                            map.GetWorldLeft() + (static_cast<float>(verticalLeftX) + 1.125f) * map.GetTileSize();
                         map.SetTransitionPipeEntryX(entryX);
                         for (int skipX = smallLeftX; skipX < width; ++skipX) {
                             for (int skipY = 0; skipY < layerHeight; ++skipY) {
@@ -1085,7 +1084,7 @@ bool convert_sketch(
                 }
 
                 const float entryX =
-                    map.GetWorldLeft() + (static_cast<float>(verticalLeftX) + 0.5f) * map.GetTileSize();
+                    map.GetWorldLeft() + (static_cast<float>(verticalLeftX) + 1.125f) * map.GetTileSize();
                 map.SetTransitionPipeEntryX(entryX);
             }
         }
@@ -1162,6 +1161,20 @@ bool convert_sketch(
             })
         );
         int horizontalPlatformIndex = 0;
+        std::vector<std::size_t> verticalPlatformOrder;
+        for (std::size_t i = 0; i < markers.size(); ++i) {
+            if (markers[i].kind != 2) {
+                verticalPlatformOrder.push_back(i);
+            }
+        }
+        std::sort(verticalPlatformOrder.begin(), verticalPlatformOrder.end(),
+            [&](std::size_t left, std::size_t right) {
+                if (markers[left].minX != markers[right].minX) {
+                    return markers[left].minX < markers[right].minX;
+                }
+                return markers[left].minY < markers[right].minY;
+            });
+
         for (std::size_t i = 0; i < markers.size(); ++i) {
             if (used[i]) continue;
 
@@ -1193,14 +1206,59 @@ bool convert_sketch(
             } else {
                 const int topGridY = marker.minY;
                 const int bottomGridY = (spanY > 1) ? marker.maxY : layerHeight - 1;
-                map.AddMovingPlatform(marker.minX,
-                                      topGridY,
-                                      bottomGridY,
-                                      spanX,
-                                      "platform.png",
-                                      72.0f,
-                                      0.18f,
-                                      MapManager::MovingPlatformMotion::Vertical);
+                const auto orderIt = std::find(verticalPlatformOrder.begin(), verticalPlatformOrder.end(), i);
+                const int verticalPlatformIndex = orderIt == verticalPlatformOrder.end()
+                    ? 0
+                    : static_cast<int>(std::distance(verticalPlatformOrder.begin(), orderIt));
+                const int verticalPlatformHalf =
+                    std::max(1, static_cast<int>((verticalPlatformOrder.size() + 1) / 2));
+                const bool isWrappedUndergroundPlatform = isUndergroundLevel;
+                const bool isDownCycle =
+                    isWrappedUndergroundPlatform && verticalPlatformIndex < verticalPlatformHalf;
+                const int verticalPlatformGroupSize = isWrappedUndergroundPlatform
+                    ? (isDownCycle
+                        ? verticalPlatformHalf
+                        : static_cast<int>(verticalPlatformOrder.size()) - verticalPlatformHalf)
+                    : 1;
+                const int verticalPlatformGroupIndex = isWrappedUndergroundPlatform
+                    ? (isDownCycle
+                        ? verticalPlatformIndex
+                        : verticalPlatformIndex - verticalPlatformHalf)
+                    : 0;
+                if (isWrappedUndergroundPlatform &&
+                    verticalPlatformGroupSize >= 2 &&
+                    verticalPlatformGroupIndex >= 2) {
+                    used[i] = 1;
+                    continue;
+                }
+                const MapManager::MovingPlatformCycle platformCycle =
+                    isWrappedUndergroundPlatform
+                        ? (isDownCycle
+                            ? MapManager::MovingPlatformCycle::WrapDown
+                            : MapManager::MovingPlatformCycle::WrapUp)
+                        : MapManager::MovingPlatformCycle::Bounce;
+                const int platformCopies =
+                    isWrappedUndergroundPlatform && verticalPlatformGroupSize == 1 ? 2 : 1;
+                for (int copy = 0; copy < platformCopies; ++copy) {
+                    const float cycleOffset = platformCopies > 1
+                        ? static_cast<float>(copy) / static_cast<float>(platformCopies)
+                        : 0.0f;
+                    map.AddMovingPlatform(marker.minX,
+                                          topGridY,
+                                          bottomGridY,
+                                          spanX,
+                                          "platform.png",
+                                          72.0f,
+                                          platformCycle == MapManager::MovingPlatformCycle::Bounce ? 0.18f : 0.0f,
+                                          MapManager::MovingPlatformMotion::Vertical,
+                                          6,
+                                          -1,
+                                          -1,
+                                          false,
+                                          0.0f,
+                                          platformCycle,
+                                          cycleOffset);
+                }
             }
             used[i] = 1;
         }
@@ -1428,14 +1486,12 @@ bool convert_sketch(
 
     bool spawnFound = false;
     if (spawnMarkerFound) {
-        mario.m_Transform.translation = shouldUseMarkerSpawn
-            ? ComputeMarkerSpawnPosition(map, marioSpawnX, marioSpawnY)
-            : ComputeGroundedSpawnPosition(
-                map,
-                marioSpawnX,
-                marioSpawnY,
-                mario.GetHalfExtents().y
-            );
+        mario.m_Transform.translation = ComputeGroundedSpawnPosition(
+            map,
+            marioSpawnX,
+            marioSpawnY,
+            mario.GetHalfExtents().y
+        );
         spawnFound = true;
     }
 

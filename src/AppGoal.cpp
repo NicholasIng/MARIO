@@ -53,13 +53,16 @@ void App::StartGoalSequence() {
     PlaySfx(m_Audio.flagpole.get());
 
     if (m_CastleObject != nullptr && m_CastleImage != nullptr) {
-        const float castleScale = (m_World == 1 && m_Level == 3) ? 3.0f : 1.0f;
+        const glm::vec2 castleScale = {
+            std::abs(m_CastleObject->m_Transform.scale.x),
+            std::abs(m_CastleObject->m_Transform.scale.y)
+        };
         const glm::vec2 castleSize = m_CastleImage->GetSize();
         const float fallbackSize = g_MapManager->GetTileSize() * CASTLE_TARGET_HEIGHT_TILES;
         float castleWidth = castleSize.x > 0.0f ? castleSize.x : fallbackSize;
         float castleHeight = castleSize.y > 0.0f ? castleSize.y : fallbackSize;
-        castleWidth *= castleScale;
-        castleHeight *= castleScale;
+        castleWidth *= castleScale.x;
+        castleHeight *= castleScale.y;
 
         const float minCastleCenter = g_MapManager->GetWorldLeft() + castleWidth * 0.5f;
         const float maxCastleCenter = g_MapManager->GetWorldRight()
@@ -72,7 +75,7 @@ void App::StartGoalSequence() {
 
         m_CastleDoorX = castleX;
         m_CastleObject->m_Transform.translation = { castleX, castleY };
-        m_CastleObject->m_Transform.scale = { castleScale, castleScale };
+        m_CastleObject->m_Transform.scale = castleScale;
     } else {
         m_CastleDoorX = g_MapManager->GetWorldRight() - g_MapManager->GetTileSize() * 2.0f;
     }
@@ -115,54 +118,15 @@ void App::UpdateGoalSequence(float dt) {
         m_Mario->Update();
         if (m_Mario->HasReachedGoalWalkTarget()) {
             m_Mario->m_Transform.translation.x = m_CastleDoorX;
-            if (m_World == 1 && m_Level == 3) {
-                m_TransitionPipeEntryX = m_Mario->m_Transform.translation.x;
-                m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
-                m_TransitionPipeSoundPlayed = false;
-                m_TransitionMarioHidden = false;
-                m_GoalSequenceStage = GoalSequenceStage::Entering;
-                m_GoalSequenceTimer = 0.0f;
-            } else {
-                m_Mario->SetVisible(false);
-                m_GoalSequenceStage = GoalSequenceStage::Entering;
-                m_GoalSequenceTimer = 0.0f;
-                if (!m_GoalCelebrationPlayed) {
-                    m_GoalCelebrationPlayed = true;
-                    PlaySfx(m_Audio.stageClear.get());
-                }
-            }
-        }
-    } else if (m_GoalSequenceStage == GoalSequenceStage::Entering) {
-        if (m_World == 1 && m_Level == 3 && !m_TransitionMarioHidden) {
-            if (!m_TransitionPipeSoundPlayed) {
-                m_TransitionPipeSoundPlayed = true;
-                PlaySfx(m_Audio.pipe.get());
-            }
-
-            m_GoalSequenceTimer += dt;
-            m_Mario->m_Transform.translation.y = m_TransitionPipeEntryY;
-            m_Mario->m_Transform.translation.x =
-                m_TransitionPipeEntryX + TRANSITION_PIPE_SINK_SPEED * m_GoalSequenceTimer;
-            if (m_Mario->m_Transform.translation.x >=
-                m_TransitionPipeEntryX + m_TransitionPipeVisibleDistance) {
-                m_Mario->SetVisible(false);
-            }
-            if (m_Mario->m_Transform.translation.x <
-                m_TransitionPipeEntryX + m_TransitionPipeSinkDistance) {
-                m_Mario->Update();
-                return;
-            }
-
             m_Mario->SetVisible(false);
-            m_TransitionMarioHidden = true;
+            m_GoalSequenceStage = GoalSequenceStage::Entering;
             m_GoalSequenceTimer = 0.0f;
             if (!m_GoalCelebrationPlayed) {
                 m_GoalCelebrationPlayed = true;
                 PlaySfx(m_Audio.stageClear.get());
             }
-            return;
         }
-
+    } else if (m_GoalSequenceStage == GoalSequenceStage::Entering) {
         if (m_DisplayedLevelTime > 0) {
             m_GoalSequenceTimer += dt;
             while (m_GoalSequenceTimer >= TIME_BONUS_TICK_DURATION && m_DisplayedLevelTime > 0) {

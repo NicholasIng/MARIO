@@ -211,7 +211,7 @@ private:
     void RefreshHudText();
     void ResetGameSession();
     void LoadLevel(bool preserveProgress = false);
-    void LoadLevelOneTwo(bool preserveMarioState = true);
+    void LoadLevelOneTwo(bool preserveMarioState = true, bool fallFromAbove = false);
     void LoadLevelOneTwoExitArea(bool preserveMarioState = true);
     void LoadLevelOneThree(bool preserveMarioState = true);
     void ReloadCurrentLevel();
@@ -225,7 +225,7 @@ private:
     void BeginPostGoalTransition();
     void LoadTransitionScene();
     void BeginUndergroundExitTransition();
-    void RenderSceneWorld(bool drawCastle);
+    void RenderSceneWorld(bool drawCastle, bool drawMarioBehindTiles = false);
     void HandleMarioDeath();
     void TogglePause();
     void PlayTitleMusic();

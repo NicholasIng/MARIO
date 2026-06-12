@@ -21,7 +21,7 @@
 using namespace AppDetail;
 
 namespace {
-constexpr bool DEBUG_START_AT_LEVEL_ONE_TWO = true;
+constexpr bool DEBUG_START_AT_LEVEL_ONE_ONE_TO_TWO_TRANSITION = true;
 }
 
 void App::Start() {
@@ -29,9 +29,9 @@ void App::Start() {
 
     InitializeAudio();
     ResetGameSession();
-    if (DEBUG_START_AT_LEVEL_ONE_TWO) {
-        LoadLevelOneTwo(false);
-        StartLevelIntro(LEVEL_INTRO_DURATION);
+    if (DEBUG_START_AT_LEVEL_ONE_ONE_TO_TWO_TRANSITION) {
+        LoadLevel();
+        LoadTransitionScene();
     } else {
         LoadLevel();
         m_ScreenState = ScreenState::Title;

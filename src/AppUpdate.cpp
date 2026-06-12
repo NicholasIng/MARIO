@@ -83,16 +83,14 @@ void App::UpdateTransitionScene(float dt) {
             }
             if (m_TransitionPipeMotion == TransitionPipeMotion::HorizontalRight) {
                 m_Mario->m_Transform.translation.y = m_TransitionPipeEntryY;
+                m_Mario->SetVisible(false);
                 m_Mario->m_Transform.translation.x += TRANSITION_PIPE_SINK_SPEED * dt;
-                if (m_TransitionPipeVisibleDistance > 0.0f &&
-                    m_Mario->m_Transform.translation.x >= m_TransitionPipeEntryX + m_TransitionPipeVisibleDistance) {
-                    m_Mario->SetVisible(false);
-                }
             } else if (m_TransitionPipeMotion == TransitionPipeMotion::VerticalUp) {
                 m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
-                m_Mario->m_Transform.translation.y += TRANSITION_PIPE_SINK_SPEED * dt;
+                m_Mario->m_Transform.translation.y += TRANSITION_PIPE_RISE_SPEED * dt;
             } else {
                 m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
+                m_Mario->SetVisible(false);
                 m_Mario->m_Transform.translation.y -= TRANSITION_PIPE_SINK_SPEED * dt;
             }
 
@@ -135,7 +133,7 @@ void App::UpdateTransitionScene(float dt) {
                         return;
                     }
                 } else {
-                    LoadLevelOneTwo();
+                    LoadLevelOneTwo(true, true);
                 }
                 PlayGameplayMusic(true);
                 m_ScreenState = ScreenState::Gameplay;
@@ -161,7 +159,7 @@ void App::UpdateTransitionScene(float dt) {
         return;
     }
 
-    RenderSceneWorld(false);
+    RenderSceneWorld(false, m_TransitionPipeMotion == TransitionPipeMotion::VerticalUp);
     DrawHud();
 }
 
@@ -242,7 +240,6 @@ void App::UpdateGameplay(float dt) {
                     enemy->KillFlipped(horizontalKnockback);
                     AwardPoints(100, enemy->m_Transform.translation);
                     PlaySfx(m_Audio.kick.get());
-                    PlaySfx(m_Audio.bowserFalls.get());
                 }
             }
         }
@@ -311,7 +308,6 @@ void App::UpdateGameplay(float dt) {
                             rightEnemy->KillFlipped(knockback);
                             AwardPoints(100, rightEnemy->m_Transform.translation);
                             PlaySfx(m_Audio.kick.get());
-                            PlaySfx(m_Audio.bowserFalls.get());
                         }
                         continue;
                     }
@@ -320,7 +316,6 @@ void App::UpdateGameplay(float dt) {
                         leftEnemy->KillFlipped(knockback);
                         AwardPoints(100, leftEnemy->m_Transform.translation);
                         PlaySfx(m_Audio.kick.get());
-                        PlaySfx(m_Audio.bowserFalls.get());
                         continue;
                     }
 
@@ -499,7 +494,6 @@ void App::UpdateGameplay(float dt) {
                 enemy->KillFlipped(110.0f * m_Mario->GetFacingDirection());
                 AwardPoints(100, enemy->m_Transform.translation);
                 PlaySfx(m_Audio.kick.get());
-                PlaySfx(m_Audio.bowserFalls.get());
             } else if (stomped) {
                 enemy->Stomp();
                 m_Mario->BounceAfterStomp();
@@ -594,7 +588,6 @@ void App::UpdateGameplay(float dt) {
                 fireball->Explode();
                 AwardPoints(100, enemy->m_Transform.translation);
                 PlaySfx(m_Audio.kick.get());
-                PlaySfx(m_Audio.bowserFalls.get());
                 break;
             }
         }
