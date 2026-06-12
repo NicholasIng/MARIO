@@ -8,6 +8,7 @@
 #include "Fireball.hpp"
 #include "Pickup.hpp"
 #include "Debris.hpp"
+#include "DebugManager.hpp"
 #include "Util/BGM.hpp"
 #include "Util/Color.hpp"
 #include "Util/GameObject.hpp"
@@ -27,6 +28,8 @@ public:
     void End();
 
 private:
+    friend class DebugManager;
+
     enum class GoalSequenceStage { None, Sliding, PlayerControl, Entering, Finished };
     enum class ScreenState { Title, LevelIntro, Gameplay, Paused, StatusMessage, TransitionScene };
     enum class StatusMessageAction { None, ReloadLevel, ShowGameOver, RestartToTitle };
@@ -109,6 +112,7 @@ private:
 
     // camera/view like the youtuber's view_x
     float m_ViewX = 0.0f;
+    float m_ViewY = 0.0f;
     float m_FireballCooldown = 0.0f;
     GoalSequenceStage m_GoalSequenceStage = GoalSequenceStage::None;
     float m_GoalSequenceTimer = 0.0f;
@@ -145,6 +149,7 @@ private:
     TransitionDestination m_TransitionDestination = TransitionDestination::LevelOneTwo;
     TransitionPipeMotion m_TransitionPipeMotion = TransitionPipeMotion::VerticalDown;
     AudioBank m_Audio;
+    std::unique_ptr<DebugManager> m_DebugManager;
     AnimatedSprite m_HudCoinIcon;
     AnimatedSprite m_TitleCoinIcon;
     std::shared_ptr<Util::GameObject> m_TitleLogoImage;

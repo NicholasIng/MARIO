@@ -7,6 +7,7 @@ set(SRC_FILES
     AppRender.cpp
     AppUi.cpp
     AppUpdate.cpp
+    DebugManager.cpp
     Mario.cpp
     MarioAnimation.cpp
     MarioGoal.cpp
@@ -24,6 +25,7 @@ set(SRC_FILES
 set(INCLUDE_FILES
     App.hpp
     AppDetail.hpp
+    DebugManager.hpp
     Mario.hpp
     MarioDetail.hpp
     Animation.hpp

@@ -164,8 +164,84 @@ void Mario::RestorePowerState(PowerState state) {
     }
 }
 
+void Mario::CyclePowerState() {
+    const PowerState nextState =
+        (m_PowerState == PowerState::Small) ? PowerState::Big :
+        (m_PowerState == PowerState::Big) ? PowerState::Fire :
+        PowerState::Small;
+    RestorePowerState(nextState);
+}
+
+void Mario::SetDebugGodMode(bool enabled) {
+    m_DebugGodMode = enabled;
+    if (enabled) {
+        m_IsDead = false;
+        m_DeathFinished = false;
+        m_RespawnTimer = 0.0f;
+        SetVisible(true);
+    }
+}
+
+void Mario::SetDebugFlyMode(bool enabled) {
+    m_DebugFlyMode = enabled;
+    if (enabled) {
+        m_IsCrouching = false;
+        m_OnGround = false;
+        m_IsBraking = false;
+        m_VelocityX = 0.0f;
+        m_VelocityY = 0.0f;
+        m_JumpTimer = 0.0f;
+        SetVisible(true);
+    }
+}
+
+void Mario::SetDebugNoclip(bool enabled) {
+    m_DebugNoclip = enabled;
+}
+
+std::string Mario::GetDebugPowerStateName() const {
+    switch (m_PowerState) {
+    case PowerState::Small:
+        return "SMALL MARIO";
+    case PowerState::Big:
+        return "SUPER MARIO";
+    case PowerState::Fire:
+        return "FIRE MARIO";
+    }
+    return "UNKNOWN";
+}
+
+std::string Mario::GetDebugStateName() const {
+    if (m_IsDead) {
+        return "DEAD";
+    }
+    if (m_GoalSequenceState != GoalSequenceState::None &&
+        m_GoalSequenceState != GoalSequenceState::Finished) {
+        return "GOAL";
+    }
+    if (m_DebugFlyMode) {
+        return "FLY";
+    }
+    if (m_TransformType != TransformType::None) {
+        return "TRANSFORM";
+    }
+    if (!m_OnGround) {
+        return (m_VelocityY >= 0.0f) ? "JUMP" : "FALL";
+    }
+    if (m_IsCrouching) {
+        return "CROUCH";
+    }
+    if (m_IsBraking) {
+        return "BRAKE";
+    }
+    if (std::abs(m_VelocityX) > 5.0f) {
+        return "RUN";
+    }
+    return "IDLE";
+}
+
 void Mario::TakeEnemyHit() {
-    if (m_IsDead || IsInvulnerable() || m_PowerDownLockTimer > 0.0f ||
+    if (m_DebugGodMode || m_IsDead || IsInvulnerable() || m_PowerDownLockTimer > 0.0f ||
         m_TransformType != TransformType::None) return;
 
     if (m_PowerState == PowerState::Fire) {

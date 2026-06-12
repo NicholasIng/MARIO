@@ -347,7 +347,7 @@ void App::SpawnFloatingText(const std::string& text, const glm::vec2& worldPosit
     floatingText.riseSpeed = 44.0f;
     ConfigureSpriteText(
         floatingText.text,
-        { worldPosition.x - m_ViewX, worldPosition.y + 28.0f },
+        { worldPosition.x - m_ViewX, worldPosition.y - m_ViewY + 28.0f },
         { 2.5f, 2.5f },
         2.0f,
         0.0f,
@@ -361,7 +361,7 @@ void App::UpdateFloatingTexts(float dt) {
     for (auto& floatingText : m_FloatingTexts) {
         floatingText.lifetime = std::max(0.0f, floatingText.lifetime - dt);
         floatingText.worldPosition.y += floatingText.riseSpeed * dt;
-        floatingText.text.position = { floatingText.worldPosition.x - m_ViewX, floatingText.worldPosition.y };
+        floatingText.text.position = { floatingText.worldPosition.x - m_ViewX, floatingText.worldPosition.y - m_ViewY };
         floatingText.text.layoutDirty = true;
         SetSpriteText(floatingText.text, floatingText.value);
     }

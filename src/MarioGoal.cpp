@@ -15,6 +15,7 @@
 using namespace MarioDetail;
 
 void Mario::Die(bool launchUpward) {
+    if (m_DebugGodMode) return;
     if (m_IsDead) return;
     m_IsDead = true;
     m_DeathFinished = false;

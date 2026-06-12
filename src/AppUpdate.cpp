@@ -1,5 +1,6 @@
 ﻿#include "App.hpp"
 #include "AppDetail.hpp"
+#include "DebugManager.hpp"
 #include "Util/BGM.hpp"
 #include "Util/Input.hpp"
 #include "Util/Keycode.hpp"
@@ -118,7 +119,9 @@ void App::UpdateTransitionScene(float dt) {
                 if (m_TransitionDestination == TransitionDestination::LevelOneTwoExitArea) {
                     LoadLevelOneTwoExitArea(true);
                     if (m_Mario && g_MapManager) {
-                        m_TransitionPipeEntryX = m_Mario->m_Transform.translation.x;
+                        m_TransitionPipeEntryX = g_MapManager->HasTransitionPipe()
+                            ? g_MapManager->GetTransitionPipeEntryX()
+                            : m_Mario->m_Transform.translation.x;
                         m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
                         m_TransitionPipeSinkDistance = g_MapManager->GetTileSize() * 1.4f;
                         m_TransitionPipeVisibleDistance = m_TransitionPipeSinkDistance;
@@ -146,6 +149,7 @@ void App::UpdateTransitionScene(float dt) {
         const float halfScreen = WINDOW_WIDTH / 2.0f;
         const float minViewX = g_MapManager->GetWorldLeft() + halfScreen;
         const float maxViewX = g_MapManager->GetWorldRight() - halfScreen;
+        m_ViewY = 0.0f;
         if (minViewX > maxViewX) {
             m_ViewX = 0.0f;
         } else {
@@ -161,6 +165,9 @@ void App::UpdateTransitionScene(float dt) {
 
     RenderSceneWorld(false, m_TransitionPipeMotion == TransitionPipeMotion::VerticalUp);
     DrawHud();
+    if (m_DebugManager) {
+        m_DebugManager->Render(*this);
+    }
 }
 
 void App::UpdateStatusMessage(float dt) {
@@ -190,6 +197,11 @@ void App::UpdateStatusMessage(float dt) {
 }
 
 void App::UpdateGameplay(float dt) {
+    if (m_DebugManager && m_DebugManager->IsWarpMenuOpen()) {
+        RenderGameplay();
+        return;
+    }
+
     AdvanceAnimatedSprite(m_HudCoinIcon, dt);
     UpdateFloatingTexts(dt);
     const bool wasOnGround = m_Mario && m_Mario->IsOnGround();
@@ -357,7 +369,9 @@ void App::UpdateGameplay(float dt) {
         m_LevelTimer = std::max(0.0f, m_LevelTimer - dt);
         if (m_LevelTimer <= 0.0f) {
             m_DeathWasTimeout = true;
-            m_Mario->Die();
+            if (!m_DebugManager || !m_DebugManager->IsGodModeEnabled()) {
+                m_Mario->Die();
+            }
         }
 
         const int displayedLevelTime = DisplayLevelTime(m_LevelTimer);
@@ -522,7 +536,8 @@ void App::UpdateGameplay(float dt) {
                 continue;
             } else if (enemy->IsHarmlessToPlayer()) {
                 continue;
-            } else if (!m_Mario->IsInvulnerable()) {
+            } else if ((!m_DebugManager || !m_DebugManager->IsGodModeEnabled()) &&
+                       !m_Mario->IsInvulnerable()) {
                 m_Mario->TakeEnemyHit();
                 break;
             }
@@ -630,18 +645,21 @@ void App::UpdateGameplay(float dt) {
     );
 
     if (m_Mario && g_MapManager) {
-        m_ViewX = m_Mario->m_Transform.translation.x;
+        if (!m_DebugManager || !m_DebugManager->IsFreeCameraEnabled()) {
+            m_ViewX = m_Mario->m_Transform.translation.x;
+            m_ViewY = 0.0f;
 
-        float mapLeft = g_MapManager->GetWorldLeft();
-        float mapRight = g_MapManager->GetWorldRight();
-        float halfScreen = WINDOW_WIDTH / 2.0f;
-        float minViewX = mapLeft + halfScreen;
-        float maxViewX = mapRight - halfScreen;
+            float mapLeft = g_MapManager->GetWorldLeft();
+            float mapRight = g_MapManager->GetWorldRight();
+            float halfScreen = WINDOW_WIDTH / 2.0f;
+            float minViewX = mapLeft + halfScreen;
+            float maxViewX = mapRight - halfScreen;
 
-        if (minViewX > maxViewX) {
-            m_ViewX = 0.0f;
-        } else {
-            m_ViewX = std::clamp(m_ViewX, minViewX, maxViewX);
+            if (minViewX > maxViewX) {
+                m_ViewX = 0.0f;
+            } else {
+                m_ViewX = std::clamp(m_ViewX, minViewX, maxViewX);
+            }
         }
     }
 
@@ -650,6 +668,10 @@ void App::UpdateGameplay(float dt) {
 
 void App::Update() {
     const float dt = std::max(0.001f, Util::Time::GetDeltaTimeMs() / 1000.0f);
+
+    if (m_DebugManager) {
+        m_DebugManager->HandleHotkeys(*this, dt);
+    }
 
     if ((m_ScreenState == ScreenState::Gameplay || m_ScreenState == ScreenState::Paused) &&
         (Util::Input::IsKeyDown(Util::Keycode::P) || Util::Input::IsKeyDown(Util::Keycode::PAUSE))) {

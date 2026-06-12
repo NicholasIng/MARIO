@@ -85,7 +85,7 @@ void Pickup::Update() {
     if (!g_MapManager) return;
 
     const float gravity = -1800.0f;
-    const float moveSpeed = (m_Type == LootType::Star) ? 155.0f : 120.0f;
+    const float moveSpeed = (m_Type == LootType::Star) ? 155.0f : 80.0f;
     const glm::vec2 half = GetHalfExtents();
     const float tileSize = g_MapManager->GetTileSize();
     const float mapLeft = g_MapManager->GetWorldLeft();

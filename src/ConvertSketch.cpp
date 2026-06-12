@@ -918,7 +918,13 @@ bool convert_sketch(
                                 isTopRow
                                     ? (isLeftColumn ? pipeTopLeft : pipeTopRight)
                                     : (isLeftColumn ? pipeBottomLeft : pipeBottomRight);
-                            map.AddTile(cellX, cellY, Cell::Pipe, pipePiece);
+                            if (isOutdoorExitArea) {
+                                // Keep the exit pipe solid, but also redraw it in the foreground
+                                // so Mario can rise out from behind it in LevelSketch1-1.
+                                AddForegroundPipeTile(cellX, cellY, pipePiece);
+                            } else {
+                                map.AddTile(cellX, cellY, Cell::Pipe, pipePiece);
+                            }
                         }
                     }
                 }
@@ -927,6 +933,15 @@ bool convert_sketch(
     } else {
         if (!pipeResolved.empty() && fs::exists(pipeResolved)) {
             AddComponentSprites(pipeMask, false, Cell::Pipe, pipeResolved);
+            if (isOutdoorExitArea) {
+                for (int x = 0; x < width; ++x) {
+                    for (int y = 0; y < layerHeight; ++y) {
+                        if (pipeMask[x][y]) {
+                            map.AddForegroundSprite(x, y, 1, 1, pipeResolved);
+                        }
+                    }
+                }
+            }
         }
     }
     if (!mountainResolved.empty() && fs::exists(mountainResolved)) {

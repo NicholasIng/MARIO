@@ -155,6 +155,7 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
     m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
 
     m_ViewX = 0.0f;
+    m_ViewY = 0.0f;
     InitializeUi();
     return foundSpawn;
 }
@@ -220,6 +221,10 @@ void App::LoadLevelOneTwoExitArea(bool preserveMarioState) {
         std::filesystem::exists(exitSketch) ? exitSketch.string() : AssetPaths::Image("OutdoorExitSketch.png"),
         true
     );
+    if (m_Mario && g_MapManager && g_MapManager->HasTransitionPipe()) {
+        m_Mario->m_Transform.translation.x = g_MapManager->GetTransitionPipeEntryX();
+        m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
+    }
     if (!preserveMarioState && m_Mario) {
         m_Mario->RestorePowerState(Mario::PowerState::Small);
         AlignMarioSpawnToGround();

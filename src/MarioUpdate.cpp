@@ -133,6 +133,35 @@ void Mario::Update() {
         SetVisible(true);
     }
 
+    if (m_DebugFlyMode) {
+        glm::vec2 flyInput(0.0f, 0.0f);
+        if (Util::Input::IsKeyPressed(Util::Keycode::A)) flyInput.x -= 1.0f;
+        if (Util::Input::IsKeyPressed(Util::Keycode::D)) flyInput.x += 1.0f;
+        if (Util::Input::IsKeyPressed(Util::Keycode::W)) flyInput.y += 1.0f;
+        if (Util::Input::IsKeyPressed(Util::Keycode::S)) flyInput.y -= 1.0f;
+
+        const float flySpeed = 340.0f;
+        if (glm::length(flyInput) > 0.0f) {
+            flyInput = glm::normalize(flyInput);
+        }
+
+        m_VelocityX = flyInput.x * flySpeed;
+        m_VelocityY = flyInput.y * flySpeed;
+        m_Transform.translation += glm::vec2(m_VelocityX * dt, m_VelocityY * dt);
+        m_OnGround = false;
+        m_IsCrouching = false;
+        m_IsBraking = false;
+        m_JumpTimer = 0.0f;
+
+        if (std::abs(m_VelocityX) > 1.0f) {
+            m_Transform.scale.x =
+                (m_VelocityX < 0.0f) ? -std::abs(m_Transform.scale.x) : std::abs(m_Transform.scale.x);
+        }
+
+        HandleAnimation(dt);
+        return;
+    }
+
     bool moveLeft = Util::Input::IsKeyPressed(Util::Keycode::A);
     bool moveRight = Util::Input::IsKeyPressed(Util::Keycode::D);
     if (m_GoalWalkActive && !m_GoalWalkReached) {
@@ -307,6 +336,7 @@ void Mario::Update() {
         const float actorTop = currentY + halfHeight;
         const float actorBottom = currentY - halfHeight;
         for (const auto& platform : movingPlatforms) {
+            if (platform.wrappedThisFrame) continue;
             const float platformLeft = platform.center.x - platform.halfExtents.x;
             const float platformRight = platform.center.x + platform.halfExtents.x;
             const float platformTop = platform.center.y + platform.halfExtents.y;
@@ -341,6 +371,7 @@ void Mario::Update() {
         const float actorRight = candidateX + halfWidth;
 
         for (const auto& platform : movingPlatforms) {
+            if (platform.wrappedThisFrame) continue;
             const float platformLeft = platform.center.x - platform.halfExtents.x;
             const float platformRight = platform.center.x + platform.halfExtents.x;
             const float platformTop = platform.center.y + platform.halfExtents.y;
@@ -376,7 +407,7 @@ void Mario::Update() {
     };
 
     // --- HORIZONTAL ---
-    if (g_MapManager && std::abs(moveX) > 0.0f) {
+    if (!m_DebugNoclip && g_MapManager && std::abs(moveX) > 0.0f) {
         candidateX = curX + moveX;
         // sample vertically between top and bottom
         float topY = curY + halfHeight - eps;
@@ -420,7 +451,7 @@ void Mario::Update() {
     resolveHorizontalPlatforms(curY, candidateX);
 
     // --- VERTICAL ---
-    if (g_MapManager && std::abs(moveY) > 0.0f) {
+    if (!m_DebugNoclip && g_MapManager && std::abs(moveY) > 0.0f) {
         candidateY = curY + moveY;
 
         float leftX = candidateX - halfWidth;
@@ -504,7 +535,9 @@ void Mario::Update() {
         }
 
         const float mapBottom = -(g_MapManager->GetHeight() * tileSize) / 2.0f;
-        if (!m_IsDead && (m_Transform.translation.y + halfHeight) < mapBottom) {
+        if (!m_DebugGodMode &&
+            !m_IsDead &&
+            (m_Transform.translation.y + halfHeight) < mapBottom) {
             Die(false);
             return;
         }

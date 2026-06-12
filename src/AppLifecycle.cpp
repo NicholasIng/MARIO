@@ -1,5 +1,6 @@
 ﻿#include "App.hpp"
 #include "AppDetail.hpp"
+#include "DebugManager.hpp"
 #include "Util/BGM.hpp"
 #include "Util/Input.hpp"
 #include "Util/Keycode.hpp"
@@ -21,11 +22,15 @@
 using namespace AppDetail;
 
 namespace {
-constexpr bool DEBUG_START_AT_LEVEL_ONE_ONE_TO_TWO_TRANSITION = true;
+constexpr bool DEBUG_START_AT_LEVEL_ONE_ONE_TO_TWO_TRANSITION = false;
 }
 
 void App::Start() {
     LOG_TRACE("Start");
+
+    if (!m_DebugManager) {
+        m_DebugManager = std::make_unique<DebugManager>();
+    }
 
     InitializeAudio();
     ResetGameSession();
