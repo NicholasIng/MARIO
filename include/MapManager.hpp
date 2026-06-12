@@ -24,6 +24,11 @@ enum class LootType { RedMushroom, GreenMushroom, FireFlower, Coin, Star, Progre
 
 class MapManager {
 public:
+    struct CollisionBox {
+        glm::vec2 center = { 0.0f, 0.0f };
+        glm::vec2 halfExtents = { 0.0f, 0.0f };
+    };
+
     enum class MovingPlatformState {
         MovingUp,
         MovingDown,
@@ -986,10 +991,45 @@ public:
 
     }
 
-    void DrawBackground(float viewX) {
+    std::vector<CollisionBox> GetSolidCollisionBoxes() const {
+        std::vector<CollisionBox> boxes;
+        boxes.reserve(static_cast<std::size_t>(m_Width * m_Height));
+
+        const float worldLeft = GetWorldLeft();
+        const float worldTop = (m_Height * TILE_SIZE) / 2.0f;
+        for (int x = 0; x < m_Width; ++x) {
+            for (int y = 0; y < m_Height; ++y) {
+                if (!IsSolidAt(x, y)) {
+                    continue;
+                }
+
+                boxes.push_back({
+                    {
+                        worldLeft + x * TILE_SIZE + TILE_SIZE * 0.5f,
+                        worldTop - y * TILE_SIZE - TILE_SIZE * 0.5f
+                    },
+                    { TILE_SIZE * 0.5f, TILE_SIZE * 0.5f }
+                });
+            }
+        }
+
+        return boxes;
+    }
+
+    std::vector<CollisionBox> GetMovingPlatformCollisionBoxes() const {
+        std::vector<CollisionBox> boxes;
+        boxes.reserve(m_MovingPlatforms.size());
+        for (const auto& platform : m_MovingPlatforms) {
+            boxes.push_back({ platform.object->m_Transform.translation, platform.halfExtents });
+        }
+        return boxes;
+    }
+
+    void DrawBackground(float viewX, float viewY = 0.0f) {
         for (auto& obj : m_BackgroundObjects) {
             auto oldPos = obj->m_Transform.translation;
             obj->m_Transform.translation.x -= viewX;
+            obj->m_Transform.translation.y -= viewY;
             obj->Draw();
             obj->m_Transform.translation = oldPos;
         }
@@ -997,29 +1037,32 @@ public:
         if (m_GoalFlagObject != nullptr) {
             auto oldPos = m_GoalFlagObject->m_Transform.translation;
             m_GoalFlagObject->m_Transform.translation.x -= viewX;
+            m_GoalFlagObject->m_Transform.translation.y -= viewY;
             m_GoalFlagObject->Draw();
             m_GoalFlagObject->m_Transform.translation = oldPos;
         }
     }
 
-    void DrawTiles(float viewX) {
+    void DrawTiles(float viewX, float viewY = 0.0f) {
         for (auto& obj : m_Objects) {
             auto oldPos = obj->m_Transform.translation;
             obj->m_Transform.translation.x -= viewX;
+            obj->m_Transform.translation.y -= viewY;
             obj->Draw();
             obj->m_Transform.translation = oldPos;
         }
     }
 
-    void Draw(float viewX) {
-        DrawBackground(viewX);
-        DrawTiles(viewX);
+    void Draw(float viewX, float viewY = 0.0f) {
+        DrawBackground(viewX, viewY);
+        DrawTiles(viewX, viewY);
     }
 
-    void DrawForeground(float viewX) {
+    void DrawForeground(float viewX, float viewY = 0.0f) {
         for (auto& obj : m_ForegroundObjects) {
             auto oldPos = obj->m_Transform.translation;
             obj->m_Transform.translation.x -= viewX;
+            obj->m_Transform.translation.y -= viewY;
             obj->Draw();
             obj->m_Transform.translation = oldPos;
         }

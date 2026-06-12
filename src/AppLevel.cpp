@@ -155,6 +155,7 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
     m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
 
     m_ViewX = 0.0f;
+    m_ViewY = 0.0f;
     InitializeUi();
     return foundSpawn;
 }

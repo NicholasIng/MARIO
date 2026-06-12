@@ -1,5 +1,6 @@
 ﻿#include "App.hpp"
 #include "AppDetail.hpp"
+#include "DebugManager.hpp"
 #include "Util/BGM.hpp"
 #include "Util/Input.hpp"
 #include "Util/Keycode.hpp"
@@ -47,7 +48,7 @@ void App::RenderTitleScreen() {
     glClear(GL_COLOR_BUFFER_BIT);
 
     if (g_MapManager != nullptr) {
-        g_MapManager->Draw(GetLeftEdgeViewX(g_MapManager.get()));
+        g_MapManager->Draw(GetLeftEdgeViewX(g_MapManager.get()), 0.0f);
     }
 
     if (m_Mario != nullptr && g_MapManager != nullptr) {
@@ -78,6 +79,9 @@ void App::RenderTitleScreen() {
     DrawSpriteText(m_TitleTopScore);
     DrawUiObject(m_TitleNintendoText);
     DrawUiObject(m_TitleCursor);
+    if (m_DebugManager) {
+        m_DebugManager->Render(*this);
+    }
 }
 
 void App::RenderLevelIntro() {
@@ -99,6 +103,9 @@ void App::RenderLevelIntro() {
     DrawSpriteText(m_IntroWorldText);
     DrawUiObject(m_IntroMario);
     DrawSpriteText(m_IntroLivesText);
+    if (m_DebugManager) {
+        m_DebugManager->Render(*this);
+    }
 }
 
 void App::RenderStatusMessage() {
@@ -106,6 +113,9 @@ void App::RenderStatusMessage() {
     glClear(GL_COLOR_BUFFER_BIT);
     DrawHud();
     DrawSpriteText(m_StatusMessageText);
+    if (m_DebugManager) {
+        m_DebugManager->Render(*this);
+    }
 }
 
 void App::RenderPaused() {
@@ -118,9 +128,9 @@ void App::RenderSceneWorld(bool drawCastle, bool drawMarioBehindTiles) {
     glClear(GL_COLOR_BUFFER_BIT);
 
     if (g_MapManager && drawMarioBehindTiles) {
-        g_MapManager->DrawBackground(m_ViewX);
+        g_MapManager->DrawBackground(m_ViewX, m_ViewY);
     } else if (g_MapManager) {
-        g_MapManager->Draw(m_ViewX);
+        g_MapManager->Draw(m_ViewX, m_ViewY);
     }
 
     if (drawCastle &&
@@ -128,6 +138,7 @@ void App::RenderSceneWorld(bool drawCastle, bool drawMarioBehindTiles) {
         g_MapManager != nullptr) {
         const glm::vec2 oldPos = m_StartCastleObject->m_Transform.translation;
         m_StartCastleObject->m_Transform.translation.x -= m_ViewX;
+        m_StartCastleObject->m_Transform.translation.y -= m_ViewY;
         m_StartCastleObject->Draw();
         m_StartCastleObject->m_Transform.translation = oldPos;
     }
@@ -137,23 +148,24 @@ void App::RenderSceneWorld(bool drawCastle, bool drawMarioBehindTiles) {
         g_MapManager != nullptr) {
         const glm::vec2 oldPos = m_CastleObject->m_Transform.translation;
         m_CastleObject->m_Transform.translation.x -= m_ViewX;
+        m_CastleObject->m_Transform.translation.y -= m_ViewY;
         m_CastleObject->Draw();
         m_CastleObject->m_Transform.translation = oldPos;
     }
     if (m_Mario) {
         const glm::vec2 oldPos = m_Mario->m_Transform.translation;
         m_Mario->m_Transform.translation.x -= m_ViewX;
-        m_Mario->m_Transform.translation.y += m_Mario->GetRenderOffsetY();
+        m_Mario->m_Transform.translation.y = m_Mario->m_Transform.translation.y - m_ViewY + m_Mario->GetRenderOffsetY();
         m_Mario->Draw();
         m_Mario->m_Transform.translation = oldPos;
     }
 
     if (g_MapManager && drawMarioBehindTiles) {
-        g_MapManager->DrawTiles(m_ViewX);
+        g_MapManager->DrawTiles(m_ViewX, m_ViewY);
     }
 
     if (g_MapManager) {
-        g_MapManager->DrawForeground(m_ViewX);
+        g_MapManager->DrawForeground(m_ViewX, m_ViewY);
     }
 }
 
@@ -162,24 +174,28 @@ void App::RenderGameplay() {
     for (auto& enemy : m_Enemies) {
         const glm::vec2 oldPos = enemy->m_Transform.translation;
         enemy->m_Transform.translation.x -= m_ViewX;
+        enemy->m_Transform.translation.y -= m_ViewY;
         enemy->Draw();
         enemy->m_Transform.translation = oldPos;
     }
     for (auto& fireball : m_Fireballs) {
         const glm::vec2 oldPos = fireball->m_Transform.translation;
         fireball->m_Transform.translation.x -= m_ViewX;
+        fireball->m_Transform.translation.y -= m_ViewY;
         fireball->Draw();
         fireball->m_Transform.translation = oldPos;
     }
     for (auto& pickup : m_Pickups) {
         const glm::vec2 oldPos = pickup->m_Transform.translation;
         pickup->m_Transform.translation.x -= m_ViewX;
+        pickup->m_Transform.translation.y -= m_ViewY;
         pickup->Draw();
         pickup->m_Transform.translation = oldPos;
     }
     for (auto& debris : m_Debris) {
         const glm::vec2 oldPos = debris->m_Transform.translation;
         debris->m_Transform.translation.x -= m_ViewX;
+        debris->m_Transform.translation.y -= m_ViewY;
         debris->Draw();
         debris->m_Transform.translation = oldPos;
     }
@@ -187,5 +203,8 @@ void App::RenderGameplay() {
     DrawFloatingTexts();
 
     DrawHud();
+    if (m_DebugManager) {
+        m_DebugManager->Render(*this);
+    }
 }
 

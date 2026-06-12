@@ -7,6 +7,7 @@
 #include "MapManager.hpp"
 #include <memory>
 #include <map>
+#include <string>
 
 class Mario : public Util::GameObject {
 public:
@@ -45,9 +46,20 @@ public:
     bool HasStarPower() const { return m_StarPowerTimer > 0.0f; }
     bool IsOnGround() const { return m_OnGround; }
     glm::vec2 GetHalfExtents() const;
+    glm::vec2 GetVelocity() const { return { m_VelocityX, m_VelocityY }; }
+    float GetVelocityX() const { return m_VelocityX; }
     float GetVelocityY() const { return m_VelocityY; }
     bool WasJumpingUpward() const { return m_VelocityY > 0.0f; }
     void RestorePowerState(PowerState state);
+    void CyclePowerState();
+    void SetDebugGodMode(bool enabled);
+    bool IsDebugGodModeEnabled() const { return m_DebugGodMode; }
+    void SetDebugFlyMode(bool enabled);
+    bool IsDebugFlyModeEnabled() const { return m_DebugFlyMode; }
+    void SetDebugNoclip(bool enabled);
+    bool IsDebugNoclipEnabled() const { return m_DebugNoclip; }
+    std::string GetDebugPowerStateName() const;
+    std::string GetDebugStateName() const;
 
 private:
     static constexpr float SMALL_HALF_WIDTH = 18.0f;
@@ -88,6 +100,9 @@ private:
     float m_GoalWalkTargetX = 0.0f;
     bool m_GoalWalkActive = false;
     bool m_GoalWalkReached = false;
+    bool m_DebugGodMode = false;
+    bool m_DebugFlyMode = false;
+    bool m_DebugNoclip = false;
 
     AnimState m_AnimState = AnimState::IDLE;
     std::map<AnimState, std::unique_ptr<Animation>> m_SmallAnimations;
