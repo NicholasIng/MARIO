@@ -220,6 +220,10 @@ void App::LoadLevelOneTwoExitArea(bool preserveMarioState) {
         std::filesystem::exists(exitSketch) ? exitSketch.string() : AssetPaths::Image("OutdoorExitSketch.png"),
         true
     );
+    if (m_Mario && g_MapManager && g_MapManager->HasTransitionPipe()) {
+        m_Mario->m_Transform.translation.x = g_MapManager->GetTransitionPipeEntryX();
+        m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
+    }
     if (!preserveMarioState && m_Mario) {
         m_Mario->RestorePowerState(Mario::PowerState::Small);
         AlignMarioSpawnToGround();

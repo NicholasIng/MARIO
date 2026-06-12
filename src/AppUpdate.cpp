@@ -118,7 +118,9 @@ void App::UpdateTransitionScene(float dt) {
                 if (m_TransitionDestination == TransitionDestination::LevelOneTwoExitArea) {
                     LoadLevelOneTwoExitArea(true);
                     if (m_Mario && g_MapManager) {
-                        m_TransitionPipeEntryX = m_Mario->m_Transform.translation.x;
+                        m_TransitionPipeEntryX = g_MapManager->HasTransitionPipe()
+                            ? g_MapManager->GetTransitionPipeEntryX()
+                            : m_Mario->m_Transform.translation.x;
                         m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
                         m_TransitionPipeSinkDistance = g_MapManager->GetTileSize() * 1.4f;
                         m_TransitionPipeVisibleDistance = m_TransitionPipeSinkDistance;

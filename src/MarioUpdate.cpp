@@ -307,6 +307,7 @@ void Mario::Update() {
         const float actorTop = currentY + halfHeight;
         const float actorBottom = currentY - halfHeight;
         for (const auto& platform : movingPlatforms) {
+            if (platform.wrappedThisFrame) continue;
             const float platformLeft = platform.center.x - platform.halfExtents.x;
             const float platformRight = platform.center.x + platform.halfExtents.x;
             const float platformTop = platform.center.y + platform.halfExtents.y;
@@ -341,6 +342,7 @@ void Mario::Update() {
         const float actorRight = candidateX + halfWidth;
 
         for (const auto& platform : movingPlatforms) {
+            if (platform.wrappedThisFrame) continue;
             const float platformLeft = platform.center.x - platform.halfExtents.x;
             const float platformRight = platform.center.x + platform.halfExtents.x;
             const float platformTop = platform.center.y + platform.halfExtents.y;

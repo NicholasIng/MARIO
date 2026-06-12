@@ -213,6 +213,7 @@ void Enemy::Update() {
             const float actorTop = m_Transform.translation.y + half.y - eps;
             const float actorBottom = m_Transform.translation.y - half.y + eps;
             for (const auto& platform : movingPlatforms) {
+                if (platform.wrappedThisFrame) continue;
                 const float platformLeft = platform.center.x - platform.halfExtents.x;
                 const float platformRight = platform.center.x + platform.halfExtents.x;
                 const float platformTop = platform.center.y + platform.halfExtents.y;
@@ -261,6 +262,7 @@ void Enemy::Update() {
         const float actorLeft = m_Transform.translation.x - half.x;
         const float actorRight = m_Transform.translation.x + half.x;
         for (const auto& platform : movingPlatforms) {
+            if (platform.wrappedThisFrame) continue;
             const float platformLeft = platform.center.x - platform.halfExtents.x;
             const float platformRight = platform.center.x + platform.halfExtents.x;
             const float platformTop = platform.center.y + platform.halfExtents.y;

@@ -46,6 +46,7 @@ public:
         glm::vec2 center = { 0.0f, 0.0f };
         glm::vec2 halfExtents = { 0.0f, 0.0f };
         glm::vec2 delta = { 0.0f, 0.0f };
+        bool wrappedThisFrame = false;
     };
 
 private:
@@ -78,6 +79,7 @@ private:
         glm::vec2 halfExtents = { 0.0f, 0.0f };
         glm::vec2 previousCenter = { 0.0f, 0.0f };
         glm::vec2 delta = { 0.0f, 0.0f };
+        bool wrappedThisFrame = false;
         float moveSpeed = 72.0f;
         float topLimit = 0.0f;
         float bottomLimit = 0.0f;
@@ -531,7 +533,12 @@ public:
         std::vector<MovingPlatformSnapshot> snapshots;
         snapshots.reserve(m_MovingPlatforms.size());
         for (const auto& platform : m_MovingPlatforms) {
-            snapshots.push_back({ platform.object->m_Transform.translation, platform.halfExtents, platform.delta });
+            snapshots.push_back({
+                platform.object->m_Transform.translation,
+                platform.halfExtents,
+                platform.delta,
+                platform.wrappedThisFrame
+            });
         }
         return snapshots;
     }
@@ -544,6 +551,7 @@ public:
         const float actorRight = center.x + halfExtents.x;
 
         for (const auto& platform : m_MovingPlatforms) {
+            if (platform.wrappedThisFrame) continue;
             const glm::vec2 platformCenter = platform.object->m_Transform.translation;
             const float platformTop = platformCenter.y + platform.halfExtents.y;
             const float platformLeft = platformCenter.x - platform.halfExtents.x;
@@ -901,6 +909,7 @@ public:
         for (auto& platform : m_MovingPlatforms) {
             platform.previousCenter = platform.object->m_Transform.translation;
             platform.delta = { 0.0f, 0.0f };
+            platform.wrappedThisFrame = false;
 
             float nextPosition = platform.motion == MovingPlatformMotion::Horizontal
                 ? platform.object->m_Transform.translation.x
@@ -919,6 +928,7 @@ public:
                     if (platform.cycle == MovingPlatformCycle::WrapUp) {
                         const float overshoot = nextPosition - positiveLimit;
                         nextPosition = negativeLimit + overshoot;
+                        platform.wrappedThisFrame = true;
                     } else {
                         nextPosition = positiveLimit;
                     }
@@ -938,6 +948,7 @@ public:
                     if (platform.cycle == MovingPlatformCycle::WrapDown) {
                         const float overshoot = negativeLimit - nextPosition;
                         nextPosition = positiveLimit - overshoot;
+                        platform.wrappedThisFrame = true;
                     } else {
                         nextPosition = negativeLimit;
                     }
