@@ -150,6 +150,18 @@ static bool IsMovingPlatformColor(Uint8 r, Uint8 g, Uint8 b) {
     return PackRGB(r, g, b) == PackRGB(255, 205, 0);
 }
 
+static bool IsHorizontalMovingPlatformColor(Uint8 r, Uint8 g, Uint8 b) {
+    return PackRGB(r, g, b) == PackRGB(148, 119, 0);
+}
+
+static bool IsWoodColor(Uint8 r, Uint8 g, Uint8 b) {
+    return PackRGB(r, g, b) == PackRGB(255, 115, 0);
+}
+
+static bool IsTreeColor(Uint8 r, Uint8 g, Uint8 b) {
+    return PackRGB(r, g, b) == PackRGB(71, 255, 40);
+}
+
 static bool FindMarioSpawnMarker(SDL_Surface* surface,
                                  int layerHeight,
                                  int& outGridX,
@@ -256,9 +268,16 @@ bool convert_sketch(
     map.SetMapSize(width, layerHeight);
 
     const std::string loweredPath = ToLower(path);
+    const bool isOutdoorExitArea =
+        loweredPath.find("levelsketch1-1") != std::string::npos ||
+        loweredPath.find("outdoorexitsketch") != std::string::npos;
+    const bool isTransitionSceneSketch =
+        loweredPath.find("transition1") != std::string::npos;
     const bool isUndergroundLevel =
-        loweredPath.find("levelsketch1") != std::string::npos ||
-        loweredPath.find("1-2") != std::string::npos;
+        !isOutdoorExitArea &&
+        !isTransitionSceneSketch &&
+        (loweredPath.find("levelsketch1.png") != std::string::npos ||
+         loweredPath.find("1-2") != std::string::npos);
     map.SetUndergroundTheme(isUndergroundLevel);
 
     background_color = isUndergroundLevel
@@ -277,8 +296,8 @@ bool convert_sketch(
     std::unordered_map<uint32_t, TileEntry> tileMap = {
         { PackRGB(0,   0,   0),   { Cell::Wall,          isUndergroundLevel ? "SMB_Ground_Underground.png" : "Ground.png" } },
         { PackRGB(182, 73,  0),   { Cell::Brick,         isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png" } },
-        { PackRGB(146, 73,  0),   { isUndergroundLevel ? Cell::Wall : Cell::Brick, isUndergroundLevel ? "SMB_Underground_Hard_Block.png" : "Brick.png" } },
-        { PackRGB(255, 255, 0),   { Cell::Coin,          isUndergroundLevel ? "ug_coin1.png" : "Coin.png" } },
+        { PackRGB(146, 73,  0),   { (isUndergroundLevel || isOutdoorExitArea) ? Cell::Wall : Cell::Brick, isUndergroundLevel ? "SMB_Underground_Hard_Block.png" : (isOutdoorExitArea ? "HardBlock.png" : "Brick.png") } },
+        { PackRGB(255, 255, 0),   { Cell::Coin,          isUndergroundLevel ? "ug_coin1.png" : "coin1.png" } },
         { PackRGB(255, 73,  85),  { Cell::QuestionBlock, isUndergroundLevel ? "ug_question1.png" : "Question.png", LootType::ProgressivePowerUp } },
         { PackRGB(255, 135, 143), { Cell::QuestionBlock, isUndergroundLevel ? "SMB_Underground_Brick_Block.png" : "Brick.png", LootType::RedMushroom, 1, true } },
         { PackRGB(255, 146, 85),  { Cell::QuestionBlock, isUndergroundLevel ? "ug_question1.png" : "Question.png", LootType::Coin } },
@@ -309,27 +328,56 @@ bool convert_sketch(
         LOG_INFO("Using Stair asset: {}", stairResolved);
     }
 
-    const std::string pipeTopLeft = MapManager::ResolveTilePath(Cell::Pipe, "pipetop_left.png");
-    const std::string pipeTopRight = MapManager::ResolveTilePath(Cell::Pipe, "pipetop_right.png");
-    const std::string pipeBottomLeft = MapManager::ResolveTilePath(Cell::Pipe, "pipebottom_left.png");
-    const std::string pipeBottomRight = MapManager::ResolveTilePath(Cell::Pipe, "pipebottom_right.png");
+    auto ResolvePipePiece = [](const std::string& filename) {
+        const fs::path pipePath = MapManager::ResourceRoot() / "image" / "Pipes" / filename;
+        if (fs::exists(pipePath)) {
+            return pipePath.string();
+        }
+        return MapManager::ResolveTilePath(Cell::Pipe, filename);
+    };
+
+    const std::string pipeTopLeft = ResolvePipePiece("pipetop_left.png");
+    const std::string pipeTopRight = ResolvePipePiece("pipetop_right.png");
+    const std::string pipeBottomLeft = ResolvePipePiece("pipebottom_left.png");
+    const std::string pipeBottomRight = ResolvePipePiece("pipebottom_right.png");
     const std::string pipeBodyResolved = MapManager::ResolveTilePath(Cell::Pipe, "pipebody.png");
     const std::string pipeResolved = MapManager::ResolveTilePath(Cell::Pipe, "Pipe.png");
+    const std::string warpPipeBottomResolved = MapManager::ResolveBackgroundPath("WarpPipeBottom.png");
+    const std::string exitPipeTopLeft = ResolvePipePiece("pipe_tl.png");
+    const std::string exitPipeTopRight = ResolvePipePiece("pipe_tr.png");
+    const std::string exitPipeBodyLeft = ResolvePipePiece("pipe_bl.png");
+    const std::string exitPipeBodyRight = ResolvePipePiece("pipe_br.png");
+    const std::string exitMouthTopLeft = ResolvePipePiece("mpipe_tl.png");
+    const std::string exitMouthTopMiddle = ResolvePipePiece("mpipe_mt.png");
+    const std::string exitMouthTopRight = ResolvePipePiece("mpipe_tr.png");
+    const std::string exitMouthBottomLeft = ResolvePipePiece("mpipe_bl.png");
+    const std::string exitMouthBottomMiddle = ResolvePipePiece("mpipe_mb.png");
+    const std::string exitMouthBottomRight = ResolvePipePiece("mpipe_br.png");
     std::string mountainResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("mountains.png");
     std::string bushResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("Bush.png");
     std::string cloudResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("Clouds_2.png");
     std::string castleResolved = MapManager::ResolveBackgroundPath("castle1.png");
+    std::string woodResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("wood.png");
+    std::string treeLeftResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("tree_left.png");
+    std::string treeMiddleResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("tree_middle.png");
+    std::string treeRightResolved = isUndergroundLevel ? "" : MapManager::ResolveBackgroundPath("tree_right.png");
     std::string pipeForkedResolved = MapManager::ResolveBackgroundPath("WarpPipeForked.png");
     std::vector<std::vector<char>> pipeMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> mountainMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> bushMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> cloudMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> woodMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> treeMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> flagMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> castleMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> pipeForkedMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> forkedPipeBottomMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> forkedPipeBodyMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> movingPlatformMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> goombaMask(width, std::vector<char>(layerHeight, 0));
     std::vector<std::vector<char>> koopaMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> redKoopaMask(width, std::vector<char>(layerHeight, 0));
+    std::vector<std::vector<char>> redKoopaWingedMask(width, std::vector<char>(layerHeight, 0));
     std::vector<glm::vec2> venusSpawnPositions;
     bool undergroundExitPipeVisualAdded = false;
 
@@ -354,6 +402,18 @@ bool convert_sketch(
                     movingPlatformMask[x][y] = 1;
                     continue;
                 }
+                if (IsHorizontalMovingPlatformColor(r, g, b)) {
+                    movingPlatformMask[x][y] = 2;
+                    continue;
+                }
+                if (IsWoodColor(r, g, b)) {
+                    woodMask[x][y] = 1;
+                    continue;
+                }
+                if (IsTreeColor(r, g, b)) {
+                    treeMask[x][y] = 1;
+                    continue;
+                }
 
                 uint32_t key = PackRGB(r,g,b);
                 auto it = tileMap.find(key);
@@ -367,6 +427,11 @@ bool convert_sketch(
                 if (matchedTile != nullptr) {
                     if (matchedTile->type == Cell::Pipe) {
                         pipeMask[x][y] = 1;
+                        if (r == 0 && g == 219 && b == 0) {
+                            forkedPipeBottomMask[x][y] = 1;
+                        } else if (r == 0 && g == 182 && b == 0) {
+                            forkedPipeBodyMask[x][y] = 1;
+                        }
                     } else {
                         std::string resolvedPath = MapManager::ResolveTilePath(matchedTile->type, matchedTile->requested);
                         if (resolvedPath.empty() || !fs::exists(resolvedPath)) {
@@ -411,6 +476,10 @@ bool convert_sketch(
                     pipeForkedMask[x][y] = 1;
                 } else if (r == 0 && g == 255 && b == 42) {
                     koopaMask[x][y] = 1;
+                } else if (r == 255 && g == 127 && b == 0) {
+                    redKoopaMask[x][y] = 1;
+                } else if (r == 185 && g == 103 && b == 103) {
+                    redKoopaWingedMask[x][y] = 1;
                 } else if (r == 182 && g == 73 && b == 0) {
                     goombaMask[x][y] = 1;
                 }
@@ -448,6 +517,16 @@ bool convert_sketch(
 
                 if (IsPipeForkedColor(r, g, b)) {
                     pipeForkedMask[x][y] = 1;
+                    continue;
+                }
+
+                if (IsWoodColor(r, g, b)) {
+                    woodMask[x][y] = 1;
+                    continue;
+                }
+
+                if (IsTreeColor(r, g, b)) {
+                    treeMask[x][y] = 1;
                     continue;
                 }
 
@@ -594,7 +673,36 @@ bool convert_sketch(
         !pipeTopRight.empty() && fs::exists(pipeTopRight) &&
         !pipeBottomLeft.empty() && fs::exists(pipeBottomLeft) &&
         !pipeBottomRight.empty() && fs::exists(pipeBottomRight);
-
+    const bool haveWarpPipeBottom =
+        !warpPipeBottomResolved.empty() && fs::exists(warpPipeBottomResolved);
+    const bool havePipeBodyTexture =
+        !pipeBodyResolved.empty() && fs::exists(pipeBodyResolved);
+    const bool haveExitPipeSet =
+        !exitPipeTopLeft.empty() && fs::exists(exitPipeTopLeft) &&
+        !exitPipeTopRight.empty() && fs::exists(exitPipeTopRight) &&
+        !exitPipeBodyLeft.empty() && fs::exists(exitPipeBodyLeft) &&
+        !exitPipeBodyRight.empty() && fs::exists(exitPipeBodyRight) &&
+        !exitMouthTopLeft.empty() && fs::exists(exitMouthTopLeft) &&
+        !exitMouthTopMiddle.empty() && fs::exists(exitMouthTopMiddle) &&
+        !exitMouthTopRight.empty() && fs::exists(exitMouthTopRight) &&
+        !exitMouthBottomLeft.empty() && fs::exists(exitMouthBottomLeft) &&
+        !exitMouthBottomMiddle.empty() && fs::exists(exitMouthBottomMiddle) &&
+        !exitMouthBottomRight.empty() && fs::exists(exitMouthBottomRight);
+    auto AddForegroundPipeTile = [&](int gridX, int gridY, const std::string& texturePath) {
+        if (gridX < 0 || gridX >= width || gridY < 0 || gridY >= layerHeight) {
+            return;
+        }
+        map.AddTile(gridX, gridY, Cell::Pipe, texturePath);
+        map.AddForegroundSprite(gridX, gridY, 1, 1, texturePath);
+    };
+    auto GetMarkerSpriteTileSize = [&](const std::string& resolvedPath) {
+        Util::Image image(resolvedPath);
+        const glm::vec2 imageSize = image.GetSize();
+        return std::pair<int, int>{
+            std::max(1, static_cast<int>(std::round((imageSize.x * 3.0f) / map.GetTileSize()))),
+            std::max(1, static_cast<int>(std::round((imageSize.y * 3.0f) / map.GetTileSize())))
+        };
+    };
     if (havePipeSet) {
         std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
         for (int sx = 0; sx < width; ++sx) {
@@ -631,72 +739,187 @@ bool convert_sketch(
                     }
                 }
                 const int spanX = maxX - minX + 1;
+                bool handledUndergroundExitPipe = false;
+                if (isUndergroundLevel) {
+                    bool hasForkedBottomMarker = false;
+                    int forkedBottomMinX = width;
+                    int forkedBottomMaxX = -1;
+                    int forkedBottomMinY = layerHeight;
+                    int forkedBottomMaxY = -1;
+                    bool hasForkedBodyMarker = false;
+                    int forkedBodyMinX = width;
+                    int forkedBodyMaxX = -1;
+                    int forkedBodyMinY = layerHeight;
+                    int forkedBodyMaxY = -1;
 
-                if (isUndergroundLevel &&
-                    !pipeBodyResolved.empty() &&
-                    fs::exists(pipeBodyResolved) &&
-                    spanX >= 2) {
-                    if (!pipeResolved.empty() && fs::exists(pipeResolved)) {
-                        map.AddTileSprite(minX, minY, spanX, 1, Cell::Pipe, pipeResolved);
-                    } else {
-                        for (int cellX = minX; cellX <= maxX; ++cellX) {
-                            const bool isLeftColumn = cellX == minX;
-                            const std::string& pipePiece = isLeftColumn ? pipeTopLeft : pipeTopRight;
-                            map.AddTile(cellX, minY, Cell::Pipe, pipePiece);
+                    for (const auto& [cellX, cellY] : cells) {
+                        if (forkedPipeBottomMask[cellX][cellY]) {
+                            hasForkedBottomMarker = true;
+                            forkedBottomMinX = std::min(forkedBottomMinX, cellX);
+                            forkedBottomMaxX = std::max(forkedBottomMaxX, cellX);
+                            forkedBottomMinY = std::min(forkedBottomMinY, cellY);
+                            forkedBottomMaxY = std::max(forkedBottomMaxY, cellY);
+                        }
+                        if (forkedPipeBodyMask[cellX][cellY]) {
+                            hasForkedBodyMarker = true;
+                            forkedBodyMinX = std::min(forkedBodyMinX, cellX);
+                            forkedBodyMaxX = std::max(forkedBodyMaxX, cellX);
+                            forkedBodyMinY = std::min(forkedBodyMinY, cellY);
+                            forkedBodyMaxY = std::max(forkedBodyMaxY, cellY);
                         }
                     }
 
-                    if (maxY > minY) {
-                        map.AddTileSprite(minX, minY + 1, spanX, maxY - minY, Cell::Pipe, pipeBodyResolved);
-                    }
-                } else {
-                    for (const auto& [cellX, cellY] : cells) {
-                        const bool isTopRow = cellY == minY;
-                        const bool isLeftColumn = cellX == minX;
-                        const std::string& pipePiece =
-                            isTopRow
-                                ? (isLeftColumn ? pipeTopLeft : pipeTopRight)
-                                : (isLeftColumn ? pipeBottomLeft : pipeBottomRight);
-                        map.AddTile(cellX, cellY, Cell::Pipe, pipePiece);
-                    }
-                }
+                    if (!undergroundExitPipeVisualAdded &&
+                        hasForkedBottomMarker &&
+                        hasForkedBodyMarker &&
+                        haveWarpPipeBottom &&
+                        havePipeBodyTexture) {
+                        const auto [bottomTileWidth, bottomTileHeight] = GetMarkerSpriteTileSize(warpPipeBottomResolved);
+                        const int bottomStartX =
+                            std::clamp(forkedBodyMinX - bottomTileWidth + 2, 0, std::max(0, width - bottomTileWidth));
+                        const int bottomStartY =
+                            std::clamp(forkedBottomMaxY - bottomTileHeight + 1, 0, std::max(0, layerHeight - bottomTileHeight));
+                        const int bodyTileWidth = std::max(1, forkedBodyMaxX - forkedBodyMinX + 1);
+                        const int bodySegmentCount = 6;
+                        const int bodyStartY = std::max(0, bottomStartY - bodySegmentCount);
 
-                if (isUndergroundLevel) {
-                    const int spanX = maxX - minX + 1;
-                    if (spanX >= 2) {
+                        map.AddForegroundSprite(
+                            bottomStartX,
+                            bottomStartY,
+                            bottomTileWidth,
+                            bottomTileHeight,
+                            warpPipeBottomResolved
+                        );
+                        for (int segment = 0; segment < bodySegmentCount; ++segment) {
+                            const int segmentY = bodyStartY + segment;
+                            if (segmentY < 0 || segmentY >= layerHeight) {
+                                continue;
+                            }
+                            map.AddForegroundSprite(
+                                forkedBodyMinX,
+                                segmentY,
+                                bodyTileWidth,
+                                1,
+                                pipeBodyResolved
+                            );
+                        }
+
+                        const float entryX =
+                            map.GetWorldLeft() + (static_cast<float>(forkedBottomMinX) - 1.5f) * map.GetTileSize();
+                        map.SetTransitionPipeEntryX(entryX);
+                        undergroundExitPipeVisualAdded = true;
+                        handledUndergroundExitPipe = true;
+                    } else if (!undergroundExitPipeVisualAdded &&
+                        haveExitPipeSet &&
+                        minX > static_cast<int>(width * 0.75f) &&
+                        spanX >= 4) {
+                        const int verticalLeftX = std::clamp(maxX - 1, 1, std::max(1, width - 2));
+                        const int smallLeftX = std::max(0, verticalLeftX - 4);
+                        const int mouthLeftX = smallLeftX + 2;
+                        const int mouthRightX = verticalLeftX - 1;
+                        const int mouthTopY = std::max(minY, maxY - 1);
+                        const int mouthBottomY = maxY;
+                        const int verticalTopY = 0;
+
+                        for (int pipeY = verticalTopY; pipeY <= maxY; ++pipeY) {
+                            AddForegroundPipeTile(
+                                verticalLeftX,
+                                pipeY,
+                                pipeY == verticalTopY ? exitPipeTopLeft : exitPipeBodyLeft
+                            );
+                            AddForegroundPipeTile(
+                                verticalLeftX + 1,
+                                pipeY,
+                                pipeY == verticalTopY ? exitPipeTopRight : exitPipeBodyRight
+                            );
+                        }
+
+                        AddForegroundPipeTile(smallLeftX, mouthTopY, exitMouthTopLeft);
+                        AddForegroundPipeTile(smallLeftX + 1, mouthTopY, exitMouthTopRight);
+                        AddForegroundPipeTile(smallLeftX, mouthBottomY, exitMouthBottomLeft);
+                        AddForegroundPipeTile(smallLeftX + 1, mouthBottomY, exitMouthBottomRight);
+
+                        for (int pipeX = mouthLeftX; pipeX <= mouthRightX; ++pipeX) {
+                            const bool isRightEnd = pipeX == mouthRightX;
+                            AddForegroundPipeTile(
+                                pipeX,
+                                mouthTopY,
+                                isRightEnd ? exitMouthTopRight : exitMouthTopMiddle
+                            );
+                            AddForegroundPipeTile(
+                                pipeX,
+                                mouthBottomY,
+                                isRightEnd ? exitMouthBottomRight : exitMouthBottomMiddle
+                            );
+                        }
+
+                        const std::string hardBlockPath =
+                            MapManager::ResolveTilePath(Cell::Wall, "SMB_Underground_Hard_Block.png");
+                        for (const auto& [cellX, cellY] : cells) {
+                            const bool inVerticalPipe =
+                                cellX >= verticalLeftX &&
+                                cellX <= verticalLeftX + 1 &&
+                                cellY >= verticalTopY &&
+                                cellY <= maxY;
+                            const bool inMouth =
+                                cellX >= smallLeftX &&
+                                cellX <= mouthRightX &&
+                                cellY >= mouthTopY &&
+                                cellY <= mouthBottomY;
+                            if (!inVerticalPipe && !inMouth) {
+                                map.AddTile(cellX, cellY, Cell::Wall, hardBlockPath);
+                            }
+                        }
+
+                        const float entryX =
+                            map.GetWorldLeft() + (static_cast<float>(verticalLeftX) + 1.125f) * map.GetTileSize();
+                        map.SetTransitionPipeEntryX(entryX);
+                        for (int skipX = smallLeftX; skipX < width; ++skipX) {
+                            for (int skipY = 0; skipY < layerHeight; ++skipY) {
+                                if (pipeMask[skipX][skipY]) {
+                                    visited[skipX][skipY] = 1;
+                                }
+                            }
+                        }
+                        undergroundExitPipeVisualAdded = true;
+                        handledUndergroundExitPipe = true;
+                    } else if (spanX >= 2) {
                         const float plantX =
                             map.GetWorldLeft() + (static_cast<float>(minX) + spanX * 0.5f) * map.GetTileSize();
                         const float pipeTopY =
                             (map.GetHeight() * map.GetTileSize()) / 2.0f - minY * map.GetTileSize();
                         venusSpawnPositions.push_back({ plantX, pipeTopY + 28.0f });
                     }
+                }
 
-                    if (!undergroundExitPipeVisualAdded &&
-                        !pipeForkedResolved.empty() &&
-                        fs::exists(pipeForkedResolved) &&
-                        minX > static_cast<int>(width * 0.75f) &&
-                        spanX >= 4) {
-                        Util::Image forkedPipeImage(pipeForkedResolved);
-                        const glm::vec2 forkedSize = forkedPipeImage.GetSize();
-                        const int spriteTileWidth =
-                            std::max(1, static_cast<int>(std::round((forkedSize.x * 3.0f) / map.GetTileSize())));
-                        const int spriteTileHeight =
-                            std::max(1, static_cast<int>(std::round((forkedSize.y * 3.0f) / map.GetTileSize())));
-                        const int startX = std::clamp(
-                            maxX - spriteTileWidth + 1,
-                            0,
-                            std::max(0, width - spriteTileWidth)
-                        );
-                        const int startY = std::clamp(
-                            maxY - spriteTileHeight + 1,
-                            0,
-                            std::max(0, layerHeight - spriteTileHeight)
-                        );
-                        map.AddForegroundSprite(startX, startY, spriteTileWidth, spriteTileHeight, pipeForkedResolved);
-                        const float entryX =
-                            map.GetWorldLeft() + (static_cast<float>(startX) + 0.5f) * map.GetTileSize();
-                        map.SetTransitionPipeEntryX(entryX);
-                        undergroundExitPipeVisualAdded = true;
+                if (!handledUndergroundExitPipe) {
+                    if (isUndergroundLevel &&
+                        !pipeBodyResolved.empty() &&
+                        fs::exists(pipeBodyResolved) &&
+                        spanX >= 2) {
+                        if (!pipeResolved.empty() && fs::exists(pipeResolved)) {
+                            map.AddTileSprite(minX, minY, spanX, 1, Cell::Pipe, pipeResolved);
+                        } else {
+                            for (int cellX = minX; cellX <= maxX; ++cellX) {
+                                const bool isLeftColumn = cellX == minX;
+                                const std::string& pipePiece = isLeftColumn ? pipeTopLeft : pipeTopRight;
+                                map.AddTile(cellX, minY, Cell::Pipe, pipePiece);
+                            }
+                        }
+
+                        if (maxY > minY) {
+                            map.AddTileSprite(minX, minY + 1, spanX, maxY - minY, Cell::Pipe, pipeBodyResolved);
+                        }
+                    } else {
+                        for (const auto& [cellX, cellY] : cells) {
+                            const bool isTopRow = cellY == minY;
+                            const bool isLeftColumn = cellX == minX;
+                            const std::string& pipePiece =
+                                isTopRow
+                                    ? (isLeftColumn ? pipeTopLeft : pipeTopRight)
+                                    : (isLeftColumn ? pipeBottomLeft : pipeBottomRight);
+                            map.AddTile(cellX, cellY, Cell::Pipe, pipePiece);
+                        }
                     }
                 }
             }
@@ -715,27 +938,70 @@ bool convert_sketch(
     if (!cloudResolved.empty() && fs::exists(cloudResolved)) {
         AddComponentSprites(cloudMask, true, Cell::Empty, cloudResolved);
     }
+    if (!woodResolved.empty() && fs::exists(woodResolved)) {
+        for (int x = 0; x < width; ++x) {
+            for (int y = 0; y < layerHeight; ++y) {
+                if (woodMask[x][y]) {
+                    map.AddBackgroundTile(x, y, woodResolved);
+                }
+            }
+        }
+    }
+    if (!treeLeftResolved.empty() && fs::exists(treeLeftResolved) &&
+        !treeMiddleResolved.empty() && fs::exists(treeMiddleResolved) &&
+        !treeRightResolved.empty() && fs::exists(treeRightResolved)) {
+        for (int y = 0; y < layerHeight; ++y) {
+            int x = 0;
+            while (x < width) {
+                if (!treeMask[x][y]) {
+                    ++x;
+                    continue;
+                }
+
+                int startX = x;
+                while (x + 1 < width && treeMask[x + 1][y]) {
+                    ++x;
+                }
+                const int endX = x;
+                const int spanX = endX - startX + 1;
+
+                if (spanX == 1) {
+                    map.AddTile(startX, y, Cell::Wall, treeMiddleResolved);
+                } else {
+                    map.AddTile(startX, y, Cell::Wall, treeLeftResolved);
+                    for (int fillX = startX + 1; fillX < endX; ++fillX) {
+                        map.AddTile(fillX, y, Cell::Wall, treeMiddleResolved);
+                    }
+                    map.AddTile(endX, y, Cell::Wall, treeRightResolved);
+                }
+                ++x;
+            }
+        }
+    }
     if (!castleResolved.empty() && fs::exists(castleResolved)) {
         AddMarkerScaledSprite(castleMask, castleResolved);
     }
-    if (!pipeForkedResolved.empty() && fs::exists(pipeForkedResolved)) {
-        AddMarkerScaledSprite(
-            pipeForkedMask,
-            pipeForkedResolved,
-            true,
-            [&](int, int, int, int, int markerCenterX, int) {
-                const float entryX =
-                    map.GetWorldLeft() + markerCenterX * map.GetTileSize() + map.GetTileSize() * 0.5f;
-                map.SetTransitionPipeEntryX(entryX);
-            }
-        );
-    }
+    const bool haveForkedPipePieces =
+        !isTransitionSceneSketch &&
+        !pipeForkedResolved.empty() && fs::exists(pipeForkedResolved) &&
+        haveExitPipeSet;
+    auto AddForkedPipePieces = [&]() {
+        Util::Image pipeImage(pipeForkedResolved);
+        const glm::vec2 pipeImageSize = pipeImage.GetSize();
+        if (pipeImageSize.x <= 0.0f || pipeImageSize.y <= 0.0f) {
+            return false;
+        }
 
-    {
+        const int spriteTileWidth =
+            std::max(2, static_cast<int>(std::round((pipeImageSize.x * 3.0f) / map.GetTileSize())));
+        const int spriteTileHeight =
+            std::max(3, static_cast<int>(std::round((pipeImageSize.y * 3.0f) / map.GetTileSize())));
+        const int verticalSpanX = 2;
+
         std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
         for (int sx = 0; sx < width; ++sx) {
             for (int sy = 0; sy < layerHeight; ++sy) {
-                if (!movingPlatformMask[sx][sy] || visited[sx][sy]) continue;
+                if (!pipeForkedMask[sx][sy] || visited[sx][sy]) continue;
 
                 int minX = sx;
                 int maxX = sx;
@@ -759,20 +1025,242 @@ bool convert_sketch(
                         const int nx = cx + dx[i];
                         const int ny = cy + dy[i];
                         if (nx < 0 || nx >= width || ny < 0 || ny >= layerHeight) continue;
-                        if (visited[nx][ny] || !movingPlatformMask[nx][ny]) continue;
+                        if (visited[nx][ny] || !pipeForkedMask[nx][ny]) continue;
                         visited[nx][ny] = 1;
                         q.push({nx, ny});
                     }
                 }
 
-                const int spanX = maxX - minX + 1;
-                const int spanY = maxY - minY + 1;
-                const int defaultTravelTiles = 4;
-                const int topGridY =
-                    (spanY > 1) ? minY : std::max(0, maxY - (defaultTravelTiles - 1));
-                const int bottomGridY = maxY;
-                map.AddMovingPlatform(minX, topGridY, bottomGridY, spanX, "platform.png");
+                const int markerCenterX = (minX + maxX) / 2;
+                const int markerBaseY = maxY;
+                const int startX =
+                    std::clamp(markerCenterX - spriteTileWidth / 2, 0, std::max(0, width - spriteTileWidth));
+                const int startY =
+                    std::clamp(markerBaseY - spriteTileHeight + 1, 0, std::max(0, layerHeight - spriteTileHeight));
+                const int endY = std::min(layerHeight - 1, startY + spriteTileHeight - 1);
+                const int verticalLeftX =
+                    std::clamp(startX + spriteTileWidth - verticalSpanX, 0, std::max(0, width - verticalSpanX));
+                const int verticalRightX = verticalLeftX + 1;
+
+                for (int pipeY = startY; pipeY <= endY; ++pipeY) {
+                    map.AddForegroundSprite(
+                        verticalLeftX,
+                        pipeY,
+                        1,
+                        1,
+                        pipeY == startY ? exitPipeTopLeft : exitPipeBodyLeft
+                    );
+                    map.AddForegroundSprite(
+                        verticalRightX,
+                        pipeY,
+                        1,
+                        1,
+                        pipeY == startY ? exitPipeTopRight : exitPipeBodyRight
+                    );
+                }
+
+                const int mouthBottomY = endY;
+                const int mouthTopY = std::max(startY, mouthBottomY - 1);
+                const int mouthLeftX = startX;
+                const int mouthRightX = std::max(mouthLeftX + 1, verticalLeftX - 1);
+
+                for (int pipeX = mouthLeftX; pipeX <= mouthRightX; ++pipeX) {
+                    const bool isLeftEnd = pipeX == mouthLeftX;
+                    const bool isRightEnd = pipeX == mouthRightX;
+                    map.AddForegroundSprite(
+                        pipeX,
+                        mouthTopY,
+                        1,
+                        1,
+                        isLeftEnd ? exitMouthTopLeft : (isRightEnd ? exitMouthTopRight : exitMouthTopMiddle)
+                    );
+                    map.AddForegroundSprite(
+                        pipeX,
+                        mouthBottomY,
+                        1,
+                        1,
+                        isLeftEnd ? exitMouthBottomLeft : (isRightEnd ? exitMouthBottomRight : exitMouthBottomMiddle)
+                    );
+                }
+
+                const float entryX =
+                    map.GetWorldLeft() + (static_cast<float>(verticalLeftX) + 1.125f) * map.GetTileSize();
+                map.SetTransitionPipeEntryX(entryX);
             }
+        }
+
+        return true;
+    };
+    if (haveForkedPipePieces) {
+        AddForkedPipePieces();
+    } else if (!pipeForkedResolved.empty() && fs::exists(pipeForkedResolved)) {
+        AddMarkerScaledSprite(
+            pipeForkedMask,
+            pipeForkedResolved,
+            true,
+            [&](int, int, int, int, int markerCenterX, int) {
+                const float entryX =
+                    map.GetWorldLeft() + markerCenterX * map.GetTileSize() + map.GetTileSize() * 0.5f;
+                map.SetTransitionPipeEntryX(entryX);
+            }
+        );
+    }
+
+    {
+        struct PlatformMarker {
+            char kind = 0;
+            int minX = 0;
+            int maxX = 0;
+            int minY = 0;
+            int maxY = 0;
+        };
+
+        std::vector<PlatformMarker> markers;
+        std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
+        for (int sx = 0; sx < width; ++sx) {
+            for (int sy = 0; sy < layerHeight; ++sy) {
+                if (!movingPlatformMask[sx][sy] || visited[sx][sy]) continue;
+
+                const char platformKind = movingPlatformMask[sx][sy];
+                int minX = sx;
+                int maxX = sx;
+                int minY = sy;
+                int maxY = sy;
+                std::queue<std::pair<int, int>> q;
+                q.push({sx, sy});
+                visited[sx][sy] = 1;
+
+                while (!q.empty()) {
+                    auto [cx, cy] = q.front();
+                    q.pop();
+                    minX = std::min(minX, cx);
+                    maxX = std::max(maxX, cx);
+                    minY = std::min(minY, cy);
+                    maxY = std::max(maxY, cy);
+
+                    const int dx[4] = {1, -1, 0, 0};
+                    const int dy[4] = {0, 0, 1, -1};
+                    for (int i = 0; i < 4; ++i) {
+                        const int nx = cx + dx[i];
+                        const int ny = cy + dy[i];
+                        if (nx < 0 || nx >= width || ny < 0 || ny >= layerHeight) continue;
+                        if (visited[nx][ny] || movingPlatformMask[nx][ny] != platformKind) continue;
+                        visited[nx][ny] = 1;
+                        q.push({nx, ny});
+                    }
+                }
+
+                markers.push_back({ platformKind, minX, maxX, minY, maxY });
+            }
+        }
+
+        std::vector<char> used(markers.size(), 0);
+        const int horizontalPlatformCount = static_cast<int>(
+            std::count_if(markers.begin(), markers.end(), [](const PlatformMarker& marker) {
+                return marker.kind == 2;
+            })
+        );
+        int horizontalPlatformIndex = 0;
+        std::vector<std::size_t> verticalPlatformOrder;
+        for (std::size_t i = 0; i < markers.size(); ++i) {
+            if (markers[i].kind != 2) {
+                verticalPlatformOrder.push_back(i);
+            }
+        }
+        std::sort(verticalPlatformOrder.begin(), verticalPlatformOrder.end(),
+            [&](std::size_t left, std::size_t right) {
+                if (markers[left].minX != markers[right].minX) {
+                    return markers[left].minX < markers[right].minX;
+                }
+                return markers[left].minY < markers[right].minY;
+            });
+
+        for (std::size_t i = 0; i < markers.size(); ++i) {
+            if (used[i]) continue;
+
+            const PlatformMarker& marker = markers[i];
+            const int spanX = marker.maxX - marker.minX + 1;
+            const int spanY = marker.maxY - marker.minY + 1;
+
+            if (marker.kind == 2) {
+                const bool isFinalHorizontalPlatform =
+                    horizontalPlatformIndex == horizontalPlatformCount - 1;
+                const bool shouldStaggerStart =
+                    !isFinalHorizontalPlatform && horizontalPlatformIndex == 1;
+                const int leftGridX = marker.minX - 4;
+                const int rightGridX = isFinalHorizontalPlatform ? marker.minX + 4 : marker.minX;
+                map.AddMovingPlatform(marker.minX,
+                                      marker.minY,
+                                      marker.maxY,
+                                      spanX,
+                                      "platform.png",
+                                      72.0f,
+                                      0.0f,
+                                      MapManager::MovingPlatformMotion::Horizontal,
+                                      4,
+                                      leftGridX,
+                                      rightGridX,
+                                      true,
+                                      shouldStaggerStart ? 1.35f : 0.0f);
+                ++horizontalPlatformIndex;
+            } else {
+                const int topGridY = marker.minY;
+                const int bottomGridY = (spanY > 1) ? marker.maxY : layerHeight - 1;
+                const auto orderIt = std::find(verticalPlatformOrder.begin(), verticalPlatformOrder.end(), i);
+                const int verticalPlatformIndex = orderIt == verticalPlatformOrder.end()
+                    ? 0
+                    : static_cast<int>(std::distance(verticalPlatformOrder.begin(), orderIt));
+                const int verticalPlatformHalf =
+                    std::max(1, static_cast<int>((verticalPlatformOrder.size() + 1) / 2));
+                const bool isWrappedUndergroundPlatform = isUndergroundLevel;
+                const bool isDownCycle =
+                    isWrappedUndergroundPlatform && verticalPlatformIndex < verticalPlatformHalf;
+                const int verticalPlatformGroupSize = isWrappedUndergroundPlatform
+                    ? (isDownCycle
+                        ? verticalPlatformHalf
+                        : static_cast<int>(verticalPlatformOrder.size()) - verticalPlatformHalf)
+                    : 1;
+                const int verticalPlatformGroupIndex = isWrappedUndergroundPlatform
+                    ? (isDownCycle
+                        ? verticalPlatformIndex
+                        : verticalPlatformIndex - verticalPlatformHalf)
+                    : 0;
+                if (isWrappedUndergroundPlatform &&
+                    verticalPlatformGroupSize >= 2 &&
+                    verticalPlatformGroupIndex >= 2) {
+                    used[i] = 1;
+                    continue;
+                }
+                const MapManager::MovingPlatformCycle platformCycle =
+                    isWrappedUndergroundPlatform
+                        ? (isDownCycle
+                            ? MapManager::MovingPlatformCycle::WrapDown
+                            : MapManager::MovingPlatformCycle::WrapUp)
+                        : MapManager::MovingPlatformCycle::Bounce;
+                const int platformCopies =
+                    isWrappedUndergroundPlatform && verticalPlatformGroupSize == 1 ? 2 : 1;
+                for (int copy = 0; copy < platformCopies; ++copy) {
+                    const float cycleOffset = platformCopies > 1
+                        ? static_cast<float>(copy) / static_cast<float>(platformCopies)
+                        : 0.0f;
+                    map.AddMovingPlatform(marker.minX,
+                                          topGridY,
+                                          bottomGridY,
+                                          spanX,
+                                          "platform.png",
+                                          72.0f,
+                                          platformCycle == MapManager::MovingPlatformCycle::Bounce ? 0.18f : 0.0f,
+                                          MapManager::MovingPlatformMotion::Vertical,
+                                          6,
+                                          -1,
+                                          -1,
+                                          false,
+                                          0.0f,
+                                          platformCycle,
+                                          cycleOffset);
+                }
+            }
+            used[i] = 1;
         }
     }
 
@@ -849,7 +1337,9 @@ bool convert_sketch(
         const auto appendEnemySpawns = [&](const std::vector<std::vector<char>>& mask, EnemyKind kind) {
             std::vector<std::vector<char>> visited(width, std::vector<char>(layerHeight, 0));
             const float halfHeight =
-                (kind == EnemyKind::GreenKoopa || kind == EnemyKind::RedKoopa) ? 36.0f : 24.0f;
+                (kind == EnemyKind::GreenKoopa ||
+                 kind == EnemyKind::RedKoopa ||
+                 kind == EnemyKind::RedKoopaWinged) ? 36.0f : 24.0f;
             for (int sx = 0; sx < width; ++sx) {
                 for (int sy = 0; sy < layerHeight; ++sy) {
                     if (!mask[sx][sy] || visited[sx][sy]) continue;
@@ -881,6 +1371,14 @@ bool convert_sketch(
                     }
 
                     const int centerX = (minX + maxX) / 2;
+                    if (kind == EnemyKind::RedKoopaWinged) {
+                        enemy_spawns->push_back({
+                            ComputeMarkerSpawnPosition(map, centerX, minY),
+                            kind
+                        });
+                        continue;
+                    }
+
                     enemy_spawns->push_back({
                         ComputeGroundedSpawnPosition(map, centerX, minY, halfHeight),
                         kind
@@ -891,6 +1389,18 @@ bool convert_sketch(
 
         appendEnemySpawns(goombaMask, EnemyKind::Goomba);
         appendEnemySpawns(koopaMask, EnemyKind::GreenKoopa);
+        appendEnemySpawns(redKoopaMask, EnemyKind::RedKoopa);
+        appendEnemySpawns(redKoopaWingedMask, EnemyKind::RedKoopaWinged);
+        bool firstWingedRedKoopa = true;
+        for (auto& spawn : *enemy_spawns) {
+            if (spawn.kind != EnemyKind::RedKoopaWinged) continue;
+
+            if (firstWingedRedKoopa) {
+                spawn.flightTopTiles = 5.0f;
+                spawn.flightBottomTiles = 1.0f;
+                firstWingedRedKoopa = false;
+            }
+        }
     }
 
     std::string hardBlockPath = MapManager::ResolveTilePath(
@@ -976,7 +1486,12 @@ bool convert_sketch(
 
     bool spawnFound = false;
     if (spawnMarkerFound) {
-        mario.m_Transform.translation = ComputeMarkerSpawnPosition(map, marioSpawnX, marioSpawnY);
+        mario.m_Transform.translation = ComputeGroundedSpawnPosition(
+            map,
+            marioSpawnX,
+            marioSpawnY,
+            mario.GetHalfExtents().y
+        );
         spawnFound = true;
     }
 

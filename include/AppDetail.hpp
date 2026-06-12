@@ -25,6 +25,7 @@ constexpr float GOAL_FINISH_DELAY = 1.2f;
 constexpr float POST_GOAL_INTRO_DURATION = 2.0f;
 constexpr float TRANSITION_PIPE_SINK_DURATION = 0.8f;
 constexpr float TRANSITION_PIPE_SINK_SPEED = 96.0f;
+constexpr float TRANSITION_PIPE_RISE_SPEED = 48.0f;
 constexpr float TRANSITION_PIPE_ENTRY_RANGE_TILES = 0.6f;
 constexpr float TRANSITION_BLACKOUT_DURATION = 0.8f;
 constexpr float TIME_BONUS_TICK_DURATION = 0.0075f;

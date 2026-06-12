@@ -32,10 +32,13 @@ private:
     enum class StatusMessageAction { None, ReloadLevel, ShowGameOver, RestartToTitle };
     enum class MusicTrack { None, GroundTheme, InvincibilityTheme };
     enum class LevelIntroPurpose { StartLevel, PostGoalTransition };
-    enum class TransitionDestination { LevelOneTwo, UpperWorld };
+    enum class TransitionDestination { LevelOneTwo, LevelOneTwoExitArea };
+    enum class TransitionPipeMotion { VerticalDown, VerticalUp, HorizontalRight };
     struct PendingEnemySpawn {
         glm::vec2 position;
         EnemyKind kind = EnemyKind::Goomba;
+        float flightTopTiles = 2.0f;
+        float flightBottomTiles = 2.0f;
         bool activated = false;
     };
     struct SpriteText {
@@ -101,6 +104,8 @@ private:
     std::vector<std::unique_ptr<Debris>> m_Debris;
     std::shared_ptr<Util::GameObject> m_CastleObject;
     std::shared_ptr<Util::Image> m_CastleImage;
+    std::shared_ptr<Util::GameObject> m_StartCastleObject;
+    std::shared_ptr<Util::Image> m_StartCastleImage;
 
     // camera/view like the youtuber's view_x
     float m_ViewX = 0.0f;
@@ -125,6 +130,7 @@ private:
     float m_TransitionPipeEntryX = 0.0f;
     float m_TransitionPipeEntryY = 0.0f;
     float m_TransitionPipeSinkDistance = 0.0f;
+    float m_TransitionPipeVisibleDistance = 0.0f;
     MusicTrack m_ActiveMusic = MusicTrack::None;
     bool m_WasMarioDead = false;
     bool m_DeathWasTimeout = false;
@@ -137,6 +143,7 @@ private:
     Util::Color m_SkyColor = Util::Color(90, 147, 235, 255);
     LevelIntroPurpose m_LevelIntroPurpose = LevelIntroPurpose::StartLevel;
     TransitionDestination m_TransitionDestination = TransitionDestination::LevelOneTwo;
+    TransitionPipeMotion m_TransitionPipeMotion = TransitionPipeMotion::VerticalDown;
     AudioBank m_Audio;
     AnimatedSprite m_HudCoinIcon;
     AnimatedSprite m_TitleCoinIcon;
@@ -204,15 +211,21 @@ private:
     void RefreshHudText();
     void ResetGameSession();
     void LoadLevel(bool preserveProgress = false);
-    void LoadLevelOneTwo(bool preserveMarioState = true);
+    void LoadLevelOneTwo(bool preserveMarioState = true, bool fallFromAbove = false);
+    void LoadLevelOneTwoExitArea(bool preserveMarioState = true);
+    void LoadLevelOneThree(bool preserveMarioState = true);
     void ReloadCurrentLevel();
     bool LoadSceneSketch(const std::string& sketchPath, bool preserveProgress);
+    void AlignMarioSpawnToGround();
+    void PlaceGoalCastle(const std::string& imageName);
+    void PlaceLevelStartCastleAndSpawn();
     std::string ResolveTransitionSketchPath() const;
     std::string ResolveLevelOneTwoSketchPath() const;
+    std::string ResolveLevelOneThreeSketchPath() const;
     void BeginPostGoalTransition();
     void LoadTransitionScene();
     void BeginUndergroundExitTransition();
-    void RenderSceneWorld(bool drawCastle);
+    void RenderSceneWorld(bool drawCastle, bool drawMarioBehindTiles = false);
     void HandleMarioDeath();
     void TogglePause();
     void PlayTitleMusic();

@@ -113,12 +113,23 @@ void App::RenderPaused() {
     DrawSpriteText(m_StatusMessageText);
 }
 
-void App::RenderSceneWorld(bool drawCastle) {
+void App::RenderSceneWorld(bool drawCastle, bool drawMarioBehindTiles) {
     glClearColor(m_SkyColor.r / 255.0f, m_SkyColor.g / 255.0f, m_SkyColor.b / 255.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    if (g_MapManager) {
+    if (g_MapManager && drawMarioBehindTiles) {
+        g_MapManager->DrawBackground(m_ViewX);
+    } else if (g_MapManager) {
         g_MapManager->Draw(m_ViewX);
+    }
+
+    if (drawCastle &&
+        m_StartCastleObject != nullptr &&
+        g_MapManager != nullptr) {
+        const glm::vec2 oldPos = m_StartCastleObject->m_Transform.translation;
+        m_StartCastleObject->m_Transform.translation.x -= m_ViewX;
+        m_StartCastleObject->Draw();
+        m_StartCastleObject->m_Transform.translation = oldPos;
     }
 
     if (drawCastle &&
@@ -135,6 +146,10 @@ void App::RenderSceneWorld(bool drawCastle) {
         m_Mario->m_Transform.translation.y += m_Mario->GetRenderOffsetY();
         m_Mario->Draw();
         m_Mario->m_Transform.translation = oldPos;
+    }
+
+    if (g_MapManager && drawMarioBehindTiles) {
+        g_MapManager->DrawTiles(m_ViewX);
     }
 
     if (g_MapManager) {

@@ -9,12 +9,15 @@ enum class EnemyKind {
     Goomba,
     GreenKoopa,
     RedKoopa,
+    RedKoopaWinged,
     Venus
 };
 
 struct EnemySpawnInfo {
     glm::vec2 position;
     EnemyKind kind = EnemyKind::Goomba;
+    float flightTopTiles = 2.0f;
+    float flightBottomTiles = 2.0f;
 };
 
 class Enemy : public Util::GameObject {
@@ -28,7 +31,11 @@ public:
         Dead
     };
 
-    Enemy(float x, float y, EnemyKind kind = EnemyKind::Goomba);
+    Enemy(float x,
+          float y,
+          EnemyKind kind = EnemyKind::Goomba,
+          float flightTopTiles = 2.0f,
+          float flightBottomTiles = 2.0f);
     void Update();
     void Stomp();
     void KickShell(float direction);
@@ -41,17 +48,27 @@ public:
     float GetHorizontalVelocity() const { return m_VelocityX; }
     EnemyKind GetKind() const { return m_Kind; }
     State GetState() const { return m_State; }
-    bool IsKoopa() const { return m_Kind == EnemyKind::GreenKoopa || m_Kind == EnemyKind::RedKoopa; }
+    bool IsKoopa() const {
+        return m_Kind == EnemyKind::GreenKoopa ||
+               m_Kind == EnemyKind::RedKoopa ||
+               m_Kind == EnemyKind::RedKoopaWinged;
+    }
+    bool IsWingedKoopa() const { return m_Kind == EnemyKind::RedKoopaWinged; }
     bool IsVenus() const { return m_Kind == EnemyKind::Venus; }
     bool UsesEdgeDetection() const { return m_Kind == EnemyKind::RedKoopa; }
     bool IsShellSliding() const { return IsKoopa() && m_State == State::ShellSliding; }
     bool IsKickableShell() const {
         return IsKoopa() &&
-               (m_State == State::ShellIdle || m_State == State::Recovering);
+               (m_State == State::RetreatingIntoShell ||
+                m_State == State::ShellIdle ||
+                m_State == State::Recovering);
     }
     bool IsHarmlessToPlayer() const {
         if (IsVenus()) {
             return m_VenusExposure < 0.35f;
+        }
+        if (m_HarmlessTimer > 0.0f) {
+            return true;
         }
         return IsKoopa() &&
                (m_State == State::RetreatingIntoShell ||
@@ -77,6 +94,11 @@ private:
     float m_VenusHiddenY = 0.0f;
     float m_VenusTopY = 0.0f;
     float m_VenusExposure = 1.0f;
+    float m_FlightOriginY = 0.0f;
+    float m_FlightTopY = 0.0f;
+    float m_FlightBottomY = 0.0f;
+    float m_FlightDirection = -1.0f;
+    float m_HarmlessTimer = 0.0f;
     bool m_Alive = true;
     bool m_FlippedDeath = false;
     bool m_DeathFinished = false;
@@ -90,6 +112,7 @@ private:
     void EnterRetreatingIntoShell();
     void EnterShellIdle();
     void EnterRecovering();
+    void LoseWings();
     void RefreshSprite();
 };
 

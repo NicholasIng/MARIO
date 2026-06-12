@@ -15,7 +15,7 @@
 using namespace MarioDetail;
 
 void Mario::Update() {
-    float dt = std::max(0.001f, Util::Time::GetDeltaTimeMs() / 1000.0f);
+    float dt = std::clamp(Util::Time::GetDeltaTimeMs() / 1000.0f, 0.001f, 1.0f / 30.0f);
 
     if (m_GoalSequenceState != GoalSequenceState::None &&
         m_GoalSequenceState != GoalSequenceState::Finished) {

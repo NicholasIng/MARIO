@@ -29,7 +29,13 @@ void App::ActivateNearbyEnemies() {
             continue;
         }
 
-        m_Enemies.push_back(std::make_unique<Enemy>(pending.position.x, pending.position.y, pending.kind));
+        m_Enemies.push_back(std::make_unique<Enemy>(
+            pending.position.x,
+            pending.position.y,
+            pending.kind,
+            pending.flightTopTiles,
+            pending.flightBottomTiles
+        ));
         pending.activated = true;
     }
 }
@@ -47,14 +53,16 @@ void App::StartGoalSequence() {
     PlaySfx(m_Audio.flagpole.get());
 
     if (m_CastleObject != nullptr && m_CastleImage != nullptr) {
-        const float targetHeight = g_MapManager->GetTileSize() * CASTLE_TARGET_HEIGHT_TILES;
+        const glm::vec2 castleScale = {
+            std::abs(m_CastleObject->m_Transform.scale.x),
+            std::abs(m_CastleObject->m_Transform.scale.y)
+        };
         const glm::vec2 castleSize = m_CastleImage->GetSize();
-        float castleScale = 1.0f;
-        float castleWidth = targetHeight;
-        if (castleSize.y > 0.0f) {
-            castleScale = targetHeight / castleSize.y;
-            castleWidth = castleSize.x * castleScale;
-        }
+        const float fallbackSize = g_MapManager->GetTileSize() * CASTLE_TARGET_HEIGHT_TILES;
+        float castleWidth = castleSize.x > 0.0f ? castleSize.x : fallbackSize;
+        float castleHeight = castleSize.y > 0.0f ? castleSize.y : fallbackSize;
+        castleWidth *= castleScale.x;
+        castleHeight *= castleScale.y;
 
         const float minCastleCenter = g_MapManager->GetWorldLeft() + castleWidth * 0.5f;
         const float maxCastleCenter = g_MapManager->GetWorldRight()
@@ -63,11 +71,11 @@ void App::StartGoalSequence() {
         const float desiredCastleX = g_MapManager->GetGoalX() + g_MapManager->GetTileSize() * CASTLE_OFFSET_TILES;
         const float castleX = std::clamp(desiredCastleX, minCastleCenter, maxCastleCenter);
         const float castleGroundY = g_MapManager->GetGoalGroundY() - g_MapManager->GetTileSize();
-        const float castleY = castleGroundY + targetHeight * 0.5f;
+        const float castleY = castleGroundY + castleHeight * 0.5f;
 
         m_CastleDoorX = castleX;
         m_CastleObject->m_Transform.translation = { castleX, castleY };
-        m_CastleObject->m_Transform.scale = { castleScale, castleScale };
+        m_CastleObject->m_Transform.scale = castleScale;
     } else {
         m_CastleDoorX = g_MapManager->GetWorldRight() - g_MapManager->GetTileSize() * 2.0f;
     }
@@ -100,6 +108,11 @@ void App::UpdateGoalSequence(float dt) {
             g_MapManager->SetFlagY(g_MapManager->GetFlagBottomY());
             m_Mario->StartGoalWalk(m_CastleDoorX);
             m_GoalSequenceStage = GoalSequenceStage::PlayerControl;
+            m_TransitionPipeEntryX = m_CastleDoorX;
+            m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
+            m_TransitionPipeSinkDistance = g_MapManager->GetTileSize() * 2.0f;
+            m_TransitionPipeVisibleDistance = g_MapManager->GetTileSize() * 0.8f;
+            m_TransitionMarioHidden = false;
         }
     } else if (m_GoalSequenceStage == GoalSequenceStage::PlayerControl) {
         m_Mario->Update();

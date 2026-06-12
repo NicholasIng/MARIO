@@ -16,6 +16,11 @@ void Enemy::Stomp() {
         return;
     }
 
+    if (IsWingedKoopa()) {
+        LoseWings();
+        return;
+    }
+
     if (IsKoopa()) {
         if (m_State == State::Walking) {
             EnterRetreatingIntoShell();
@@ -70,6 +75,12 @@ void Enemy::RefreshSprite() {
     }
 
     if (m_Kind == EnemyKind::Venus) {
+        m_Image->SetImage(m_UseLeftWalkFrame ? m_LeftPath : m_RightPath);
+        return;
+    }
+
+    if (IsWingedKoopa()) {
+        m_Transform.scale.x = std::abs(m_Transform.scale.x);
         m_Image->SetImage(m_UseLeftWalkFrame ? m_LeftPath : m_RightPath);
         return;
     }

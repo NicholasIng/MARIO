@@ -71,22 +71,43 @@ void App::UpdateTransitionScene(float dt) {
                 m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
                 m_TransitionPipeReached = true;
                 m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
-                m_Mario->SetVisible(false);
                 if (!m_TransitionPipeSoundPlayed) {
                     m_TransitionPipeSoundPlayed = true;
                     PlaySfx(m_Audio.pipe.get());
                 }
-                m_TransitionMarioHidden = true;
-                m_TransitionBlackoutTimer = TRANSITION_BLACKOUT_DURATION;
             }
         } else if (!m_TransitionMarioHidden) {
             if (!m_TransitionPipeSoundPlayed) {
                 m_TransitionPipeSoundPlayed = true;
                 PlaySfx(m_Audio.pipe.get());
             }
-            m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
-            m_Mario->m_Transform.translation.y -= TRANSITION_PIPE_SINK_SPEED * dt;
-            if (m_Mario->m_Transform.translation.y <= m_TransitionPipeEntryY - m_TransitionPipeSinkDistance) {
+            if (m_TransitionPipeMotion == TransitionPipeMotion::HorizontalRight) {
+                m_Mario->m_Transform.translation.y = m_TransitionPipeEntryY;
+                m_Mario->SetVisible(false);
+                m_Mario->m_Transform.translation.x += TRANSITION_PIPE_SINK_SPEED * dt;
+            } else if (m_TransitionPipeMotion == TransitionPipeMotion::VerticalUp) {
+                m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
+                m_Mario->m_Transform.translation.y += TRANSITION_PIPE_RISE_SPEED * dt;
+            } else {
+                m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
+                m_Mario->SetVisible(false);
+                m_Mario->m_Transform.translation.y -= TRANSITION_PIPE_SINK_SPEED * dt;
+            }
+
+            const bool finishedPipeEntry =
+                m_TransitionPipeMotion == TransitionPipeMotion::HorizontalRight
+                    ? m_Mario->m_Transform.translation.x >= m_TransitionPipeEntryX + m_TransitionPipeSinkDistance
+                    : m_TransitionPipeMotion == TransitionPipeMotion::VerticalUp
+                        ? m_Mario->m_Transform.translation.y >= m_TransitionPipeEntryY
+                    : m_Mario->m_Transform.translation.y <= m_TransitionPipeEntryY - m_TransitionPipeSinkDistance;
+            if (finishedPipeEntry) {
+                if (m_TransitionPipeMotion == TransitionPipeMotion::VerticalUp) {
+                    m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
+                    m_Mario->m_Transform.translation.y = m_TransitionPipeEntryY;
+                    PlayGameplayMusic(true);
+                    m_ScreenState = ScreenState::Gameplay;
+                    return;
+                }
                 m_Mario->SetVisible(false);
                 m_TransitionMarioHidden = true;
                 m_TransitionBlackoutTimer = TRANSITION_BLACKOUT_DURATION;
@@ -94,10 +115,25 @@ void App::UpdateTransitionScene(float dt) {
         } else {
             m_TransitionBlackoutTimer = std::max(0.0f, m_TransitionBlackoutTimer - dt);
             if (m_TransitionBlackoutTimer <= 0.0f) {
-                if (m_TransitionDestination == TransitionDestination::UpperWorld) {
-                    LoadLevel(true);
+                if (m_TransitionDestination == TransitionDestination::LevelOneTwoExitArea) {
+                    LoadLevelOneTwoExitArea(true);
+                    if (m_Mario && g_MapManager) {
+                        m_TransitionPipeEntryX = m_Mario->m_Transform.translation.x;
+                        m_TransitionPipeEntryY = m_Mario->m_Transform.translation.y;
+                        m_TransitionPipeSinkDistance = g_MapManager->GetTileSize() * 1.4f;
+                        m_TransitionPipeVisibleDistance = m_TransitionPipeSinkDistance;
+                        m_Mario->m_Transform.translation.y =
+                            m_TransitionPipeEntryY - m_TransitionPipeSinkDistance;
+                        m_Mario->SetVisible(true);
+                        m_TransitionPipeReached = true;
+                        m_TransitionPipeSoundPlayed = false;
+                        m_TransitionMarioHidden = false;
+                        m_TransitionAutoWalkStarted = false;
+                        m_TransitionPipeMotion = TransitionPipeMotion::VerticalUp;
+                        return;
+                    }
                 } else {
-                    LoadLevelOneTwo();
+                    LoadLevelOneTwo(true, true);
                 }
                 PlayGameplayMusic(true);
                 m_ScreenState = ScreenState::Gameplay;
@@ -123,7 +159,7 @@ void App::UpdateTransitionScene(float dt) {
         return;
     }
 
-    RenderSceneWorld(false);
+    RenderSceneWorld(false, m_TransitionPipeMotion == TransitionPipeMotion::VerticalUp);
     DrawHud();
 }
 
@@ -204,7 +240,6 @@ void App::UpdateGameplay(float dt) {
                     enemy->KillFlipped(horizontalKnockback);
                     AwardPoints(100, enemy->m_Transform.translation);
                     PlaySfx(m_Audio.kick.get());
-                    PlaySfx(m_Audio.bowserFalls.get());
                 }
             }
         }
@@ -273,7 +308,6 @@ void App::UpdateGameplay(float dt) {
                             rightEnemy->KillFlipped(knockback);
                             AwardPoints(100, rightEnemy->m_Transform.translation);
                             PlaySfx(m_Audio.kick.get());
-                            PlaySfx(m_Audio.bowserFalls.get());
                         }
                         continue;
                     }
@@ -282,7 +316,6 @@ void App::UpdateGameplay(float dt) {
                         leftEnemy->KillFlipped(knockback);
                         AwardPoints(100, leftEnemy->m_Transform.translation);
                         PlaySfx(m_Audio.kick.get());
-                        PlaySfx(m_Audio.bowserFalls.get());
                         continue;
                     }
 
@@ -360,6 +393,11 @@ void App::UpdateGameplay(float dt) {
 
     if (!powerupFreezeActive) {
         m_FireballCooldown = std::max(0.0f, m_FireballCooldown - dt);
+    }
+    if (!autoGoalSequence && m_Mario && !m_Mario->IsDead() &&
+        Util::Input::IsKeyDown(Util::Keycode::NUM_0)) {
+        m_Mario->SetDebugStarPowerEnabled(!m_Mario->HasStarPower());
+        UpdateGameplayMusic();
     }
     if (!autoGoalSequence && !powerupFreezeActive &&
         m_Mario && m_Mario->IsFire() && !m_Mario->IsDead() &&
@@ -456,7 +494,6 @@ void App::UpdateGameplay(float dt) {
                 enemy->KillFlipped(110.0f * m_Mario->GetFacingDirection());
                 AwardPoints(100, enemy->m_Transform.translation);
                 PlaySfx(m_Audio.kick.get());
-                PlaySfx(m_Audio.bowserFalls.get());
             } else if (stomped) {
                 enemy->Stomp();
                 m_Mario->BounceAfterStomp();
@@ -466,6 +503,14 @@ void App::UpdateGameplay(float dt) {
                 enemy->Stomp();
                 m_Mario->BounceAfterStomp();
                 PlaySfx(m_Audio.stomp.get());
+            } else if (stationaryShellTopContact) {
+                enemy->KickShell(shellKickDirection);
+                enemy->m_Transform.translation.x =
+                    m_Mario->m_Transform.translation.x +
+                    shellKickDirection * (marioHalf.x + enemyHalf.x + 2.0f);
+                m_Mario->BounceAfterStomp();
+                PlaySfx(m_Audio.kick.get());
+                continue;
             } else if (sideShellContact) {
                 enemy->KickShell(shellKickDirection);
                 enemy->m_Transform.translation.x =
@@ -473,7 +518,7 @@ void App::UpdateGameplay(float dt) {
                     shellKickDirection * (marioHalf.x + enemyHalf.x + 2.0f);
                 PlaySfx(m_Audio.kick.get());
                 continue;
-            } else if (stationaryShellTopContact || stationaryShellState) {
+            } else if (stationaryShellState) {
                 continue;
             } else if (enemy->IsHarmlessToPlayer()) {
                 continue;
@@ -543,7 +588,6 @@ void App::UpdateGameplay(float dt) {
                 fireball->Explode();
                 AwardPoints(100, enemy->m_Transform.translation);
                 PlaySfx(m_Audio.kick.get());
-                PlaySfx(m_Audio.bowserFalls.get());
                 break;
             }
         }
@@ -554,10 +598,13 @@ void App::UpdateGameplay(float dt) {
             StartGoalSequence();
         }
         if (m_World == 1 && m_Level == 2 &&
-            g_MapManager && g_MapManager->HasTransitionPipe() &&
-            m_Mario->m_Transform.translation.x >= g_MapManager->GetTransitionPipeEntryX() - g_MapManager->GetTileSize() * 0.5f) {
-            BeginUndergroundExitTransition();
-            return;
+            g_MapManager && g_MapManager->HasTransitionPipe()) {
+            const glm::vec2 marioHalf = m_Mario->GetHalfExtents();
+            const float marioRight = m_Mario->m_Transform.translation.x + marioHalf.x;
+            if (marioRight >= g_MapManager->GetTransitionPipeEntryX() - g_MapManager->GetTileSize() * 0.25f) {
+                BeginUndergroundExitTransition();
+                return;
+            }
         }
     }
 

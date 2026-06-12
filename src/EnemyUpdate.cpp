@@ -11,6 +11,7 @@ using namespace EnemyDetail;
 
 void Enemy::Update() {
     const float dt = Util::Time::GetDeltaTimeMs() / 1000.0f;
+    m_HarmlessTimer = std::max(0.0f, m_HarmlessTimer - dt);
 
     if (!m_Alive) {
         if (m_FlippedDeath) {
@@ -54,6 +55,22 @@ void Enemy::Update() {
 
         m_VenusExposure = std::clamp(exposure, 0.0f, 1.0f);
         m_Transform.translation.y = m_VenusHiddenY + (m_VenusTopY - m_VenusHiddenY) * m_VenusExposure;
+        RefreshSprite();
+        return;
+    }
+
+    if (IsWingedKoopa()) {
+        constexpr float flightSpeed = 72.0f;
+
+        m_Transform.translation.y += m_FlightDirection * flightSpeed * dt;
+        if (m_Transform.translation.y <= m_FlightBottomY) {
+            m_Transform.translation.y = m_FlightBottomY;
+            m_FlightDirection = 1.0f;
+        } else if (m_Transform.translation.y >= m_FlightTopY) {
+            m_Transform.translation.y = m_FlightTopY;
+            m_FlightDirection = -1.0f;
+        }
+
         RefreshSprite();
         return;
     }

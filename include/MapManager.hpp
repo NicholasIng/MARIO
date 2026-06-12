@@ -6,6 +6,7 @@
 #include <string>
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <filesystem>
 #include <set>
 #include <queue>
@@ -28,6 +29,17 @@ public:
         MovingDown,
         WaitingTop,
         WaitingBottom
+    };
+
+    enum class MovingPlatformMotion {
+        Vertical,
+        Horizontal
+    };
+
+    enum class MovingPlatformCycle {
+        Bounce,
+        WrapDown,
+        WrapUp
     };
 
     struct MovingPlatformSnapshot {
@@ -62,14 +74,18 @@ private:
         std::shared_ptr<Util::GameObject> object;
         std::shared_ptr<Util::Image> image;
         MovingPlatformState state = MovingPlatformState::MovingUp;
+        MovingPlatformMotion motion = MovingPlatformMotion::Vertical;
         glm::vec2 halfExtents = { 0.0f, 0.0f };
         glm::vec2 previousCenter = { 0.0f, 0.0f };
         glm::vec2 delta = { 0.0f, 0.0f };
         float moveSpeed = 72.0f;
         float topLimit = 0.0f;
         float bottomLimit = 0.0f;
+        float leftLimit = 0.0f;
+        float rightLimit = 0.0f;
         float waitTime = 0.18f;
         float waitTimer = 0.0f;
+        MovingPlatformCycle cycle = MovingPlatformCycle::Bounce;
     };
     std::vector<AnimatedTile> m_AnimatedTiles;
     std::vector<MovingPlatform> m_MovingPlatforms;
@@ -212,7 +228,7 @@ public:
                 fallback = FindImageByFilename(imageRoot, "Pipe.png");
                 break;
             case Cell::Coin:
-                fallback = FindImageByFilename(imageRoot, "Coin.png");
+                fallback = FindImageByFilename(imageRoot, "coin1.png");
                 break;
             default:
                 break;
@@ -406,7 +422,15 @@ public:
                            int tileSpanX,
                            const std::string& texturePath,
                            float moveSpeed = 72.0f,
-                           float waitTime = 0.18f) {
+                           float waitTime = 0.18f,
+                           MovingPlatformMotion motion = MovingPlatformMotion::Vertical,
+                           int horizontalTravelTiles = 6,
+                           int horizontalLeftGridX = -1,
+                           int horizontalRightGridX = -1,
+                           bool startAtRight = false,
+                           float initialWaitTime = 0.0f,
+                           MovingPlatformCycle cycle = MovingPlatformCycle::Bounce,
+                           float initialCycleOffset = 0.0f) {
         if (m_Width <= 0 || m_Height <= 0) return;
 
         const int clampedGridX = std::clamp(gridX, 0, std::max(0, m_Width - 1));
@@ -436,7 +460,10 @@ public:
         const float topCenterY = gridToCenterY(clampedTopGridY);
         const float bottomCenterY = gridToCenterY(clampedBottomGridY);
 
-        object->m_Transform.translation = { centerX, bottomCenterY };
+        object->m_Transform.translation = {
+            centerX,
+            cycle != MovingPlatformCycle::Bounce ? topCenterY : bottomCenterY
+        };
         object->m_Transform.scale = scale;
         object->SetZIndex(8.0f);
 
@@ -444,14 +471,57 @@ public:
         platform.object = object;
         platform.image = image;
         platform.state = MovingPlatformState::MovingUp;
+        platform.motion = motion;
         platform.halfExtents = { targetWidth * 0.5f, targetHeight * 0.5f };
         platform.previousCenter = object->m_Transform.translation;
         platform.delta = { 0.0f, 0.0f };
         platform.moveSpeed = std::max(1.0f, moveSpeed);
         platform.topLimit = std::max(topCenterY, bottomCenterY);
-        platform.bottomLimit = std::min(topCenterY, bottomCenterY);
+        platform.bottomLimit = std::max(std::min(topCenterY, bottomCenterY),
+                                        -(m_Height * TILE_SIZE) / 2.0f + platform.halfExtents.y);
+        const float worldLeft = -(m_Width * TILE_SIZE) / 2.0f + platform.halfExtents.x;
+        const float worldRight = (m_Width * TILE_SIZE) / 2.0f - platform.halfExtents.x;
+        if (horizontalLeftGridX >= 0 && horizontalRightGridX >= horizontalLeftGridX) {
+            const int clampedLeftGridX = std::clamp(horizontalLeftGridX, 0, std::max(0, m_Width - spanX));
+            const int clampedRightGridX = std::clamp(horizontalRightGridX, clampedLeftGridX, std::max(0, m_Width - spanX));
+            platform.leftLimit =
+                -(m_Width * TILE_SIZE) / 2.0f + clampedLeftGridX * TILE_SIZE + platform.halfExtents.x;
+            platform.rightLimit =
+                -(m_Width * TILE_SIZE) / 2.0f + clampedRightGridX * TILE_SIZE + platform.halfExtents.x;
+        } else {
+            const float horizontalTravel = std::max(1, horizontalTravelTiles) * TILE_SIZE;
+            platform.leftLimit = std::max(worldLeft, centerX - horizontalTravel);
+            platform.rightLimit = std::min(worldRight, centerX + horizontalTravel);
+        }
+        if (platform.motion == MovingPlatformMotion::Horizontal) {
+            platform.state = startAtRight ? MovingPlatformState::MovingDown : MovingPlatformState::MovingUp;
+        }
+        platform.previousCenter = object->m_Transform.translation;
         platform.waitTime = std::max(0.0f, waitTime);
-        platform.waitTimer = 0.0f;
+        platform.waitTimer = std::max(0.0f, initialWaitTime);
+        platform.cycle = cycle;
+        if (platform.motion == MovingPlatformMotion::Vertical &&
+            platform.cycle != MovingPlatformCycle::Bounce) {
+            platform.topLimit = (m_Height * TILE_SIZE) / 2.0f + platform.halfExtents.y;
+            platform.bottomLimit = -(m_Height * TILE_SIZE) / 2.0f - platform.halfExtents.y;
+            platform.state = platform.cycle == MovingPlatformCycle::WrapDown
+                ? MovingPlatformState::MovingDown
+                : MovingPlatformState::MovingUp;
+            const float wrappedOffset = initialCycleOffset - std::floor(initialCycleOffset);
+            if (wrappedOffset > 0.0f) {
+                const float travelDistance = platform.topLimit - platform.bottomLimit;
+                object->m_Transform.translation.y =
+                    platform.cycle == MovingPlatformCycle::WrapDown
+                        ? platform.topLimit - travelDistance * wrappedOffset
+                        : platform.bottomLimit + travelDistance * wrappedOffset;
+            }
+            platform.waitTime = 0.0f;
+            platform.waitTimer = 0.0f;
+        }
+        if (platform.waitTimer > 0.0f) {
+            platform.state = startAtRight ? MovingPlatformState::WaitingTop
+                                          : MovingPlatformState::WaitingBottom;
+        }
 
         m_MovingPlatforms.push_back(platform);
         m_Objects.push_back(object);
@@ -635,7 +705,7 @@ public:
             obj->m_Transform.translation = { xPos, yPos };
         }
 
-        obj->SetZIndex(20.0f);
+        obj->SetZIndex(40.0f);
         m_ForegroundObjects.push_back(obj);
     }
 
@@ -832,13 +902,29 @@ public:
             platform.previousCenter = platform.object->m_Transform.translation;
             platform.delta = { 0.0f, 0.0f };
 
-            float nextY = platform.object->m_Transform.translation.y;
+            float nextPosition = platform.motion == MovingPlatformMotion::Horizontal
+                ? platform.object->m_Transform.translation.x
+                : platform.object->m_Transform.translation.y;
+            const float positiveLimit = platform.motion == MovingPlatformMotion::Horizontal
+                ? platform.rightLimit
+                : platform.topLimit;
+            const float negativeLimit = platform.motion == MovingPlatformMotion::Horizontal
+                ? platform.leftLimit
+                : platform.bottomLimit;
+
             switch (platform.state) {
             case MovingPlatformState::MovingUp:
-                nextY += platform.moveSpeed * dt;
-                if (nextY >= platform.topLimit) {
-                    nextY = platform.topLimit;
-                    if (platform.waitTime > 0.0f) {
+                nextPosition += platform.moveSpeed * dt;
+                if (nextPosition >= positiveLimit) {
+                    if (platform.cycle == MovingPlatformCycle::WrapUp) {
+                        const float overshoot = nextPosition - positiveLimit;
+                        nextPosition = negativeLimit + overshoot;
+                    } else {
+                        nextPosition = positiveLimit;
+                    }
+                    if (platform.cycle != MovingPlatformCycle::Bounce) {
+                        platform.state = MovingPlatformState::MovingUp;
+                    } else if (platform.waitTime > 0.0f) {
                         platform.state = MovingPlatformState::WaitingTop;
                         platform.waitTimer = platform.waitTime;
                     } else {
@@ -847,10 +933,17 @@ public:
                 }
                 break;
             case MovingPlatformState::MovingDown:
-                nextY -= platform.moveSpeed * dt;
-                if (nextY <= platform.bottomLimit) {
-                    nextY = platform.bottomLimit;
-                    if (platform.waitTime > 0.0f) {
+                nextPosition -= platform.moveSpeed * dt;
+                if (nextPosition <= negativeLimit) {
+                    if (platform.cycle == MovingPlatformCycle::WrapDown) {
+                        const float overshoot = negativeLimit - nextPosition;
+                        nextPosition = positiveLimit - overshoot;
+                    } else {
+                        nextPosition = negativeLimit;
+                    }
+                    if (platform.cycle != MovingPlatformCycle::Bounce) {
+                        platform.state = MovingPlatformState::MovingDown;
+                    } else if (platform.waitTime > 0.0f) {
                         platform.state = MovingPlatformState::WaitingBottom;
                         platform.waitTimer = platform.waitTime;
                     } else {
@@ -872,13 +965,17 @@ public:
                 break;
             }
 
-            platform.object->m_Transform.translation.y = nextY;
+            if (platform.motion == MovingPlatformMotion::Horizontal) {
+                platform.object->m_Transform.translation.x = nextPosition;
+            } else {
+                platform.object->m_Transform.translation.y = nextPosition;
+            }
             platform.delta = platform.object->m_Transform.translation - platform.previousCenter;
         }
 
     }
 
-    void Draw(float viewX) {
+    void DrawBackground(float viewX) {
         for (auto& obj : m_BackgroundObjects) {
             auto oldPos = obj->m_Transform.translation;
             obj->m_Transform.translation.x -= viewX;
@@ -892,14 +989,20 @@ public:
             m_GoalFlagObject->Draw();
             m_GoalFlagObject->m_Transform.translation = oldPos;
         }
+    }
 
+    void DrawTiles(float viewX) {
         for (auto& obj : m_Objects) {
             auto oldPos = obj->m_Transform.translation;
             obj->m_Transform.translation.x -= viewX;
             obj->Draw();
             obj->m_Transform.translation = oldPos;
         }
+    }
 
+    void Draw(float viewX) {
+        DrawBackground(viewX);
+        DrawTiles(viewX);
     }
 
     void DrawForeground(float viewX) {
