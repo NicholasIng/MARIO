@@ -70,6 +70,7 @@ private:
     void WarpToSelectedLevel(App& app);
     void SpawnGoombaAtMario(App& app);
     void SpawnMushroomNearMario(App& app);
+    void SpawnStarNearMario(App& app);
 
     void DrawOverlay(App& app);
     void DrawWarpMenu(App& app);

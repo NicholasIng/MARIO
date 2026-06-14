@@ -8,8 +8,8 @@
 
 extern std::unique_ptr<MapManager> g_MapManager;
 
-Pickup::Pickup(LootType type, float x, float y)
-    : m_Type(type) {
+Pickup::Pickup(LootType type, float x, float y, bool useQuestionCoinSprites)
+    : m_Type(type), m_UseQuestionCoinSprites(useQuestionCoinSprites) {
     std::vector<std::string> frames;
     if (type == LootType::RedMushroom) {
         frames = { AssetPaths::Image("Mushroom_red.png") };
@@ -31,10 +31,10 @@ Pickup::Pickup(LootType type, float x, float y)
         };
     } else {
         frames = {
-            AssetPaths::Image("coin1.png"),
-            AssetPaths::Image("coin2.png"),
-            AssetPaths::Image("coin3.png"),
-            AssetPaths::Image("coin4.png")
+            AssetPaths::Image(m_UseQuestionCoinSprites ? "q_coin1.png" : "coin1.png"),
+            AssetPaths::Image(m_UseQuestionCoinSprites ? "q_coin2.png" : "coin2.png"),
+            AssetPaths::Image(m_UseQuestionCoinSprites ? "q_coin3.png" : "coin3.png"),
+            AssetPaths::Image(m_UseQuestionCoinSprites ? "q_coin4.png" : "coin4.png")
         };
     }
 

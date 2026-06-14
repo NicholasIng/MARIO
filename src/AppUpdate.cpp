@@ -217,8 +217,14 @@ void App::UpdateGameplay(float dt) {
     if (!powerupFreezeActive) {
         LootType lootType;
         glm::vec2 lootPos;
-        while (g_MapManager && g_MapManager->PollSpawnEvent(lootType, lootPos)) {
-            m_Pickups.push_back(std::make_unique<Pickup>(lootType, lootPos.x, lootPos.y));
+        bool useQuestionCoinSprites = false;
+        while (g_MapManager && g_MapManager->PollSpawnEvent(lootType, lootPos, useQuestionCoinSprites)) {
+            m_Pickups.push_back(std::make_unique<Pickup>(
+                lootType,
+                lootPos.x,
+                lootPos.y,
+                useQuestionCoinSprites
+            ));
             PlaySfx(m_Audio.bump.get());
             if (lootType == LootType::Coin) {
                 PlaySfx(m_Audio.coin.get());

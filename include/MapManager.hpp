@@ -103,6 +103,7 @@ private:
     struct SpawnEvent {
         LootType type;
         glm::vec2 position;
+        bool useQuestionCoinSprites = false;
     };
     std::queue<SpawnEvent> m_SpawnEvents;
     struct BrickBreakEvent {
@@ -779,7 +780,7 @@ public:
         if (spawnType == LootType::ProgressivePowerUp) {
             spawnType = marioIsBig ? LootType::FireFlower : LootType::RedMushroom;
         }
-        m_SpawnEvents.push({ spawnType, { worldX, worldY } });
+            m_SpawnEvents.push({ spawnType, { worldX, worldY }, spawnType == LootType::Coin });
 
         m_QuestionBlockRemainingHits[x][y] = std::max(0, m_QuestionBlockRemainingHits[x][y] - 1);
         if (m_QuestionBlockRemainingHits[x][y] > 0) {
@@ -825,12 +826,13 @@ public:
         return true;
     }
 
-    bool PollSpawnEvent(LootType& type, glm::vec2& position) {
+    bool PollSpawnEvent(LootType& type, glm::vec2& position, bool& useQuestionCoinSprites) {
         if (m_SpawnEvents.empty()) return false;
         const auto event = m_SpawnEvents.front();
         m_SpawnEvents.pop();
         type = event.type;
         position = event.position;
+        useQuestionCoinSprites = event.useQuestionCoinSprites;
         return true;
     }
 

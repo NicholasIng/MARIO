@@ -9,7 +9,7 @@
 
 class Pickup : public Util::GameObject {
 public:
-    Pickup(LootType type, float x, float y);
+    Pickup(LootType type, float x, float y, bool useQuestionCoinSprites = false);
     void Update();
     bool IsCollected() const { return m_Collected; }
     void Collect() { m_Collected = true; SetVisible(false); }
@@ -32,6 +32,7 @@ private:
     LootType m_Type;
     bool m_Collected = false;
     bool m_AutoAwardPending = false;
+    bool m_UseQuestionCoinSprites = false;
     float m_RiseElapsed = 0.0f;
     float m_CoinPopElapsed = 0.0f;
     float m_SpawnStartX = 0.0f;

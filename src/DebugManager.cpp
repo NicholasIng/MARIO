@@ -69,6 +69,7 @@ void DebugManager::SyncMarioDebugFlags(App& app) const {
 
 void DebugManager::HandleHotkeys(App& app, float dt) {
     m_LastFps = 1.0f / std::max(dt, 0.0001f);
+    bool toggledWarpMenuThisFrame = false;
 
     if (Util::Input::IsKeyDown(Util::Keycode::F1)) {
         ToggleFlag(Flag::Overlay);
@@ -90,37 +91,35 @@ void DebugManager::HandleHotkeys(App& app, float dt) {
     }
 
     if (Util::Input::IsKeyDown(Util::Keycode::F2)) {
-        ToggleFlag(Flag::Hitboxes);
-    }
-    if (Util::Input::IsKeyDown(Util::Keycode::F3)) {
         ToggleFlag(Flag::GodMode);
     }
-    if (Util::Input::IsKeyDown(Util::Keycode::F4)) {
+    if (Util::Input::IsKeyDown(Util::Keycode::F3)) {
         ToggleFlag(Flag::FreeCamera);
         if (!IsFreeCameraEnabled()) {
             app.m_ViewY = 0.0f;
         }
     }
-    if (Util::Input::IsKeyDown(Util::Keycode::F5) && app.m_Mario) {
+    if (Util::Input::IsKeyDown(Util::Keycode::F4) && app.m_Mario) {
         app.m_Mario->CyclePowerState();
     }
-    if (Util::Input::IsKeyDown(Util::Keycode::F6)) {
+    if (Util::Input::IsKeyDown(Util::Keycode::F5)) {
         ToggleFlag(Flag::FlyMode);
     }
-    if (Util::Input::IsKeyDown(Util::Keycode::F7) && app.m_Mario) {
-        SpawnGoombaAtMario(app);
-    }
-    if (Util::Input::IsKeyDown(Util::Keycode::F8) && app.m_Mario) {
+    if (Util::Input::IsKeyDown(Util::Keycode::F6) && app.m_Mario) {
         SpawnMushroomNearMario(app);
     }
-    if (Util::Input::IsKeyDown(Util::Keycode::F9) &&
+    if (Util::Input::IsKeyDown(Util::Keycode::F7) && app.m_Mario) {
+        SpawnStarNearMario(app);
+    }
+    if (Util::Input::IsKeyDown(Util::Keycode::F8) &&
         (app.m_ScreenState == App::ScreenState::Gameplay ||
          app.m_ScreenState == App::ScreenState::Paused)) {
         ToggleFlag(Flag::WarpMenu);
+        toggledWarpMenuThisFrame = true;
     }
     SyncMarioDebugFlags(app);
 
-    if (IsWarpMenuOpen()) {
+    if (IsWarpMenuOpen() && !toggledWarpMenuThisFrame) {
         HandleWarpMenuInput(app);
     }
     if (IsFreeCameraEnabled() &&
@@ -174,6 +173,10 @@ void DebugManager::UpdateFreeCamera(App& app, float dt) {
 }
 
 void DebugManager::HandleWarpMenuInput(App& app) {
+    if (Util::Input::IsKeyDown(Util::Keycode::F8)) {
+        SetFlag(Flag::WarpMenu, false);
+        return;
+    }
     if (Util::Input::IsKeyDown(Util::Keycode::UP)) {
         m_WarpMenuIndex = (m_WarpMenuIndex + 2) % 3;
     }
@@ -183,9 +186,6 @@ void DebugManager::HandleWarpMenuInput(App& app) {
     if (Util::Input::IsKeyDown(Util::Keycode::RETURN) ||
         Util::Input::IsKeyDown(Util::Keycode::SPACE)) {
         WarpToSelectedLevel(app);
-    }
-    if (Util::Input::IsKeyDown(Util::Keycode::ESCAPE)) {
-        SetFlag(Flag::WarpMenu, false);
     }
 }
 
@@ -237,6 +237,19 @@ void DebugManager::SpawnMushroomNearMario(App& app) {
     const float tileSize = g_MapManager ? g_MapManager->GetTileSize() : 48.0f;
     app.m_Pickups.push_back(std::make_unique<Pickup>(
         LootType::RedMushroom,
+        app.m_Mario->m_Transform.translation.x + tileSize,
+        app.m_Mario->m_Transform.translation.y
+    ));
+}
+
+void DebugManager::SpawnStarNearMario(App& app) {
+    if (!app.m_Mario) {
+        return;
+    }
+
+    const float tileSize = g_MapManager ? g_MapManager->GetTileSize() : 48.0f;
+    app.m_Pickups.push_back(std::make_unique<Pickup>(
+        LootType::Star,
         app.m_Mario->m_Transform.translation.x + tileSize,
         app.m_Mario->m_Transform.translation.y
     ));
@@ -354,14 +367,13 @@ void DebugManager::DrawOverlay(App& app) {
         "FREECAM " + std::string(IsFreeCameraEnabled() ? "ON" : "OFF"),
         "ENTITIES " + std::to_string(activeEntityCount),
         "F1 OVERLAY",
-        "F2 HITBOX",
-        "F3 GOD",
-        "F4 FREECAM",
-        "F5 POWER",
-        "F6 FLY",
-        "F7 GOOMBA",
-        "F8 MUSHROOM",
-        "F9 WARP",
+        "F2 GOD",
+        "F3 FREECAM",
+        "F4 POWER",
+        "F5 FLY",
+        "F6 MUSHROOM",
+        "F7 STAR",
+        "F8 WARP",
         "WASD FLY",
         "ARROWS CAM"
     };
@@ -462,7 +474,7 @@ void DebugManager::DrawWarpMenu(App&) {
         std::string(m_WarpMenuIndex == 1 ? "! " : "  ") + "WORLD 1-2",
         std::string(m_WarpMenuIndex == 2 ? "! " : "  ") + "WORLD 1-3",
         "ENTER WARP",
-        "ESC CLOSE"
+        "F8 CLOSE"
     };
 
     const glm::vec2 origin(-112.0f, 88.0f);
