@@ -165,7 +165,7 @@ void App::LoadLevel(bool preserveProgress) {
     m_Level = 1;
     LoadSceneSketch(AssetPaths::Image("LevelSketch0.png"), preserveProgress);
     m_CastleObject = std::make_shared<Util::GameObject>();
-    m_CastleImage = std::make_shared<Util::Image>(AssetPaths::Image("castle1.png"));
+    m_CastleImage = std::make_shared<GameImage>(AssetPaths::Image("castle1.png"));
     m_CastleObject->SetDrawable(m_CastleImage);
     m_CastleObject->SetZIndex(5.0f);
     if (g_MapManager && g_MapManager->HasGoal() && m_CastleImage != nullptr) {
@@ -231,7 +231,7 @@ void App::LoadLevelOneTwoExitArea(bool preserveMarioState) {
         m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);
     }
     m_CastleObject = std::make_shared<Util::GameObject>();
-    m_CastleImage = std::make_shared<Util::Image>(AssetPaths::Image("castle1.png"));
+    m_CastleImage = std::make_shared<GameImage>(AssetPaths::Image("castle1.png"));
     m_CastleObject->SetDrawable(m_CastleImage);
     m_CastleObject->SetZIndex(5.0f);
     if (g_MapManager && g_MapManager->HasGoal() && m_CastleImage != nullptr) {
@@ -277,7 +277,7 @@ void App::LoadLevelOneThree(bool preserveMarioState) {
 
 void App::PlaceGoalCastle(const std::string& imageName) {
     m_CastleObject = std::make_shared<Util::GameObject>();
-    m_CastleImage = std::make_shared<Util::Image>(AssetPaths::Image(imageName));
+    m_CastleImage = std::make_shared<GameImage>(AssetPaths::Image(imageName));
     m_CastleObject->SetDrawable(m_CastleImage);
     m_CastleObject->SetZIndex(5.0f);
 
@@ -316,7 +316,7 @@ void App::PlaceLevelStartCastleAndSpawn() {
     }
 
     m_StartCastleObject = std::make_shared<Util::GameObject>();
-    m_StartCastleImage = std::make_shared<Util::Image>(AssetPaths::Image("castle1.png"));
+    m_StartCastleImage = std::make_shared<GameImage>(AssetPaths::Image("castle1.png"));
     m_StartCastleObject->SetDrawable(m_StartCastleImage);
     m_StartCastleObject->SetZIndex(5.0f);
 
@@ -438,6 +438,21 @@ void App::BeginPostGoalTransition() {
     if (m_World == 1 && m_Level == 2) {
         LoadLevelOneThree(true);
         StartLevelIntro(LEVEL_INTRO_DURATION);
+        return;
+    }
+
+    if (m_World == 1 && m_Level == 3) {
+        const int finishedScore = m_Score;
+        const int bestScore = std::max(m_TopScore, finishedScore);
+
+        ResetGameSession();
+        m_TopScore = bestScore;
+        LoadLevel();
+        m_Score = finishedScore;
+        m_TopScore = std::max(m_TopScore, m_Score);
+        RefreshHudText();
+        m_ScreenState = ScreenState::Title;
+        PlayTitleMusic();
         return;
     }
 

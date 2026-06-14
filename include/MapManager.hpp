@@ -12,8 +12,8 @@
 #include <queue>
 #include <glm/vec2.hpp> // for glm::vec2
 
+#include "GameImage.hpp"
 #include "Util/GameObject.hpp"
-#include "Util/Image.hpp"
 #include "Util/Logger.hpp"
 #include "Util/Time.hpp"
 #include "Animation.hpp"
@@ -71,14 +71,14 @@ private:
 
     struct AnimatedTile {
         std::shared_ptr<Util::GameObject> object;
-        std::shared_ptr<Util::Image> image;
+        std::shared_ptr<GameImage> image;
         Animation animation;
         int gridX = 0;
         int gridY = 0;
     };
     struct MovingPlatform {
         std::shared_ptr<Util::GameObject> object;
-        std::shared_ptr<Util::Image> image;
+        std::shared_ptr<GameImage> image;
         MovingPlatformState state = MovingPlatformState::MovingUp;
         MovingPlatformMotion motion = MovingPlatformMotion::Vertical;
         glm::vec2 halfExtents = { 0.0f, 0.0f };
@@ -121,7 +121,7 @@ private:
     float m_FlagX = 0.0f;
     float m_GoalSlideStartY = 0.0f;
     std::shared_ptr<Util::GameObject> m_GoalFlagObject;
-    std::shared_ptr<Util::Image> m_GoalFlagImage;
+    std::shared_ptr<GameImage> m_GoalFlagImage;
     bool m_HasTransitionPipe = false;
     float m_TransitionPipeEntryX = 0.0f;
     int m_Width = 0;
@@ -358,7 +358,7 @@ public:
 
         auto obj = std::make_shared<Util::GameObject>();
 
-        auto img = std::make_shared<Util::Image>(resolvedPath);
+        auto img = std::make_shared<GameImage>(resolvedPath);
         obj->SetDrawable(img);
 
         float xPos = -(m_Width * TILE_SIZE) / 2.0f + (gridX * TILE_SIZE) + (tileSpanX * TILE_SIZE) / 2.0f;
@@ -447,7 +447,7 @@ public:
         const std::string resolvedPath = ResolveBackgroundPath(texturePath);
 
         auto object = std::make_shared<Util::GameObject>();
-        auto image = std::make_shared<Util::Image>(resolvedPath);
+        auto image = std::make_shared<GameImage>(resolvedPath);
         object->SetDrawable(image);
 
         const float targetWidth = spanX * TILE_SIZE;
@@ -612,7 +612,7 @@ public:
 
         const std::string resolvedPath = ResolveTilePath(Cell::Brick, texturePath);
         if (m_TileObjects[x][y] != nullptr) {
-            m_TileObjects[x][y]->SetDrawable(std::make_shared<Util::Image>(resolvedPath));
+            m_TileObjects[x][y]->SetDrawable(std::make_shared<GameImage>(resolvedPath));
         }
 
         m_AnimatedTiles.erase(
@@ -649,7 +649,7 @@ public:
 
         auto obj = std::make_shared<Util::GameObject>();
 
-        auto img = std::make_shared<Util::Image>(resolvedPath);
+        auto img = std::make_shared<GameImage>(resolvedPath);
         obj->SetDrawable(img);
 
         float xPos = -(m_Width * TILE_SIZE) / 2.0f + (gridX * TILE_SIZE) + (tileSpanX * TILE_SIZE) / 2.0f;
@@ -695,7 +695,7 @@ public:
         std::string resolvedPath = ResolveBackgroundPath(texturePath);
 
         auto obj = std::make_shared<Util::GameObject>();
-        auto img = std::make_shared<Util::Image>(resolvedPath);
+        auto img = std::make_shared<GameImage>(resolvedPath);
         obj->SetDrawable(img);
 
         const float xPos = -(m_Width * TILE_SIZE) / 2.0f + (gridX * TILE_SIZE) + (tileSpanX * TILE_SIZE) / 2.0f;
@@ -795,7 +795,7 @@ public:
         );
         if (m_TileObjects[x][y] != nullptr) {
             m_TileObjects[x][y]->SetVisible(true);
-            m_TileObjects[x][y]->SetDrawable(std::make_shared<Util::Image>(usedPath));
+            m_TileObjects[x][y]->SetDrawable(std::make_shared<GameImage>(usedPath));
         }
 
         m_AnimatedTiles.erase(
@@ -872,7 +872,7 @@ public:
         m_GoalSlideStartY = m_FlagTopY;
 
         m_GoalFlagObject = std::make_shared<Util::GameObject>();
-        m_GoalFlagImage = std::make_shared<Util::Image>(ResolveBackgroundPath(flagPath));
+        m_GoalFlagImage = std::make_shared<GameImage>(ResolveBackgroundPath(flagPath));
         m_GoalFlagObject->SetDrawable(m_GoalFlagImage);
         m_GoalFlagObject->m_Transform.translation = { m_FlagX, m_FlagTopY };
         glm::vec2 flagSize = m_GoalFlagImage->GetSize();

@@ -57,7 +57,7 @@ glm::vec2 GetSpawnOffset(Debris::Piece piece) {
 } // namespace
 
 Debris::Debris(float x, float y, Piece piece) {
-    m_Image = std::make_shared<Util::Image>(GetDebrisPath(piece));
+    m_Image = std::make_shared<GameImage>(GetDebrisPath(piece));
     SetDrawable(m_Image);
 
     m_Transform.translation = { x, y };

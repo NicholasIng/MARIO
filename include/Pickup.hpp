@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Util/GameObject.hpp"
-#include "Util/Image.hpp"
+#include "GameImage.hpp"
 #include "Animation.hpp"
 #include "MapManager.hpp"
+#include "Util/GameObject.hpp"
 #include <memory>
 #include <string>
 
@@ -27,7 +27,7 @@ private:
     static constexpr float COIN_POP_DURATION = 0.5f;
     static constexpr float COIN_POP_HEIGHT = 88.0f;
 
-    std::shared_ptr<Util::Image> m_Image;
+    std::shared_ptr<GameImage> m_Image;
     std::unique_ptr<Animation> m_Animation;
     LootType m_Type;
     bool m_Collected = false;

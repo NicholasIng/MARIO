@@ -1,6 +1,6 @@
 ﻿#include "Mario.hpp"
 #include "MarioDetail.hpp"
-#include "Util/Image.hpp"
+#include "GameImage.hpp"
 #include "Util/Input.hpp"
 #include "Util/Keycode.hpp"
 #include "Util/Logger.hpp"

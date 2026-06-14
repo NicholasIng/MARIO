@@ -9,10 +9,10 @@
 
 namespace Util {
 class GameObject;
-class Image;
 }
 
 class App;
+class GameImage;
 
 class DebugManager {
 public:
@@ -55,8 +55,8 @@ private:
     std::uint32_t m_Flags = 0u;
     int m_WarpMenuIndex = 0;
     float m_LastFps = 0.0f;
-    float m_FreeCameraSpeed = 420.0f;
-    std::shared_ptr<Util::Image> m_DebugPixel;
+    float m_FreeCameraSpeed = 720.0f;
+    std::shared_ptr<GameImage> m_DebugPixel;
     std::vector<TextLine> m_TextLines;
     std::vector<BoxPrimitive> m_BoxPool;
 

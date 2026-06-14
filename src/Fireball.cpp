@@ -34,7 +34,7 @@ Fireball::Fireball(float x, float y, float direction)
 
     m_FlyingAnimation = std::make_unique<Animation>(flyingFrames, 0.05f);
     m_HitAnimation = std::make_unique<Animation>(hitFrames, 0.05f);
-    m_Image = std::make_shared<Util::Image>(flyingFrames.front());
+    m_Image = std::make_shared<GameImage>(flyingFrames.front());
     SetDrawable(m_Image);
 
     m_Transform.translation = { x, y };

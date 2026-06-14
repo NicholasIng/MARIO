@@ -3,10 +3,10 @@
 #include "App.hpp"
 #include "AssetPaths.hpp"
 #include "Enemy.hpp"
+#include "GameImage.hpp"
 #include "MapManager.hpp"
 #include "Pickup.hpp"
 #include "Util/GameObject.hpp"
-#include "Util/Image.hpp"
 #include "Util/Input.hpp"
 #include "Util/Keycode.hpp"
 #include "Util/Time.hpp"
@@ -38,7 +38,7 @@ bool IsOnScreen(const glm::vec2& center, const glm::vec2& halfExtents) {
 }
 
 DebugManager::DebugManager()
-    : m_DebugPixel(std::make_shared<Util::Image>(AssetPaths::Image("dot.png"))) {
+    : m_DebugPixel(std::make_shared<GameImage>(AssetPaths::Image("dot.png"))) {
 }
 
 bool DebugManager::HasFlag(Flag flag) const {
@@ -64,7 +64,7 @@ void DebugManager::SyncMarioDebugFlags(App& app) const {
 
     app.m_Mario->SetDebugGodMode(IsGodModeEnabled());
     app.m_Mario->SetDebugFlyMode(IsFlyModeEnabled());
-    app.m_Mario->SetDebugNoclip(IsNoclipEnabled());
+    app.m_Mario->SetDebugNoclip(false);
 }
 
 void DebugManager::HandleHotkeys(App& app, float dt) {
@@ -118,10 +118,6 @@ void DebugManager::HandleHotkeys(App& app, float dt) {
          app.m_ScreenState == App::ScreenState::Paused)) {
         ToggleFlag(Flag::WarpMenu);
     }
-    if (Util::Input::IsKeyDown(Util::Keycode::F10)) {
-        ToggleFlag(Flag::Noclip);
-    }
-
     SyncMarioDebugFlags(app);
 
     if (IsWarpMenuOpen()) {
@@ -315,7 +311,7 @@ void DebugManager::SetTextLine(std::size_t index,
         }
 
         auto glyph = std::make_shared<Util::GameObject>();
-        glyph->SetDrawable(std::make_shared<Util::Image>(spritePath));
+        glyph->SetDrawable(std::make_shared<GameImage>(spritePath));
         glyph->m_Transform.translation = { cursorX + glyphWidth * 0.5f, position.y };
         glyph->m_Transform.scale = scale;
         glyph->SetZIndex(zIndex);
@@ -355,15 +351,25 @@ void DebugManager::DrawOverlay(App& app) {
         "STATE " + app.m_Mario->GetDebugStateName(),
         "GOD MODE " + std::string(IsGodModeEnabled() ? "ON" : "OFF"),
         "FLY MODE " + std::string(IsFlyModeEnabled() ? "ON" : "OFF"),
-        "NOCLIP " + std::string(IsNoclipEnabled() ? "ON" : "OFF"),
         "FREECAM " + std::string(IsFreeCameraEnabled() ? "ON" : "OFF"),
-        "ENTITIES " + std::to_string(activeEntityCount)
+        "ENTITIES " + std::to_string(activeEntityCount),
+        "F1 OVERLAY",
+        "F2 HITBOX",
+        "F3 GOD",
+        "F4 FREECAM",
+        "F5 POWER",
+        "F6 FLY",
+        "F7 GOOMBA",
+        "F8 MUSHROOM",
+        "F9 WARP",
+        "WASD FLY",
+        "ARROWS CAM"
     };
 
     const glm::vec2 origin(-372.0f, 252.0f);
-    const float lineHeight = 20.0f;
+    const float lineHeight = 18.0f;
     for (std::size_t i = 0; i < lines.size(); ++i) {
-        SetTextLine(i, lines[i], { origin.x, origin.y - static_cast<float>(i) * lineHeight }, { 1.25f, 1.25f }, 0.0f, 90.0f);
+        SetTextLine(i, lines[i], { origin.x, origin.y - static_cast<float>(i) * lineHeight }, { 1.1f, 1.1f }, 0.0f, 90.0f);
         DrawTextLine(m_TextLines[i]);
     }
 }

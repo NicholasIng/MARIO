@@ -1,7 +1,7 @@
 ﻿#pragma once
 
+#include "GameImage.hpp"
 #include "Util/GameObject.hpp"
-#include "Util/Image.hpp"
 #include <string>
 #include <memory>
 
@@ -78,7 +78,7 @@ public:
     bool CanBeDefeatedByShell() const { return m_Alive; }
 
 private:
-    std::shared_ptr<Util::Image> m_Image;
+    std::shared_ptr<GameImage> m_Image;
     EnemyKind m_Kind = EnemyKind::Goomba;
     State m_State = State::Walking;
     float m_Direction = -1.0f;

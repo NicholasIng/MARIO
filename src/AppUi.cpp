@@ -28,7 +28,7 @@ void App::InitializeAnimatedSprite(AnimatedSprite& sprite,
                                    float frameDuration) {
     sprite.frames.clear();
     for (const auto& framePath : framePaths) {
-        sprite.frames.push_back(std::make_shared<Util::Image>(framePath));
+        sprite.frames.push_back(std::make_shared<GameImage>(framePath));
     }
 
     auto object = std::make_shared<Util::GameObject>();
@@ -173,7 +173,7 @@ void App::SetSpriteText(SpriteText& spriteText, const std::string& text) {
         }
 
         auto glyph = std::make_shared<Util::GameObject>();
-        glyph->SetDrawable(std::make_shared<Util::Image>(spritePath));
+        glyph->SetDrawable(std::make_shared<GameImage>(spritePath));
         glyph->SetZIndex(spriteText.zIndex);
         spriteText.glyphs.push_back(glyph);
     }
@@ -213,60 +213,60 @@ void App::InitializeUi() {
     );
 
     m_TitleLogoImage = std::make_shared<Util::GameObject>();
-    m_TitleLogoImage->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("title.png")));
+    m_TitleLogoImage->SetDrawable(std::make_shared<GameImage>(AssetPaths::Image("title.png")));
     m_TitleLogoImage->m_Transform.translation = { 0.0f, 96.0f };
     m_TitleLogoImage->m_Transform.scale = { TITLE_LOGO_IMAGE_SCALE, TITLE_LOGO_IMAGE_SCALE };
     m_TitleLogoImage->SetZIndex(UI_Z - 1.0f);
 
     m_TitleNintendoText = std::make_shared<Util::GameObject>();
-    m_TitleNintendoText->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("nintendo_text.png")));
+    m_TitleNintendoText->SetDrawable(std::make_shared<GameImage>(AssetPaths::Image("nintendo_text.png")));
     m_TitleNintendoText->m_Transform.translation = { 55.0f, -75.0f };
     m_TitleNintendoText->m_Transform.scale = { TITLE_COPYRIGHT_SCALE, TITLE_COPYRIGHT_SCALE };
     m_TitleNintendoText->SetZIndex(UI_Z - 1.0f);
 
     m_TitleCloudLeft = std::make_shared<Util::GameObject>();
-    m_TitleCloudLeft->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("Clouds.png")));
+    m_TitleCloudLeft->SetDrawable(std::make_shared<GameImage>(AssetPaths::Image("Clouds.png")));
     m_TitleCloudLeft->m_Transform.translation = { -236.0f, 222.0f };
     m_TitleCloudLeft->m_Transform.scale = { 4.0f, 4.0f };
     m_TitleCloudLeft->SetZIndex(TITLE_BG_Z);
 
     m_TitleCloudRight = std::make_shared<Util::GameObject>();
-    m_TitleCloudRight->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("Clouds.png")));
+    m_TitleCloudRight->SetDrawable(std::make_shared<GameImage>(AssetPaths::Image("Clouds.png")));
     m_TitleCloudRight->m_Transform.translation = { 226.0f, 186.0f };
     m_TitleCloudRight->m_Transform.scale = { 4.0f, 4.0f };
     m_TitleCloudRight->SetZIndex(TITLE_BG_Z);
 
     m_TitleMountain = std::make_shared<Util::GameObject>();
-    m_TitleMountain->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("mountains.png")));
+    m_TitleMountain->SetDrawable(std::make_shared<GameImage>(AssetPaths::Image("mountains.png")));
     m_TitleMountain->m_Transform.translation = { 210.0f, -266.0f };
     m_TitleMountain->m_Transform.scale = { 0.24f, 0.24f };
     m_TitleMountain->SetZIndex(TITLE_DECOR_Z);
 
     m_TitleBushLeft = std::make_shared<Util::GameObject>();
-    m_TitleBushLeft->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("Bush.png")));
+    m_TitleBushLeft->SetDrawable(std::make_shared<GameImage>(AssetPaths::Image("Bush.png")));
     m_TitleBushLeft->m_Transform.translation = { -246.0f, -282.0f };
     m_TitleBushLeft->m_Transform.scale = { 4.0f, 4.0f };
     m_TitleBushLeft->SetZIndex(TITLE_DECOR_Z + 1.0f);
 
     m_TitleBush = std::make_shared<Util::GameObject>();
-    m_TitleBush->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("Bush.png")));
+    m_TitleBush->SetDrawable(std::make_shared<GameImage>(AssetPaths::Image("Bush.png")));
     m_TitleBush->m_Transform.translation = { 286.0f, -286.0f };
     m_TitleBush->m_Transform.scale = { 4.0f, 4.0f };
     m_TitleBush->SetZIndex(TITLE_DECOR_Z + 1.0f);
 
     m_TitleMario = std::make_shared<Util::GameObject>();
-    m_TitleMario->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("Character/MarioIdle.png")));
+    m_TitleMario->SetDrawable(std::make_shared<GameImage>(AssetPaths::Image("Character/MarioIdle.png")));
     m_TitleMario->m_Transform.translation = { -182.0f, -262.0f };
     m_TitleMario->m_Transform.scale = { 4.0f, 4.0f };
     m_TitleMario->SetZIndex(TITLE_DECOR_Z + 2.0f);
 
     m_TitleCursor = std::make_shared<Util::GameObject>();
-    m_TitleCursor->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("homescreen/cursor.png")));
+    m_TitleCursor->SetDrawable(std::make_shared<GameImage>(AssetPaths::Image("homescreen/cursor.png")));
     m_TitleCursor->m_Transform.scale = { 4.0f, 4.0f };
     m_TitleCursor->SetZIndex(UI_Z);
 
     m_IntroMario = std::make_shared<Util::GameObject>();
-    m_IntroMario->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("Character/MarioIdle.png")));
+    m_IntroMario->SetDrawable(std::make_shared<GameImage>(AssetPaths::Image("Character/MarioIdle.png")));
     m_IntroMario->m_Transform.translation = { -44.0f, -18.0f };
     m_IntroMario->m_Transform.scale = { 3.0f, 3.0f };
     m_IntroMario->SetZIndex(UI_Z);
@@ -294,7 +294,7 @@ void App::InitializeUi() {
     const int tileCount = static_cast<int>(std::ceil(static_cast<float>(WINDOW_WIDTH) / tileSize)) + 2;
     for (int i = 0; i < tileCount; ++i) {
         auto tile = std::make_shared<Util::GameObject>();
-        tile->SetDrawable(std::make_shared<Util::Image>(AssetPaths::Image("Tiles/Ground.png")));
+        tile->SetDrawable(std::make_shared<GameImage>(AssetPaths::Image("Tiles/Ground.png")));
         tile->m_Transform.translation = { startX + tileSize * static_cast<float>(i), groundY };
         tile->m_Transform.scale = { titleGroundScale, titleGroundScale };
         tile->SetZIndex(TITLE_GROUND_Z);

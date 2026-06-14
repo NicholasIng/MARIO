@@ -1,10 +1,10 @@
 ﻿#ifndef MARIO_HPP
 #define MARIO_HPP
 
-#include "Util/GameObject.hpp"
-#include "Util/Image.hpp"
+#include "GameImage.hpp"
 #include "Animation.hpp"
 #include "MapManager.hpp"
+#include "Util/GameObject.hpp"
 #include <memory>
 #include <map>
 #include <string>
@@ -110,7 +110,7 @@ private:
     std::map<AnimState, std::unique_ptr<Animation>> m_FireAnimations;
     std::map<PowerState, std::unique_ptr<Animation>> m_FlagAnimations;
 
-    std::shared_ptr<Util::Image> m_Image;
+    std::shared_ptr<GameImage> m_Image;
     std::unique_ptr<Animation> m_TransformAnimation;
     std::string m_SizeTransitionFramePath;
     std::string m_DeathFramePath;

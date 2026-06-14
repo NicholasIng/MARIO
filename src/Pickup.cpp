@@ -38,7 +38,7 @@ Pickup::Pickup(LootType type, float x, float y)
         };
     }
 
-    m_Image = std::make_shared<Util::Image>(frames.front());
+    m_Image = std::make_shared<GameImage>(frames.front());
     m_Animation = std::make_unique<Animation>(
         frames,
         (type == LootType::FireFlower || type == LootType::Coin || type == LootType::Star) ? 0.1f : 1.0f

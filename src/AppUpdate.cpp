@@ -33,6 +33,8 @@ void App::UpdateTitleScreen(float dt) {
     if (Util::Input::IsKeyPressed(Util::Keycode::RETURN) ||
         Util::Input::IsKeyPressed(Util::Keycode::SPACE)) {
         PlaySfx(m_Audio.pause.get());
+        ResetGameSession();
+        LoadLevel();
         StartLevelIntro(LEVEL_INTRO_DURATION);
     }
 
