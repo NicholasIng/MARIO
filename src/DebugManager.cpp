@@ -21,6 +21,8 @@
 extern std::unique_ptr<MapManager> g_MapManager;
 
 namespace {
+constexpr bool kSubmissionDebugEnabled = false;
+
 std::string FormatFloat(float value) {
     std::ostringstream stream;
     stream << std::fixed << std::setprecision(1) << value;
@@ -68,6 +70,19 @@ void DebugManager::SyncMarioDebugFlags(App& app) const {
 }
 
 void DebugManager::HandleHotkeys(App& app, float dt) {
+    if (!kSubmissionDebugEnabled) {
+        (void)dt;
+        SetFlag(Flag::Overlay, false);
+        SetFlag(Flag::Hitboxes, false);
+        SetFlag(Flag::GodMode, false);
+        SetFlag(Flag::FreeCamera, false);
+        SetFlag(Flag::FlyMode, false);
+        SetFlag(Flag::WarpMenu, false);
+        SetFlag(Flag::Noclip, false);
+        SyncMarioDebugFlags(app);
+        return;
+    }
+
     m_LastFps = 1.0f / std::max(dt, 0.0001f);
     bool toggledWarpMenuThisFrame = false;
 
@@ -256,6 +271,11 @@ void DebugManager::SpawnStarNearMario(App& app) {
 }
 
 void DebugManager::Render(App& app) {
+    if (!kSubmissionDebugEnabled) {
+        (void)app;
+        return;
+    }
+
     if (AreHitboxesEnabled()) {
         DrawHitboxes(app);
     }

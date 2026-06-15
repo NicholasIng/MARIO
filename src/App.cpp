@@ -2,5 +2,5 @@
 #include "DebugManager.hpp"
 #include "MapManager.hpp"
 
-// global pointer for Mario collision
+// Shared map state used by gameplay systems that need collision queries.
 std::unique_ptr<MapManager> g_MapManager;

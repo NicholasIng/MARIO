@@ -110,7 +110,7 @@ private:
     std::shared_ptr<Util::GameObject> m_StartCastleObject;
     std::shared_ptr<GameImage> m_StartCastleImage;
 
-    // camera/view like the youtuber's view_x
+    // Camera offset applied when rendering the current scene.
     float m_ViewX = 0.0f;
     float m_ViewY = 0.0f;
     float m_FireballCooldown = 0.0f;
