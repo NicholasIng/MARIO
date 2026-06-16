@@ -3,10 +3,10 @@
 #include "App.hpp"
 #include "AssetPaths.hpp"
 #include "Enemy.hpp"
+#include "GameImage.hpp"
 #include "MapManager.hpp"
 #include "Pickup.hpp"
 #include "Util/GameObject.hpp"
-#include "Util/Image.hpp"
 #include "Util/Input.hpp"
 #include "Util/Keycode.hpp"
 #include "Util/Time.hpp"
@@ -21,6 +21,8 @@
 extern std::unique_ptr<MapManager> g_MapManager;
 
 namespace {
+constexpr bool kSubmissionDebugEnabled = true;
+
 std::string FormatFloat(float value) {
     std::ostringstream stream;
     stream << std::fixed << std::setprecision(1) << value;
@@ -38,7 +40,7 @@ bool IsOnScreen(const glm::vec2& center, const glm::vec2& halfExtents) {
 }
 
 DebugManager::DebugManager()
-    : m_DebugPixel(std::make_shared<Util::Image>(AssetPaths::Image("dot.png"))) {
+    : m_DebugPixel(std::make_shared<GameImage>(AssetPaths::Image("dot.png"))) {
 }
 
 bool DebugManager::HasFlag(Flag flag) const {
@@ -64,13 +66,29 @@ void DebugManager::SyncMarioDebugFlags(App& app) const {
 
     app.m_Mario->SetDebugGodMode(IsGodModeEnabled());
     app.m_Mario->SetDebugFlyMode(IsFlyModeEnabled());
-    app.m_Mario->SetDebugNoclip(IsNoclipEnabled());
+    app.m_Mario->SetDebugNoclip(false);
 }
 
 void DebugManager::HandleHotkeys(App& app, float dt) {
-    m_LastFps = 1.0f / std::max(dt, 0.0001f);
+    if (!kSubmissionDebugEnabled) {
+        (void)dt;
+        SetFlag(Flag::Overlay, false);
+        SetFlag(Flag::Hitboxes, false);
+        SetFlag(Flag::GodMode, false);
+        SetFlag(Flag::FreeCamera, false);
+        SetFlag(Flag::FlyMode, false);
+        SetFlag(Flag::WarpMenu, false);
+        SetFlag(Flag::Noclip, false);
+        SyncMarioDebugFlags(app);
+        return;
+    }
 
-    if (Util::Input::IsKeyDown(Util::Keycode::F1)) {
+    m_LastFps = 1.0f / std::max(dt, 0.0001f);
+    bool toggledWarpMenuThisFrame = false;
+
+    if (Util::Input::IsKeyDown(Util::Keycode::F1) &&
+        (app.m_ScreenState == App::ScreenState::Gameplay ||
+         app.m_ScreenState == App::ScreenState::Paused)) {
         ToggleFlag(Flag::Overlay);
         if (!IsOverlayEnabled()) {
             SetFlag(Flag::Hitboxes, false);
@@ -90,41 +108,35 @@ void DebugManager::HandleHotkeys(App& app, float dt) {
     }
 
     if (Util::Input::IsKeyDown(Util::Keycode::F2)) {
-        ToggleFlag(Flag::Hitboxes);
-    }
-    if (Util::Input::IsKeyDown(Util::Keycode::F3)) {
         ToggleFlag(Flag::GodMode);
     }
-    if (Util::Input::IsKeyDown(Util::Keycode::F4)) {
+    if (Util::Input::IsKeyDown(Util::Keycode::F3)) {
         ToggleFlag(Flag::FreeCamera);
         if (!IsFreeCameraEnabled()) {
             app.m_ViewY = 0.0f;
         }
     }
-    if (Util::Input::IsKeyDown(Util::Keycode::F5) && app.m_Mario) {
+    if (Util::Input::IsKeyDown(Util::Keycode::F4) && app.m_Mario) {
         app.m_Mario->CyclePowerState();
     }
-    if (Util::Input::IsKeyDown(Util::Keycode::F6)) {
+    if (Util::Input::IsKeyDown(Util::Keycode::F5)) {
         ToggleFlag(Flag::FlyMode);
     }
-    if (Util::Input::IsKeyDown(Util::Keycode::F7) && app.m_Mario) {
-        SpawnGoombaAtMario(app);
-    }
-    if (Util::Input::IsKeyDown(Util::Keycode::F8) && app.m_Mario) {
+    if (Util::Input::IsKeyDown(Util::Keycode::F6) && app.m_Mario) {
         SpawnMushroomNearMario(app);
     }
-    if (Util::Input::IsKeyDown(Util::Keycode::F9) &&
+    if (Util::Input::IsKeyDown(Util::Keycode::F7) && app.m_Mario) {
+        SpawnStarNearMario(app);
+    }
+    if (Util::Input::IsKeyDown(Util::Keycode::F8) &&
         (app.m_ScreenState == App::ScreenState::Gameplay ||
          app.m_ScreenState == App::ScreenState::Paused)) {
         ToggleFlag(Flag::WarpMenu);
+        toggledWarpMenuThisFrame = true;
     }
-    if (Util::Input::IsKeyDown(Util::Keycode::F10)) {
-        ToggleFlag(Flag::Noclip);
-    }
-
     SyncMarioDebugFlags(app);
 
-    if (IsWarpMenuOpen()) {
+    if (IsWarpMenuOpen() && !toggledWarpMenuThisFrame) {
         HandleWarpMenuInput(app);
     }
     if (IsFreeCameraEnabled() &&
@@ -178,6 +190,10 @@ void DebugManager::UpdateFreeCamera(App& app, float dt) {
 }
 
 void DebugManager::HandleWarpMenuInput(App& app) {
+    if (Util::Input::IsKeyDown(Util::Keycode::F8)) {
+        SetFlag(Flag::WarpMenu, false);
+        return;
+    }
     if (Util::Input::IsKeyDown(Util::Keycode::UP)) {
         m_WarpMenuIndex = (m_WarpMenuIndex + 2) % 3;
     }
@@ -187,9 +203,6 @@ void DebugManager::HandleWarpMenuInput(App& app) {
     if (Util::Input::IsKeyDown(Util::Keycode::RETURN) ||
         Util::Input::IsKeyDown(Util::Keycode::SPACE)) {
         WarpToSelectedLevel(app);
-    }
-    if (Util::Input::IsKeyDown(Util::Keycode::ESCAPE)) {
-        SetFlag(Flag::WarpMenu, false);
     }
 }
 
@@ -246,7 +259,25 @@ void DebugManager::SpawnMushroomNearMario(App& app) {
     ));
 }
 
+void DebugManager::SpawnStarNearMario(App& app) {
+    if (!app.m_Mario) {
+        return;
+    }
+
+    const float tileSize = g_MapManager ? g_MapManager->GetTileSize() : 48.0f;
+    app.m_Pickups.push_back(std::make_unique<Pickup>(
+        LootType::Star,
+        app.m_Mario->m_Transform.translation.x + tileSize,
+        app.m_Mario->m_Transform.translation.y
+    ));
+}
+
 void DebugManager::Render(App& app) {
+    if (!kSubmissionDebugEnabled) {
+        (void)app;
+        return;
+    }
+
     if (AreHitboxesEnabled()) {
         DrawHitboxes(app);
     }
@@ -315,7 +346,7 @@ void DebugManager::SetTextLine(std::size_t index,
         }
 
         auto glyph = std::make_shared<Util::GameObject>();
-        glyph->SetDrawable(std::make_shared<Util::Image>(spritePath));
+        glyph->SetDrawable(std::make_shared<GameImage>(spritePath));
         glyph->m_Transform.translation = { cursorX + glyphWidth * 0.5f, position.y };
         glyph->m_Transform.scale = scale;
         glyph->SetZIndex(zIndex);
@@ -355,15 +386,24 @@ void DebugManager::DrawOverlay(App& app) {
         "STATE " + app.m_Mario->GetDebugStateName(),
         "GOD MODE " + std::string(IsGodModeEnabled() ? "ON" : "OFF"),
         "FLY MODE " + std::string(IsFlyModeEnabled() ? "ON" : "OFF"),
-        "NOCLIP " + std::string(IsNoclipEnabled() ? "ON" : "OFF"),
         "FREECAM " + std::string(IsFreeCameraEnabled() ? "ON" : "OFF"),
-        "ENTITIES " + std::to_string(activeEntityCount)
+        "ENTITIES " + std::to_string(activeEntityCount),
+        "F1 OVERLAY",
+        "F2 GOD",
+        "F3 FREECAM",
+        "F4 POWER",
+        "F5 FLY",
+        "F6 MUSHROOM",
+        "F7 STAR",
+        "F8 WARP",
+        "WASD FLY",
+        "ARROWS CAM"
     };
 
     const glm::vec2 origin(-372.0f, 252.0f);
-    const float lineHeight = 20.0f;
+    const float lineHeight = 18.0f;
     for (std::size_t i = 0; i < lines.size(); ++i) {
-        SetTextLine(i, lines[i], { origin.x, origin.y - static_cast<float>(i) * lineHeight }, { 1.25f, 1.25f }, 0.0f, 90.0f);
+        SetTextLine(i, lines[i], { origin.x, origin.y - static_cast<float>(i) * lineHeight }, { 1.1f, 1.1f }, 0.0f, 90.0f);
         DrawTextLine(m_TextLines[i]);
     }
 }
@@ -456,7 +496,7 @@ void DebugManager::DrawWarpMenu(App&) {
         std::string(m_WarpMenuIndex == 1 ? "! " : "  ") + "WORLD 1-2",
         std::string(m_WarpMenuIndex == 2 ? "! " : "  ") + "WORLD 1-3",
         "ENTER WARP",
-        "ESC CLOSE"
+        "F8 CLOSE"
     };
 
     const glm::vec2 origin(-112.0f, 88.0f);

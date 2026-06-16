@@ -9,10 +9,10 @@
 #include "Pickup.hpp"
 #include "Debris.hpp"
 #include "DebugManager.hpp"
+#include "GameImage.hpp"
 #include "Util/BGM.hpp"
 #include "Util/Color.hpp"
 #include "Util/GameObject.hpp"
-#include "Util/Image.hpp"
 #include "Util/SFX.hpp"
 #include <memory>
 #include <string>
@@ -55,7 +55,7 @@ private:
         bool layoutDirty = true;
     };
     struct AnimatedSprite {
-        std::vector<std::shared_ptr<Util::Image>> frames;
+        std::vector<std::shared_ptr<GameImage>> frames;
         std::shared_ptr<Util::GameObject> object;
         float frameDuration = 0.1f;
         float timer = 0.0f;
@@ -106,11 +106,11 @@ private:
     std::vector<std::unique_ptr<Pickup>> m_Pickups;
     std::vector<std::unique_ptr<Debris>> m_Debris;
     std::shared_ptr<Util::GameObject> m_CastleObject;
-    std::shared_ptr<Util::Image> m_CastleImage;
+    std::shared_ptr<GameImage> m_CastleImage;
     std::shared_ptr<Util::GameObject> m_StartCastleObject;
-    std::shared_ptr<Util::Image> m_StartCastleImage;
+    std::shared_ptr<GameImage> m_StartCastleImage;
 
-    // camera/view like the youtuber's view_x
+    // Camera offset applied when rendering the current scene.
     float m_ViewX = 0.0f;
     float m_ViewY = 0.0f;
     float m_FireballCooldown = 0.0f;

@@ -1,6 +1,6 @@
 ﻿#include "Mario.hpp"
 #include "MarioDetail.hpp"
-#include "Util/Image.hpp"
+#include "GameImage.hpp"
 #include "Util/Input.hpp"
 #include "Util/Keycode.hpp"
 #include "Util/Logger.hpp"
@@ -140,7 +140,7 @@ void Mario::Update() {
         if (Util::Input::IsKeyPressed(Util::Keycode::W)) flyInput.y += 1.0f;
         if (Util::Input::IsKeyPressed(Util::Keycode::S)) flyInput.y -= 1.0f;
 
-        const float flySpeed = 340.0f;
+        const float flySpeed = 500.0f;
         if (glm::length(flyInput) > 0.0f) {
             flyInput = glm::normalize(flyInput);
         }

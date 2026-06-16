@@ -66,7 +66,7 @@ Enemy::Enemy(float x, float y, EnemyKind kind, float flightTopTiles, float fligh
       m_DeathPath((g_MapManager && g_MapManager->IsUndergroundTheme())
           ? AssetPaths::Image("ug_goomba_death.png")
           : AssetPaths::Image("Goombadeath.png")) {
-    m_Image = std::make_shared<Util::Image>(m_LeftPath);
+    m_Image = std::make_shared<GameImage>(m_LeftPath);
     SetDrawable(m_Image);
     m_Transform.translation = { x, y };
     m_Transform.scale = { 3.0f, 3.0f };

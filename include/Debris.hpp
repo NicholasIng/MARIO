@@ -1,7 +1,7 @@
 #pragma once
 
+#include "GameImage.hpp"
 #include "Util/GameObject.hpp"
-#include "Util/Image.hpp"
 #include <memory>
 #include <string>
 
@@ -21,7 +21,7 @@ public:
     bool IsExpired() const { return m_Expired; }
 
 private:
-    std::shared_ptr<Util::Image> m_Image;
+    std::shared_ptr<GameImage> m_Image;
     glm::vec2 m_Velocity{0.0f, 0.0f};
     float m_LifeTimer = 0.0f;
     bool m_Expired = false;

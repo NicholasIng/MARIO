@@ -1,15 +1,15 @@
 #pragma once
 
-#include "Util/GameObject.hpp"
-#include "Util/Image.hpp"
+#include "GameImage.hpp"
 #include "Animation.hpp"
 #include "MapManager.hpp"
+#include "Util/GameObject.hpp"
 #include <memory>
 #include <string>
 
 class Pickup : public Util::GameObject {
 public:
-    Pickup(LootType type, float x, float y);
+    Pickup(LootType type, float x, float y, bool useQuestionCoinSprites = false);
     void Update();
     bool IsCollected() const { return m_Collected; }
     void Collect() { m_Collected = true; SetVisible(false); }
@@ -27,11 +27,12 @@ private:
     static constexpr float COIN_POP_DURATION = 0.5f;
     static constexpr float COIN_POP_HEIGHT = 88.0f;
 
-    std::shared_ptr<Util::Image> m_Image;
+    std::shared_ptr<GameImage> m_Image;
     std::unique_ptr<Animation> m_Animation;
     LootType m_Type;
     bool m_Collected = false;
     bool m_AutoAwardPending = false;
+    bool m_UseQuestionCoinSprites = false;
     float m_RiseElapsed = 0.0f;
     float m_CoinPopElapsed = 0.0f;
     float m_SpawnStartX = 0.0f;

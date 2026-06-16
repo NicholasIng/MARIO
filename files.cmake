@@ -7,6 +7,8 @@ set(SRC_FILES
     AppRender.cpp
     AppUi.cpp
     AppUpdate.cpp
+    GameImage.cpp
+    GameTexture.cpp
     DebugManager.cpp
     Mario.cpp
     MarioAnimation.cpp
@@ -20,6 +22,7 @@ set(SRC_FILES
     Debris.cpp
     Pickup.cpp
     ConvertSketch.cpp
+    ConvertSketchDetail.cpp
 )
 
 set(INCLUDE_FILES
@@ -32,9 +35,12 @@ set(INCLUDE_FILES
     Enemy.hpp
     EnemyDetail.hpp
     Fireball.hpp
+    GameImage.hpp
+    GameTexture.hpp
     Debris.hpp
     Pickup.hpp
     ConvertSketch.hpp
+    ConvertSketchDetail.hpp
     MapManager.hpp
 )
 

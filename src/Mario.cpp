@@ -1,6 +1,6 @@
 ﻿#include "Mario.hpp"
 #include "MarioDetail.hpp"
-#include "Util/Image.hpp"
+#include "GameImage.hpp"
 #include "Util/Input.hpp"
 #include "Util/Keycode.hpp"
 #include "Util/Logger.hpp"
@@ -151,7 +151,7 @@ Mario::Mario()
         }, 0.1f
     );
 
-    m_Image = std::make_shared<Util::Image>(
+    m_Image = std::make_shared<GameImage>(
         ActiveAnimations().at(AnimState::IDLE)->GetCurrentFramePath()
     );
     SetDrawable(m_Image);

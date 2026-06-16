@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Animation.hpp"
+#include "GameImage.hpp"
 #include "Util/GameObject.hpp"
-#include "Util/Image.hpp"
 #include <memory>
 
 class Fireball : public Util::GameObject {
@@ -18,7 +18,7 @@ public:
     float GetDirection() const { return m_Direction; }
 
 private:
-    std::shared_ptr<Util::Image> m_Image;
+    std::shared_ptr<GameImage> m_Image;
     std::unique_ptr<Animation> m_FlyingAnimation;
     std::unique_ptr<Animation> m_HitAnimation;
     float m_Direction = 1.0f;

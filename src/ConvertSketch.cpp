@@ -1,238 +1,18 @@
-﻿#include "ConvertSketch.hpp"
+#include "ConvertSketch.hpp"
+#include "ConvertSketchDetail.hpp"
 #include "Util/Logger.hpp"
-#include "MapManager.hpp"
-#include "Enemy.hpp"
+
 #include <SDL_image.h>
-#include <unordered_map>
-#include <filesystem>
-#include <cstdint>
-#include <cctype>
+
 #include <algorithm>
-#include <vector>
-#include <string>
-#include <queue>
-#include <limits>
+#include <filesystem>
 #include <functional>
+#include <queue>
+#include <unordered_map>
 
 namespace fs = std::filesystem;
 
-namespace {
-
-constexpr Uint8 SKY_BLUE_R = 90;
-constexpr Uint8 SKY_BLUE_G = 147;
-constexpr Uint8 SKY_BLUE_B = 235;
-
-}
-
-static inline uint32_t PackRGB(Uint8 r, Uint8 g, Uint8 b) {
-    return (static_cast<uint32_t>(r) << 16) |
-           (static_cast<uint32_t>(g) << 8)  |
-           (static_cast<uint32_t>(b));
-}
-
-static bool GetPixelRGBA(SDL_Surface* surface, int x, int y, Uint8& r, Uint8& g, Uint8& b, Uint8& a) {
-    if (!surface || x < 0 || y < 0 || x >= surface->w || y >= surface->h) return false;
-    Uint32* pixels = static_cast<Uint32*>(surface->pixels);
-    int pitchPixels = surface->pitch / sizeof(Uint32);
-    Uint32 px = pixels[y * pitchPixels + x];
-    SDL_GetRGBA(px, surface->format, &r, &g, &b, &a);
-    return true;
-}
-
-static int ColorDistanceSq(Uint8 r1, Uint8 g1, Uint8 b1, Uint8 r2, Uint8 g2, Uint8 b2) {
-    int dr = static_cast<int>(r1) - static_cast<int>(r2);
-    int dg = static_cast<int>(g1) - static_cast<int>(g2);
-    int db = static_cast<int>(b1) - static_cast<int>(b2);
-    return dr * dr + dg * dg + db * db;
-}
-
-static std::string ToLower(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::tolower(c); });
-    return s;
-}
-
-// find first file under dir whose filename contains any keyword (case-insensitive)
-static std::string FindResourceByKeywords(const fs::path& dir, const std::vector<std::string>& keywords) {
-    try {
-        if (!fs::exists(dir) || !fs::is_directory(dir)) return std::string();
-        for (auto &entry : fs::directory_iterator(dir)) {
-            if (!entry.is_regular_file()) continue;
-            std::string name = ToLower(entry.path().filename().string());
-            for (auto &k : keywords) {
-                if (name.find(ToLower(k)) != std::string::npos) {
-                    return entry.path().string();
-                }
-            }
-        }
-    } catch (const std::exception &e) {
-        LOG_WARN("FindResourceByKeywords exception: {}", e.what());
-    }
-    return std::string();
-}
-
-// quick heuristic to detect sky/blue background colors (blue-dominant)
-static bool IsSkyColor(Uint8 r, Uint8 g, Uint8 b) {
-    return (b > 140) && (b > r + 30) && (b > g + 10);
-}
-
-// Scan a small top-right region of the sketch for a blue/sky pixel and return it.
-// This helps pick the tiny sky-blue marker in LevelSketch0 and use it as the scene background.
-static bool FindTopRightSkyColor(SDL_Surface* surface, Uint8& outR, Uint8& outG, Uint8& outB) {
-    if (!surface) return false;
-    int searchW = std::min(32, surface->w);
-    int searchH = std::min(32, surface->h);
-    // search from top-right inward for first sky-like pixel
-    for (int yy = 0; yy < searchH; ++yy) {
-        for (int xx = surface->w - 1; xx >= surface->w - searchW; --xx) {
-            Uint8 r,g,b,a;
-            if (!GetPixelRGBA(surface, xx, yy, r, g, b, a)) continue;
-            if (a == 0) continue;
-            if (IsSkyColor(r,g,b)) {
-                outR = r; outG = g; outB = b;
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-template <typename TValue>
-static const TValue* FindClosestColorMatch(
-    const std::unordered_map<uint32_t, TValue>& entries,
-    Uint8 r,
-    Uint8 g,
-    Uint8 b,
-    int maxDistanceSq
-) {
-    const TValue* best = nullptr;
-    int bestDistance = std::numeric_limits<int>::max();
-
-    for (const auto& [packed, value] : entries) {
-        Uint8 mr = static_cast<Uint8>((packed >> 16) & 0xFF);
-        Uint8 mg = static_cast<Uint8>((packed >> 8) & 0xFF);
-        Uint8 mb = static_cast<Uint8>(packed & 0xFF);
-        int distance = ColorDistanceSq(r, g, b, mr, mg, mb);
-        if (distance <= maxDistanceSq && distance < bestDistance) {
-            bestDistance = distance;
-            best = &value;
-        }
-    }
-
-    return best;
-}
-
-static bool IsMountainColor(Uint8 r, Uint8 g, Uint8 b) {
-    uint32_t key = PackRGB(r, g, b);
-    return key == PackRGB(0, 73, 0) ||
-           key == PackRGB(0, 109, 0);
-}
-
-static bool IsBushColor(Uint8 r, Uint8 g, Uint8 b) {
-    uint32_t key = PackRGB(r, g, b);
-    return key == PackRGB(146, 219, 0) ||
-           key == PackRGB(146, 182, 0) ||
-           key == PackRGB(146, 146, 0);
-}
-
-static bool IsFlagColor(Uint8 r, Uint8 g, Uint8 b) {
-    return PackRGB(r, g, b) == PackRGB(109, 255, 85);
-}
-
-static bool IsCastleColor(Uint8 r, Uint8 g, Uint8 b) {
-    return PackRGB(r, g, b) == PackRGB(255, 216, 0);
-}
-
-static bool IsPipeForkedColor(Uint8 r, Uint8 g, Uint8 b) {
-    return PackRGB(r, g, b) == PackRGB(0, 255, 176);
-}
-
-static bool IsMovingPlatformColor(Uint8 r, Uint8 g, Uint8 b) {
-    return PackRGB(r, g, b) == PackRGB(255, 205, 0);
-}
-
-static bool IsHorizontalMovingPlatformColor(Uint8 r, Uint8 g, Uint8 b) {
-    return PackRGB(r, g, b) == PackRGB(148, 119, 0);
-}
-
-static bool IsWoodColor(Uint8 r, Uint8 g, Uint8 b) {
-    return PackRGB(r, g, b) == PackRGB(255, 115, 0);
-}
-
-static bool IsTreeColor(Uint8 r, Uint8 g, Uint8 b) {
-    return PackRGB(r, g, b) == PackRGB(71, 255, 40);
-}
-
-static bool FindMarioSpawnMarker(SDL_Surface* surface,
-                                 int layerHeight,
-                                 int& outGridX,
-                                 int& outEntityGridY,
-                                 bool& outFoundOutsideEntityLayer) {
-    if (!surface || layerHeight <= 0) return false;
-
-    outFoundOutsideEntityLayer = false;
-
-    for (int x = 0; x < surface->w; ++x) {
-        for (int y = 0; y < layerHeight; ++y) {
-            Uint8 r, g, b, a;
-            if (!GetPixelRGBA(surface, x, y + layerHeight, r, g, b, a)) continue;
-            if (a > 0 && r == 255 && g == 0 && b == 0) {
-                outGridX = x;
-                outEntityGridY = y;
-                return true;
-            }
-        }
-    }
-
-    for (int x = 0; x < surface->w; ++x) {
-        for (int y = 0; y < surface->h; ++y) {
-            Uint8 r, g, b, a;
-            if (!GetPixelRGBA(surface, x, y, r, g, b, a)) continue;
-            if (a > 0 && r == 255 && g == 0 && b == 0) {
-                outGridX = x;
-                outEntityGridY = y % layerHeight;
-                outFoundOutsideEntityLayer = (y < layerHeight || y >= 2 * layerHeight);
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-static glm::vec2 ComputeGroundedSpawnPosition(const MapManager& map,
-                                              int gridX,
-                                              int entityGridY,
-                                              float halfHeight) {
-    const float tileSize = map.GetTileSize();
-    const int clampedGridX = std::clamp(gridX, 0, std::max(0, map.GetWidth() - 1));
-    const float worldX = map.GetWorldLeft() + clampedGridX * tileSize + tileSize / 2.0f;
-    const int minSearchX = std::max(0, clampedGridX - 1);
-    const int maxSearchX = std::min(std::max(0, map.GetWidth() - 1), clampedGridX + 1);
-
-    for (int y = std::max(0, entityGridY); y < map.GetHeight(); ++y) {
-        for (int supportX = minSearchX; supportX <= maxSearchX; ++supportX) {
-            if (MapManager::IsSolidCell(map.GetCell(supportX, y))) {
-                const float tileTop = (map.GetHeight() * tileSize) / 2.0f - y * tileSize;
-                return { worldX, tileTop + halfHeight };
-            }
-        }
-    }
-
-    const float fallbackY = (map.GetHeight() * tileSize) / 2.0f - entityGridY * tileSize + tileSize / 2.0f;
-    return { worldX, fallbackY };
-}
-
-static glm::vec2 ComputeMarkerSpawnPosition(const MapManager& map,
-                                            int gridX,
-                                            int entityGridY) {
-    const float tileSize = map.GetTileSize();
-    const int clampedGridX = std::clamp(gridX, 0, std::max(0, map.GetWidth() - 1));
-    const int clampedGridY = std::clamp(entityGridY, 0, std::max(0, map.GetHeight() - 1));
-    const float worldX = map.GetWorldLeft() + clampedGridX * tileSize + tileSize / 2.0f;
-    const float worldY = (map.GetHeight() * tileSize) / 2.0f - clampedGridY * tileSize - tileSize / 2.0f;
-    return { worldX, worldY };
-}
-
+using namespace ConvertSketchDetail;
 bool convert_sketch(
     const std::string& path,
     MapManager& map,
@@ -609,7 +389,7 @@ bool convert_sketch(
             return;
         }
 
-        Util::Image image(resolvedPath);
+        GameImage image(resolvedPath);
         const glm::vec2 imageSize = image.GetSize();
         if (imageSize.x <= 0.0f || imageSize.y <= 0.0f) {
             return;
@@ -696,7 +476,7 @@ bool convert_sketch(
         map.AddForegroundSprite(gridX, gridY, 1, 1, texturePath);
     };
     auto GetMarkerSpriteTileSize = [&](const std::string& resolvedPath) {
-        Util::Image image(resolvedPath);
+        GameImage image(resolvedPath);
         const glm::vec2 imageSize = image.GetSize();
         return std::pair<int, int>{
             std::max(1, static_cast<int>(std::round((imageSize.x * 3.0f) / map.GetTileSize()))),
@@ -1001,7 +781,7 @@ bool convert_sketch(
         !pipeForkedResolved.empty() && fs::exists(pipeForkedResolved) &&
         haveExitPipeSet;
     auto AddForkedPipePieces = [&]() {
-        Util::Image pipeImage(pipeForkedResolved);
+        GameImage pipeImage(pipeForkedResolved);
         const glm::vec2 pipeImageSize = pipeImage.GetSize();
         if (pipeImageSize.x <= 0.0f || pipeImageSize.y <= 0.0f) {
             return false;
@@ -1518,4 +1298,5 @@ bool convert_sketch(
 
     return spawnFound;
 }
+
 

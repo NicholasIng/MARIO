@@ -33,6 +33,8 @@ void App::UpdateTitleScreen(float dt) {
     if (Util::Input::IsKeyPressed(Util::Keycode::RETURN) ||
         Util::Input::IsKeyPressed(Util::Keycode::SPACE)) {
         PlaySfx(m_Audio.pause.get());
+        ResetGameSession();
+        LoadLevel();
         StartLevelIntro(LEVEL_INTRO_DURATION);
     }
 
@@ -215,8 +217,14 @@ void App::UpdateGameplay(float dt) {
     if (!powerupFreezeActive) {
         LootType lootType;
         glm::vec2 lootPos;
-        while (g_MapManager && g_MapManager->PollSpawnEvent(lootType, lootPos)) {
-            m_Pickups.push_back(std::make_unique<Pickup>(lootType, lootPos.x, lootPos.y));
+        bool useQuestionCoinSprites = false;
+        while (g_MapManager && g_MapManager->PollSpawnEvent(lootType, lootPos, useQuestionCoinSprites)) {
+            m_Pickups.push_back(std::make_unique<Pickup>(
+                lootType,
+                lootPos.x,
+                lootPos.y,
+                useQuestionCoinSprites
+            ));
             PlaySfx(m_Audio.bump.get());
             if (lootType == LootType::Coin) {
                 PlaySfx(m_Audio.coin.get());
