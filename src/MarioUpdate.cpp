@@ -506,6 +506,14 @@ void Mario::Update() {
     }
     resolveVerticalPlatforms(candidateY);
 
+    if (!m_DebugNoclip && g_MapManager) {
+        const float minX = g_MapManager->GetWorldLeft() + halfWidth;
+        if (candidateX < minX) {
+            candidateX = minX;
+            m_VelocityX = std::max(0.0f, m_VelocityX);
+        }
+    }
+
     // Apply resolved candidate position
     m_Transform.translation.x = candidateX;
     m_Transform.translation.y = candidateY;
