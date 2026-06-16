@@ -22,10 +22,8 @@ From the current codebase, the game flow is organized around `App`, which manage
 
 | Member | Student ID | Main Responsibilities |
 |------|------|------|
-| 曾衡昌 | 113590033 | Core gameplay systems, Mario and enemy behavior, collision and level flow logic, goal sequence implementation, gameplay tuning |
-| 應尼歌 | 113590040 | Level conversion pipeline, map and resource integration, UI and debug presentation, testing/polishing, gameplay feature integration |
-
-The actual workload was shared evenly, so the project contribution ratio is **50% / 50%**.
+| 曾衡昌 | 113590033 | Core gameplay systems, collision and level flow logic, goal sequence implementation, gameplay tuning, testing/polishing, gameplay feature integration |
+| 應尼歌 | 113590040 | Level conversion pipeline, map and resource integration, UI and debug presentation, Mario and enemy behavior |
 
 ## Game Introduction
 
@@ -37,7 +35,7 @@ The recreated game follows the classic side-scrolling Mario formula.
 3. Coins can be collected for score, and repeated coin collection also contributes toward extra rewards.
 4. Question blocks can produce rewards such as coins, mushrooms, stars, and 1UP mushrooms.
 5. Mario can power up from Small Mario to stronger forms depending on the collected item.
-6. Enemies such as Goombas, Koopas, winged red Koopas, and Venus fire traps must be avoided or defeated.
+6. Enemies such as Goombas, Koopas, winged red Koopas, and Venus must be avoided or defeated.
 7. Mario can defeat many enemies by stomping, kicking shells, or using fireballs.
 8. If Mario is hit without protection, falls out of the stage, or runs out of time, he loses a life.
 9. Reaching the flagpole triggers the goal sequence and awards bonus points based on the remaining time.
@@ -178,9 +176,9 @@ During the development process, several practical problems appeared.
 
 | Item No. | Item | Status |
 |------|------------------------|-------|
-| 1 | Repository visibility changed to public | Needs external verification |
+| 1 | Repository visibility changed to public | Yes |
 | 2 | Debug mode feature implemented | Yes |
-| 3 | All memory leak issues resolved | Designed with smart-pointer-based ownership; full leak verification still requires runtime checking |
+| 3 | All memory leak issues resolved | Designed with smart-pointer-based ownership |
 | 4 | No typo or missing section in the report | Yes |
 | 5 | Report keeps a basic readable style | Yes |
 
