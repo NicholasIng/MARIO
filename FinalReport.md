@@ -141,10 +141,6 @@ The current codebase shows several important implementation techniques:
 - The project uses `std::unique_ptr`, `std::shared_ptr`, and STL containers heavily for object ownership and lifecycle control.
 - Dynamic objects such as enemies, pickups, fireballs, and debris are stored in managed containers and erased when expired, which helps reduce memory management risk.
 
-**6. Debug and testing support**
-- The debug system supports overlay display, hitboxes, god mode, free camera, fly mode, reward spawning, and level warping.
-- This is useful for checking collisions, tuning movement, reproducing edge cases, and validating stage transitions during development.
-
 ### Use of AI / AI Agent
 We used **Codex** as an AI coding assistant during development.
 
