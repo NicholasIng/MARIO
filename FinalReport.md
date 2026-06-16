@@ -22,8 +22,8 @@ From the current codebase, the game flow is organized around `App`, which manage
 
 | Member | Student ID | Main Responsibilities |
 |------|------|------|
-| 曾衡昌 | 113590033 | Gameplay systems, character and enemy behavior, collision/game flow logic, fireball and pickup interactions, goal sequence refinement |
-| 應尼歌 | 113590040 | Level conversion pipeline, map content integration, resource organization, UI/debug presentation, testing and polishing |
+| 曾衡昌 | 113590033 | Core gameplay systems, Mario and enemy behavior, collision and level flow logic, goal sequence implementation, gameplay tuning |
+| 應尼歌 | 113590040 | Level conversion pipeline, map and resource integration, UI and debug presentation, testing/polishing, gameplay feature integration |
 
 The actual workload was shared evenly, so the project contribution ratio is **50% / 50%**.
 
@@ -66,13 +66,11 @@ graph TD
     B --> D["Mario"]
     B --> E["Enemy"]
     B --> F["Pickup"]
-    B --> G["Fireball"]
-    B --> H["Debris"]
-    B --> I["DebugManager"]
-    B --> J["ConvertSketch"]
-    J --> C
-    J --> D
-    J --> E
+    B --> G["DebugManager"]
+    B --> H["ConvertSketch"]
+    H --> C
+    H --> D
+    H --> E
 ```
 
 Main architectural responsibilities:
@@ -82,7 +80,6 @@ Main architectural responsibilities:
 - **`Mario`** is the player character class. It handles movement, jumping, power states, death, fireball spawn positions, and the goal sequence animation/state changes.
 - **`Enemy`** handles multiple enemy types through a shared class with type-based behavior, including Goombas, Koopas, winged Koopas, shell states, and Venus enemies.
 - **`Pickup`** manages collectible items and rewards, including mushrooms, stars, 1UPs, and coin pop behavior from question blocks.
-- **`Fireball`** manages projectile spawning, movement, collision, and expiration for Mario's ranged attack.
 - **`DebugManager`** manages the debug overlay, hitbox drawing, warp menu, free camera, god mode, fly mode, and other testing tools.
 - **`ConvertSketch`** converts level sketch images into actual gameplay data, including tiles, background theme, question block content, pipes, moving platforms, enemy spawns, and Mario spawn position.
 - **`GameImage` / `GameTexture`** provide local image and texture handling used by rendering objects in the game.
