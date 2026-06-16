@@ -14,9 +14,13 @@ Super Mario Bros.
 ## Project Overview
 
 ### Game Overview
-This project recreates the core experience of **Super Mario Bros.** in C++ with the PTSD framework. The game includes a title screen, level intro, gameplay, pause state, underground transition, goal sequence, scoring system, lives, coins, power-up progression, enemies, and a debug mode for testing.  
+**Super Mario Bros.** is a classic side-scrolling platform game where players control Mario, jump over or defeat enemies, collect coins and power-ups, and reach the flagpole to clear each level.
 
-From the current codebase, the game flow is organized around `App`, which manages the whole scene lifecycle, while gameplay objects such as `Mario`, `Enemy`, `Pickup`, `Fireball`, `Debris`, and `MapManager` cooperate to build the final game experience. The project also includes a color-based level conversion pipeline through `convert_sketch(...)`, allowing stage data to be generated from sketch images instead of hard-coding every tile manually.
+For this project, we recreated **World 1-1, World 1-2, and World 1-3**. These three stages provide different gameplay experiences. **World 1-1** acts as an introductory stage that teaches the player basic movement, jumping, block interaction, and enemy encounters. **World 1-2** is an underground level with a larger map, more obstacles, and transition-based exploration. **World 1-3** is a platform-focused stage that requires more precise jumping and timing.
+
+The enemies featured in these stages include **Goombas, Green Koopas, Red Koopas, winged Red Koopas, and Venus**. Different enemy placements and terrain layouts create different challenges in each level. Players can also collect coins and hit question blocks to obtain rewards such as **coins, mushrooms, stars, and 1UP mushrooms**. These pickups improve survivability, increase score, and add variety to gameplay progression.
+
+For debugging and testing purposes, the game includes several built-in debug functions. Pressing **F1** opens the debug overlay during gameplay, **F2** toggles God Mode, **F3** enables Free Camera, **F4** cycles Mario's power state, **F5** enables Fly Mode, **F6** spawns a mushroom, **F7** spawns a star, and **F8** opens the warp menu.
 
 ### Group Work Division
 
