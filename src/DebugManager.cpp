@@ -21,7 +21,7 @@
 extern std::unique_ptr<MapManager> g_MapManager;
 
 namespace {
-constexpr bool kSubmissionDebugEnabled = false;
+constexpr bool kSubmissionDebugEnabled = true;
 
 std::string FormatFloat(float value) {
     std::ostringstream stream;
@@ -86,7 +86,9 @@ void DebugManager::HandleHotkeys(App& app, float dt) {
     m_LastFps = 1.0f / std::max(dt, 0.0001f);
     bool toggledWarpMenuThisFrame = false;
 
-    if (Util::Input::IsKeyDown(Util::Keycode::F1)) {
+    if (Util::Input::IsKeyDown(Util::Keycode::F1) &&
+        (app.m_ScreenState == App::ScreenState::Gameplay ||
+         app.m_ScreenState == App::ScreenState::Paused)) {
         ToggleFlag(Flag::Overlay);
         if (!IsOverlayEnabled()) {
             SetFlag(Flag::Hitboxes, false);
