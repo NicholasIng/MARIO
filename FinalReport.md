@@ -51,10 +51,7 @@ Based on the current project resources and scene logic, the game includes the fo
 - **Title screen** with animated coin graphics, cursor, logo, and start prompt.
 - **Level intro screen** showing world and life information before gameplay starts.
 - **Main gameplay screen** with HUD elements such as score, world, time, and coin count.
-- **Pause screen** during gameplay.
-- **Underground/transition scenes** for stage movement between areas.
 - **Goal sequence scene** after touching the flagpole and entering the castle.
-- **Debug overlay** for testing FPS, player state, entities, free camera, god mode, and warp options.
 
 ## Program Design
 
@@ -92,7 +89,7 @@ graph TD
 
 Main architectural responsibilities:
 
-- **`App`** is the top-level controller. It manages screen states such as title, intro, gameplay, pause, status messages, and transition scenes. It also coordinates level loading, audio, UI, score, lives, timer, and object updates.
+- **`App`** is the top-level controller. It manages the main game flow from title screen to level intro, gameplay, and goal completion. It also coordinates level loading, audio, UI, score, lives, timer, and object updates.
 - The `App` logic is further separated by responsibility:
   - `AppLifecycle.cpp` handles startup and initialization.
   - `AppLevel.cpp` handles loading levels, loading scene sketches, underground transitions, and resetting stage-related state.
@@ -182,7 +179,7 @@ During the development process, several practical problems appeared.
 |------|------------------------|-------|
 | 1 | Repository visibility changed to public | Yes |
 | 2 | Debug mode feature implemented | Yes |
-| 3 | All memory leak issues resolved | Designed with smart-pointer-based ownership |
+| 3 | All memory leak issues resolved | Yes (Designed with smart-pointer-based ownership) |
 | 4 | No typo or missing section in the report | Yes |
 | 5 | Report keeps a basic readable style | Yes |
 
