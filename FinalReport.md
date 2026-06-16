@@ -62,12 +62,27 @@ This project is built with an object-oriented structure centered on scene contro
 ```mermaid
 graph TD
     A["main.cpp"] --> B["App"]
+    B --> B1["AppLifecycle.cpp"]
+    B --> B2["AppLevel.cpp"]
+    B --> B3["AppUpdate.cpp"]
+    B --> B4["AppRender.cpp"]
+    B --> B5["AppAudio.cpp"]
+    B --> B6["AppGoal.cpp"]
+    B --> B7["AppUi.cpp"]
     B --> C["MapManager"]
     B --> D["Mario"]
     B --> E["Enemy"]
     B --> F["Pickup"]
     B --> G["DebugManager"]
     B --> H["ConvertSketch"]
+    D --> D1["MarioUpdate.cpp"]
+    D --> D2["MarioAnimation.cpp"]
+    D --> D3["MarioPower.cpp"]
+    D --> D4["MarioGoal.cpp"]
+    E --> E1["EnemyUpdate.cpp"]
+    E --> E2["EnemyCombat.cpp"]
+    H --> H1["ConvertSketch.cpp"]
+    H --> H2["ConvertSketchDetail.cpp"]
     H --> C
     H --> D
     H --> E
@@ -76,12 +91,28 @@ graph TD
 Main architectural responsibilities:
 
 - **`App`** is the top-level controller. It manages screen states such as title, intro, gameplay, pause, status messages, and transition scenes. It also coordinates level loading, audio, UI, score, lives, timer, and object updates.
+- The `App` logic is further separated by responsibility:
+  - `AppLifecycle.cpp` handles startup and initialization.
+  - `AppLevel.cpp` handles loading levels, loading scene sketches, underground transitions, and resetting stage-related state.
+  - `AppUpdate.cpp` handles the main gameplay update loop, collisions, pickup collection, enemy interaction, fireball usage, timer updates, and pause/debug input integration.
+  - `AppRender.cpp` handles scene drawing, HUD rendering, and debug rendering.
+  - `AppAudio.cpp` manages music and sound effects.
+  - `AppGoal.cpp` handles the flagpole and castle goal sequence.
+  - `AppUi.cpp` builds and refreshes HUD and title/intro text presentation.
 - **`MapManager`** manages stage size, tile placement, collision boxes, moving platforms, theme switching, and map-related queries such as goal position and pipe entry points.
 - **`Mario`** is the player character class. It handles movement, jumping, power states, death, fireball spawn positions, and the goal sequence animation/state changes.
+- The Mario system is also split into focused modules:
+  - `Mario.cpp` stores core shared behavior and common data access.
+  - `MarioUpdate.cpp` handles movement, physics, and per-frame state updates.
+  - `MarioAnimation.cpp` manages sprite changes based on movement and state.
+  - `MarioPower.cpp` manages power-state transitions and damage handling.
+  - `MarioGoal.cpp` handles the special goal sequence behavior after reaching the flagpole.
 - **`Enemy`** handles multiple enemy types through a shared class with type-based behavior, including Goombas, Koopas, winged Koopas, shell states, and Venus enemies.
+- The enemy system is separated into `Enemy.cpp`, `EnemyUpdate.cpp`, and `EnemyCombat.cpp`, which helps isolate movement/state logic from combat results such as stomping, shell behavior, and defeat handling.
 - **`Pickup`** manages collectible items and rewards, including mushrooms, stars, 1UPs, and coin pop behavior from question blocks.
 - **`DebugManager`** manages the debug overlay, hitbox drawing, warp menu, free camera, god mode, fly mode, and other testing tools.
 - **`ConvertSketch`** converts level sketch images into actual gameplay data, including tiles, background theme, question block content, pipes, moving platforms, enemy spawns, and Mario spawn position.
+- `ConvertSketch.cpp` and `ConvertSketchDetail.cpp` form a dedicated level-conversion subsystem, separating the main conversion flow from detailed color rules and helper logic.
 - **`GameImage` / `GameTexture`** provide local image and texture handling used by rendering objects in the game.
 
 This structure keeps scene logic, level data, and gameplay objects separated enough to make the project easier to maintain and extend.
