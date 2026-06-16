@@ -134,6 +134,12 @@ void DebugManager::HandleHotkeys(App& app, float dt) {
         ToggleFlag(Flag::WarpMenu);
         toggledWarpMenuThisFrame = true;
     }
+    if (Util::Input::IsKeyDown(Util::Keycode::F9) &&
+        (app.m_ScreenState == App::ScreenState::Gameplay ||
+         app.m_ScreenState == App::ScreenState::Paused)) {
+        app.m_LevelTimer = std::max(0.0f, app.m_LevelTimer - 50.0f);
+        app.RefreshHudText();
+    }
     SyncMarioDebugFlags(app);
 
     if (IsWarpMenuOpen() && !toggledWarpMenuThisFrame) {
@@ -396,6 +402,7 @@ void DebugManager::DrawOverlay(App& app) {
         "F6 MUSHROOM",
         "F7 STAR",
         "F8 WARP",
+        "F9 TIME -50",
         "WASD FLY",
         "ARROWS CAM"
     };
