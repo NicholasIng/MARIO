@@ -148,7 +148,7 @@ The current codebase shows several important implementation techniques:
 - The debug system supports overlay display, hitboxes, god mode, free camera, fly mode, reward spawning, and level warping.
 - This is useful for checking collisions, tuning movement, reproducing edge cases, and validating stage transitions during development.
 
-### Use of AI / AI Agent (Only if Used)
+### Use of AI / AI Agent
 We used **Codex** as an AI coding assistant during development.
 
 The most meaningful AI-assisted part was around the **`ConvertSketch` pipeline** and related integration work. Because `ConvertSketch` connects image parsing, tile conversion, background setup, enemy spawn generation, and stage-specific rule handling, it was one of the more complex parts of the project to reason about. Codex helped us inspect the existing code, trace how the conversion logic was connected to `App` and `MapManager`, and support adjustments more quickly.
