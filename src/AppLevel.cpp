@@ -44,6 +44,7 @@ void App::ResetGameSession() {
     m_TransitionPipeEntryY = 0.0f;
     m_TransitionPipeSinkDistance = 0.0f;
     m_TransitionPipeVisibleDistance = 0.0f;
+    m_InLevelOneTwoExitArea = false;
     m_LevelIntroPurpose = LevelIntroPurpose::StartLevel;
 }
 
@@ -98,6 +99,7 @@ bool App::LoadSceneSketch(const std::string& sketchPath, bool preserveProgress) 
     m_TransitionPipeEntryY = 0.0f;
     m_TransitionPipeSinkDistance = 0.0f;
     m_TransitionPipeVisibleDistance = 0.0f;
+    m_InLevelOneTwoExitArea = false;
     m_SkyColor = Util::Color(
         static_cast<unsigned char>(SKY_BLUE_R),
         static_cast<unsigned char>(SKY_BLUE_G),
@@ -197,6 +199,7 @@ void App::LoadLevelOneTwo(bool preserveMarioState, bool fallFromAbove) {
     m_World = 1;
     m_Level = 2;
     LoadSceneSketch(ResolveLevelOneTwoSketchPath(), true);
+    m_InLevelOneTwoExitArea = false;
     if (m_Mario) {
         m_Mario->SetVisible(true);
     }
@@ -216,11 +219,13 @@ void App::LoadLevelOneTwo(bool preserveMarioState, bool fallFromAbove) {
 void App::LoadLevelOneTwoExitArea(bool preserveMarioState) {
     m_World = 1;
     m_Level = 2;
+    m_ExitPipeVenusSpawned = false;
     const std::filesystem::path exitSketch = AssetPaths::ResourceRoot() / "image" / "LevelSketch1-1.png";
     LoadSceneSketch(
         std::filesystem::exists(exitSketch) ? exitSketch.string() : AssetPaths::Image("OutdoorExitSketch.png"),
         true
     );
+    m_InLevelOneTwoExitArea = true;
     if (m_Mario && g_MapManager && g_MapManager->HasTransitionPipe()) {
         m_Mario->m_Transform.translation.x = g_MapManager->GetTransitionPipeEntryX();
         m_Mario->SetSpawnPosition(m_Mario->m_Transform.translation);

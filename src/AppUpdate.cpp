@@ -34,7 +34,7 @@ void App::UpdateTitleScreen(float dt) {
         Util::Input::IsKeyPressed(Util::Keycode::SPACE)) {
         PlaySfx(m_Audio.pause.get());
         ResetGameSession();
-        LoadLevel();
+        RefreshHudText();
         StartLevelIntro(LEVEL_INTRO_DURATION);
     }
 
@@ -107,8 +107,23 @@ void App::UpdateTransitionScene(float dt) {
                 if (m_TransitionPipeMotion == TransitionPipeMotion::VerticalUp) {
                     m_Mario->m_Transform.translation.x = m_TransitionPipeEntryX;
                     m_Mario->m_Transform.translation.y = m_TransitionPipeEntryY;
+                    if (!m_ExitPipeVenusSpawned) {
+                        const float pipeTopY = m_TransitionPipeEntryY - m_Mario->GetHalfExtents().y;
+                        m_Enemies.push_back(std::make_unique<Enemy>(
+                            m_TransitionPipeEntryX,
+                            pipeTopY + 28.0f,
+                            EnemyKind::Venus
+                        ));
+                        m_ExitPipeVenusSpawned = true;
+                    }
                     PlayGameplayMusic(true);
                     m_ScreenState = ScreenState::Gameplay;
+                    m_TransitionDestination = TransitionDestination::LevelOneTwo;
+                    m_TransitionPipeMotion = TransitionPipeMotion::VerticalDown;
+                    m_TransitionPipeReached = false;
+                    m_TransitionPipeSoundPlayed = false;
+                    m_TransitionMarioHidden = false;
+                    m_TransitionAutoWalkStarted = false;
                     return;
                 }
                 m_Mario->SetVisible(false);
@@ -620,7 +635,7 @@ void App::UpdateGameplay(float dt) {
             m_Mario->m_Transform.translation.x >= g_MapManager->GetGoalX()) {
             StartGoalSequence();
         }
-        if (m_World == 1 && m_Level == 2 &&
+        if (m_World == 1 && m_Level == 2 && !m_InLevelOneTwoExitArea &&
             g_MapManager && g_MapManager->HasTransitionPipe()) {
             const glm::vec2 marioHalf = m_Mario->GetHalfExtents();
             const float marioRight = m_Mario->m_Transform.translation.x + marioHalf.x;

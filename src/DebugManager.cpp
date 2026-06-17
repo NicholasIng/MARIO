@@ -329,7 +329,19 @@ void DebugManager::SetTextLine(std::size_t index,
     }
 
     TextLine& line = m_TextLines[index];
+    if (line.value == text &&
+        line.position == position &&
+        line.scale == scale &&
+        line.spacing == spacing &&
+        line.zIndex == zIndex) {
+        return;
+    }
+
     line.value = text;
+    line.position = position;
+    line.scale = scale;
+    line.spacing = spacing;
+    line.zIndex = zIndex;
     line.glyphs.clear();
 
     const float glyphWidth = 16.0f * scale.x;
@@ -487,7 +499,11 @@ void DebugManager::DrawHitboxes(App& app) {
     }
 
     if (g_MapManager) {
-        for (const auto& tile : g_MapManager->GetSolidCollisionBoxes()) {
+        for (const auto& tile : g_MapManager->GetSolidCollisionBoxesInView(
+                 viewX,
+                 viewY,
+                 static_cast<float>(WINDOW_WIDTH),
+                 static_cast<float>(WINDOW_HEIGHT))) {
             DrawOutlineBox(boxIndex, tile.center, tile.halfExtents, viewX, viewY, 83.0f);
         }
         for (const auto& platform : g_MapManager->GetMovingPlatformCollisionBoxes()) {

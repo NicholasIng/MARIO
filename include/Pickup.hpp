@@ -20,6 +20,7 @@ public:
 private:
     void UpdateRise(float dt);
     void UpdateCoinPop(float dt);
+    void StartLaunchHop();
 
     static constexpr float BASE_SCALE = 3.0f;
     static constexpr float RISE_DISTANCE = 48.0f;
@@ -38,6 +39,9 @@ private:
     float m_SpawnStartX = 0.0f;
     float m_SpawnStartY = 0.0f;
     bool m_HasLanded = false;
+    bool m_LaunchHopActive = false;
+    bool m_LaunchHopStarted = false;
     float m_HorizontalDirection = 1.0f;
     float m_VelocityY = 0.0f;
+    int m_IgnoredSpawnSupportGridY = -1;
 };

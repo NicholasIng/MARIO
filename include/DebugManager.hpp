@@ -42,6 +42,10 @@ public:
 private:
     struct TextLine {
         std::string value;
+        glm::vec2 position = { 0.0f, 0.0f };
+        glm::vec2 scale = { 0.0f, 0.0f };
+        float spacing = 0.0f;
+        float zIndex = 0.0f;
         std::vector<std::shared_ptr<Util::GameObject>> glyphs;
     };
 

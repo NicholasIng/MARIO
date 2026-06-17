@@ -78,9 +78,9 @@ void Pickup::Update() {
         }
     }
 
-    // Once the scripted rise finishes, stop pinning the pickup to its spawn
-    // point so physics and horizontal movement can take over normally.
-    m_Transform.scale = { BASE_SCALE, BASE_SCALE };
+    if (!m_LaunchHopStarted) {
+        StartLaunchHop();
+    }
 
     if (!g_MapManager) return;
 
@@ -132,11 +132,15 @@ void Pickup::Update() {
         const int gridY = worldToGridY(candidateY - half.y + eps);
         if (gridY >= 0 && gridY < mapHeight) {
             for (int gx = leftGridX; gx <= rightGridX; ++gx) {
+                if (m_LaunchHopActive && gridY == m_IgnoredSpawnSupportGridY) {
+                    continue;
+                }
                 if (g_MapManager->IsSolidAt(gx, gridY)) {
                     const float tileTop = mapTop - gridY * tileSize;
                     candidateY = tileTop + half.y;
                     m_VelocityY = 0.0f;
                     m_HasLanded = true;
+                    m_LaunchHopActive = false;
                     break;
                 }
             }
@@ -224,6 +228,25 @@ void Pickup::UpdateRise(float dt) {
     m_Transform.scale = { BASE_SCALE, visibleScaleY };
     m_Transform.translation.x = m_SpawnStartX;
     m_Transform.translation.y = m_SpawnStartY + RISE_DISTANCE * progress * 0.5f;
+}
+
+void Pickup::StartLaunchHop() {
+    m_LaunchHopStarted = true;
+    m_Transform.scale = { BASE_SCALE, BASE_SCALE };
+
+    if (m_Type == LootType::FireFlower) {
+        return;
+    }
+
+    m_LaunchHopActive = true;
+    m_HasLanded = false;
+    m_VelocityY = (m_Type == LootType::Star) ? 520.0f : 420.0f;
+
+    if (g_MapManager) {
+        const float tileSize = g_MapManager->GetTileSize();
+        const float mapTop = (g_MapManager->GetHeight() * tileSize) / 2.0f;
+        m_IgnoredSpawnSupportGridY = static_cast<int>(std::floor((mapTop - (m_SpawnStartY - 1.0f)) / tileSize));
+    }
 }
 
 void Pickup::UpdateCoinPop(float dt) {

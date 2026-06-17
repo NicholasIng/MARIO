@@ -652,7 +652,7 @@ bool convert_sketch(
                         }
 
                         const float entryX =
-                            map.GetWorldLeft() + (static_cast<float>(verticalLeftX) + 1.125f) * map.GetTileSize();
+                            map.GetWorldLeft() + (static_cast<float>(verticalLeftX) + 1.0f) * map.GetTileSize();
                         map.SetTransitionPipeEntryX(entryX);
                         for (int skipX = smallLeftX; skipX < width; ++skipX) {
                             for (int skipY = 0; skipY < layerHeight; ++skipY) {
@@ -691,6 +691,12 @@ bool convert_sketch(
                             map.AddTileSprite(minX, minY + 1, spanX, maxY - minY, Cell::Pipe, pipeBodyResolved);
                         }
                     } else {
+                        if (isOutdoorExitArea && spanX >= 2) {
+                            const float entryX =
+                                map.GetWorldLeft() + (static_cast<float>(minX) + 1.0f) * map.GetTileSize();
+                            map.SetTransitionPipeEntryX(entryX);
+                        }
+
                         for (const auto& [cellX, cellY] : cells) {
                             const bool isTopRow = cellY == minY;
                             const bool isLeftColumn = cellX == minX;
@@ -879,7 +885,7 @@ bool convert_sketch(
                 }
 
                 const float entryX =
-                    map.GetWorldLeft() + (static_cast<float>(verticalLeftX) + 1.125f) * map.GetTileSize();
+                    map.GetWorldLeft() + (static_cast<float>(verticalLeftX) + 1.0f) * map.GetTileSize();
                 map.SetTransitionPipeEntryX(entryX);
             }
         }

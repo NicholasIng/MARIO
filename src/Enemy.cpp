@@ -15,7 +15,9 @@ bool IsUndergroundEnemyTheme() {
 }
 
 std::string ResolveEnemyLeftPath(EnemyKind kind) {
-    if (kind == EnemyKind::Venus) return AssetPaths::Image("ug_venus.png");
+    if (kind == EnemyKind::Venus) {
+        return AssetPaths::Image(IsUndergroundEnemyTheme() ? "ug_venus.png" : "venus_green.png");
+    }
     if (kind == EnemyKind::RedKoopaWinged) return AssetPaths::Image("redkoopa_wing1.png");
     if (kind == EnemyKind::RedKoopa) return AssetPaths::Image("redkoopa1.png");
     if (kind == EnemyKind::GreenKoopa) {
@@ -25,7 +27,9 @@ std::string ResolveEnemyLeftPath(EnemyKind kind) {
 }
 
 std::string ResolveEnemyRightPath(EnemyKind kind) {
-    if (kind == EnemyKind::Venus) return AssetPaths::Image("ug_venus2.png");
+    if (kind == EnemyKind::Venus) {
+        return AssetPaths::Image(IsUndergroundEnemyTheme() ? "ug_venus2.png" : "venus_green2.png");
+    }
     if (kind == EnemyKind::RedKoopaWinged) return AssetPaths::Image("redkoopa_wing2.png");
     if (kind == EnemyKind::RedKoopa) return AssetPaths::Image("redkoopa2.png");
     if (kind == EnemyKind::GreenKoopa) {

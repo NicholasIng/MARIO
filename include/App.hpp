@@ -33,7 +33,7 @@ private:
     enum class GoalSequenceStage { None, Sliding, PlayerControl, Entering, Finished };
     enum class ScreenState { Title, LevelIntro, Gameplay, Paused, StatusMessage, TransitionScene };
     enum class StatusMessageAction { None, ReloadLevel, ShowGameOver, RestartToTitle };
-    enum class MusicTrack { None, GroundTheme, InvincibilityTheme };
+    enum class MusicTrack { None, GroundTheme, UndergroundTheme, InvincibilityTheme };
     enum class LevelIntroPurpose { StartLevel, PostGoalTransition };
     enum class TransitionDestination { LevelOneTwo, LevelOneTwoExitArea };
     enum class TransitionPipeMotion { VerticalDown, VerticalUp, HorizontalRight };
@@ -70,6 +70,7 @@ private:
     };
     struct AudioBank {
         std::unique_ptr<Util::BGM> groundTheme;
+        std::unique_ptr<Util::BGM> undergroundTheme;
         std::unique_ptr<Util::BGM> invincibilityTheme;
         std::unique_ptr<Util::SFX> oneUp;
         std::unique_ptr<Util::SFX> bowserFalls;
@@ -144,6 +145,8 @@ private:
     bool m_TransitionPipeSoundPlayed = false;
     bool m_TransitionMarioHidden = false;
     bool m_TransitionAutoWalkStarted = false;
+    bool m_ExitPipeVenusSpawned = false;
+    bool m_InLevelOneTwoExitArea = false;
     Util::Color m_SkyColor = Util::Color(90, 147, 235, 255);
     LevelIntroPurpose m_LevelIntroPurpose = LevelIntroPurpose::StartLevel;
     TransitionDestination m_TransitionDestination = TransitionDestination::LevelOneTwo;

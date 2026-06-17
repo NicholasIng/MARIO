@@ -23,7 +23,11 @@ using namespace AppDetail;
 void App::InitializeAudio() {
     if (m_Audio.groundTheme != nullptr) return;
 
+    constexpr int MASTER_AUDIO_VOLUME = 72;
+    constexpr int UNDERGROUND_MUSIC_VOLUME = 80;
+
     m_Audio.groundTheme = std::make_unique<Util::BGM>(AssetPaths::Sound("01. Ground Theme.mp3"));
+    m_Audio.undergroundTheme = std::make_unique<Util::BGM>(AssetPaths::Sound("02. Underground Theme.mp3"));
     m_Audio.invincibilityTheme = std::make_unique<Util::BGM>(AssetPaths::Sound("05. Invincibility Theme.mp3"));
     m_Audio.oneUp = std::make_unique<Util::SFX>(AssetPaths::Sound("smb_1-up.wav"));
     m_Audio.bowserFalls = std::make_unique<Util::SFX>(AssetPaths::Sound("smb_bowserfalls.wav"));
@@ -50,10 +54,13 @@ void App::InitializeAudio() {
     m_Audio.worldClear = std::make_unique<Util::SFX>(AssetPaths::Sound("smb_world_clear.wav"));
 
     if (m_Audio.groundTheme != nullptr) {
-        m_Audio.groundTheme->SetVolume(48);
+        m_Audio.groundTheme->SetVolume(MASTER_AUDIO_VOLUME);
+    }
+    if (m_Audio.undergroundTheme != nullptr) {
+        m_Audio.undergroundTheme->SetVolume(UNDERGROUND_MUSIC_VOLUME);
     }
     if (m_Audio.invincibilityTheme != nullptr) {
-        m_Audio.invincibilityTheme->SetVolume(48);
+        m_Audio.invincibilityTheme->SetVolume(MASTER_AUDIO_VOLUME);
     }
 
     const std::vector<Util::SFX*> effects = {
@@ -84,15 +91,8 @@ void App::InitializeAudio() {
 
     for (auto* effect : effects) {
         if (effect != nullptr) {
-            effect->SetVolume(72);
+            effect->SetVolume(MASTER_AUDIO_VOLUME);
         }
-    }
-
-    if (m_Audio.fireworks != nullptr) {
-        m_Audio.fireworks->SetVolume(60);
-    }
-    if (m_Audio.warning != nullptr) {
-        m_Audio.warning->SetVolume(64);
     }
 }
 
@@ -111,10 +111,19 @@ void App::PlayTitleMusic() {
 
 void App::PlayGameplayMusic(bool restart) {
     InitializeAudio();
-    if (m_Audio.groundTheme == nullptr) return;
-    if (!restart && m_ActiveMusic == MusicTrack::GroundTheme) return;
-    m_Audio.groundTheme->Play(-1);
-    m_ActiveMusic = MusicTrack::GroundTheme;
+    const bool useUndergroundTheme =
+        g_MapManager && g_MapManager->IsUndergroundTheme();
+    Util::BGM* theme = useUndergroundTheme
+        ? m_Audio.undergroundTheme.get()
+        : m_Audio.groundTheme.get();
+    const MusicTrack targetTrack = useUndergroundTheme
+        ? MusicTrack::UndergroundTheme
+        : MusicTrack::GroundTheme;
+
+    if (theme == nullptr) return;
+    if (!restart && m_ActiveMusic == targetTrack) return;
+    theme->Play(-1);
+    m_ActiveMusic = targetTrack;
 }
 
 void App::PlayInvincibilityMusic(bool restart) {
@@ -130,9 +139,7 @@ void App::UpdateGameplayMusic() {
         return;
     }
 
-    const bool useInvincibilityTheme =
-        m_Mario->HasStarPower() || m_Mario->IsRecoveringFromHit();
-    if (useInvincibilityTheme) {
+    if (m_Mario->HasStarPower()) {
         PlayInvincibilityMusic();
     } else {
         PlayGameplayMusic();

@@ -1018,6 +1018,41 @@ public:
         return boxes;
     }
 
+    std::vector<CollisionBox> GetSolidCollisionBoxesInView(float viewX, float viewY, float viewWidth, float viewHeight) const {
+        std::vector<CollisionBox> boxes;
+
+        const float worldLeft = GetWorldLeft();
+        const float worldTop = (m_Height * TILE_SIZE) / 2.0f;
+        const float left = viewX - viewWidth * 0.5f - TILE_SIZE;
+        const float right = viewX + viewWidth * 0.5f + TILE_SIZE;
+        const float top = viewY + viewHeight * 0.5f + TILE_SIZE;
+        const float bottom = viewY - viewHeight * 0.5f - TILE_SIZE;
+
+        const int minX = std::clamp(static_cast<int>(std::floor((left - worldLeft) / TILE_SIZE)), 0, std::max(0, m_Width - 1));
+        const int maxX = std::clamp(static_cast<int>(std::floor((right - worldLeft) / TILE_SIZE)), 0, std::max(0, m_Width - 1));
+        const int minY = std::clamp(static_cast<int>(std::floor((worldTop - top) / TILE_SIZE)), 0, std::max(0, m_Height - 1));
+        const int maxY = std::clamp(static_cast<int>(std::floor((worldTop - bottom) / TILE_SIZE)), 0, std::max(0, m_Height - 1));
+
+        boxes.reserve(static_cast<std::size_t>(std::max(0, maxX - minX + 1) * std::max(0, maxY - minY + 1)));
+        for (int x = minX; x <= maxX; ++x) {
+            for (int y = minY; y <= maxY; ++y) {
+                if (!IsSolidAt(x, y)) {
+                    continue;
+                }
+
+                boxes.push_back({
+                    {
+                        worldLeft + x * TILE_SIZE + TILE_SIZE * 0.5f,
+                        worldTop - y * TILE_SIZE - TILE_SIZE * 0.5f
+                    },
+                    { TILE_SIZE * 0.5f, TILE_SIZE * 0.5f }
+                });
+            }
+        }
+
+        return boxes;
+    }
+
     std::vector<CollisionBox> GetMovingPlatformCollisionBoxes() const {
         std::vector<CollisionBox> boxes;
         boxes.reserve(m_MovingPlatforms.size());
