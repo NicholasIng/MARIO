@@ -20,7 +20,7 @@ For this project, we recreated **World 1-1, World 1-2, and World 1-3**. These th
 
 The enemies featured in these stages include **Goombas, Green Koopas, Red Koopas, winged Red Koopas, and Venus**. Different enemy placements and terrain layouts create different challenges in each level. Players can also collect coins and hit question blocks to obtain rewards such as **coins, mushrooms, stars, and 1UP mushrooms**. These pickups improve survivability, increase score, and add variety to gameplay progression.
 
-For debugging and testing purposes, the game includes several built-in debug functions. Pressing **F1** opens the debug overlay during gameplay, **F2** toggles God Mode, **F3** enables Free Camera, **F4** cycles Mario's power state, **F5** enables Fly Mode, **F6** spawns a mushroom, **F7** spawns a star, and **F8** opens the warp menu.
+For debugging and testing purposes, the game includes several built-in debug functions. Pressing **F1** opens the debug overlay during gameplay, **F2** toggles God Mode, **F3** enables Free Camera, **F4** cycles Mario's power state, **F5** enables Fly Mode, **F6** spawns a mushroom, **F7** spawns a star, **F8** opens the warp menu, and **F9** minus (-50) to the timer.
 
 ### Group Work Division
 
