@@ -32,7 +32,7 @@ For debugging and testing purposes, the game includes several built in debug fun
 ## Game Introduction
 
 ### Game Rules
-The recreated game follows the classic side-scrolling Mario formula.
+The recreated game follows the classic side scrolling Mario formula.
 
 1. The player starts from the title screen and enters the level.
 2. Mario moves left and right, jumps, crouches, and interacts with the environment.
@@ -119,11 +119,11 @@ This structure keeps scene logic, level data, and gameplay objects separated eno
 ### Program Techniques
 The current codebase shows several important implementation techniques:
 
-**1. Object-oriented design**
+**1. Object oriented design**
 - The project separates responsibilities into classes such as `App`, `Mario`, `Enemy`, `Pickup`, `Fireball`, `MapManager`, and `DebugManager`.
-- State-specific logic is distributed into multiple source files such as `AppUpdate.cpp`, `AppRender.cpp`, `AppLevel.cpp`, and `AppGoal.cpp`, which keeps the main structure clearer.
+- State specific logic is distributed into multiple source files such as `AppUpdate.cpp`, `AppRender.cpp`, `AppLevel.cpp`, and `AppGoal.cpp`, which keeps the main structure clearer.
 
-**2. State-driven game flow**
+**2. State driven game flow**
 - The game uses screen states such as `Title`, `LevelIntro`, `Gameplay`, `Paused`, `StatusMessage`, and `TransitionScene`.
 - Mario also has internal state systems for power, movement, and goal progression.
 - Enemies use state transitions for walking, shell behavior, recovery, and death.
@@ -131,13 +131,13 @@ The current codebase shows several important implementation techniques:
 **3. Data conversion from sketch images**
 - `convert_sketch(...)` loads a sketch image with SDL image utilities and converts color coded pixels into actual stage content.
 - This includes tiles, underground theme detection, question block loot settings, pipes, platforms, background objects, and enemy spawn generation.
-- This approach makes level design more visual and easier to edit than hard-coded maps.
+- This approach makes level design more visual and easier to edit than hard coded maps.
 
-**4. Resource-driven rendering**
+**4. Resource driven rendering**
 - Many game elements are assembled from sprite assets under `Resources/image`, including Mario animations, enemies, blocks, underground graphics, title assets, and font sprites.
-- The HUD and debug overlay are rendered with image-based glyphs rather than standard text rendering alone, which helps maintain a retro game style.
+- The HUD and debug overlay are rendered with image based glyphs rather than standard text rendering alone, which helps maintain a retro game style.
 
-**5. Memory-safe ownership design**
+**5. Memory safe ownership design**
 - The project uses `std::unique_ptr`, `std::shared_ptr`, and STL containers heavily for object ownership and lifecycle control.
 - Dynamic objects such as enemies, pickups, fireballs, and debris are stored in managed containers and erased when expired, which helps reduce memory management risk.
 
@@ -159,7 +159,7 @@ During the development process, several practical problems appeared.
 
 **2. Coordinating multiple gameplay systems**
 - Problem: Player movement, enemies, collisions, pickups, fireballs, and goal logic all need to work together without breaking scene transitions.
-- Solution: The project separates the logic into specialized files such as `AppUpdate.cpp`, `AppLevel.cpp`, `AppGoal.cpp`, and entity-specific classes, which improves readability and reduces chaos.
+- Solution: The project separates the logic into specialized files such as `AppUpdate.cpp`, `AppLevel.cpp`, `AppGoal.cpp`, and entity specific classes, which improves readability and reduces chaos.
 
 **3. Testing gameplay efficiently**
 - Problem: Reaching a specific part of the level repeatedly is inefficient when testing game behavior.
@@ -169,7 +169,7 @@ During the development process, several practical problems appeared.
 - Problem: A game project creates and removes many objects during play, which can easily cause ownership bugs.
 - Solution: The code uses smart pointers and container cleanup patterns to manage objects such as enemies, pickups, fireballs, and debris more safely.
 
-### Self-Evaluation
+### Self Evaluation
 
 | Item No. | Item | Status |
 |------|------------------------|-------|
@@ -180,7 +180,7 @@ During the development process, several practical problems appeared.
 | 5 | Report keeps a basic readable style | Yes |
 
 ### Reflection
-This project was a valuable exercise in combining object oriented programming with real game logic. Recreating Super Mario Bros. required more than only drawing sprites; it also required handling state transitions, collision rules, enemy behavior, scoring, power-ups, map parsing, and scene management in a consistent way.
+This project was a valuable exercise in combining object oriented programming with real game logic. Recreating Super Mario Bros. required more than only drawing sprites; it also required handling state transitions, collision rules, enemy behavior, scoring, power ups, map parsing, and scene management in a consistent way.
 
 One important lesson from this project is that a clear structure matters a lot in game development. When the logic for level loading, gameplay updates, rendering, and debugging is separated well, it becomes much easier to continue improving the project without breaking everything else. Another lesson is that internal development tools such as debug overlays are extremely useful and can save a large amount of testing time.
 
