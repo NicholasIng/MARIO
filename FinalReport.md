@@ -14,7 +14,7 @@ Super Mario Bros.
 ## Project Overview
 
 ### Game Overview
-**Super Mario Bros.** is a classic side-scrolling platform game where players control Mario, jump over or defeat enemies, collect coins and power ups, and reach the flagpole to clear each level.
+**Super Mario Bros.** is a classic side scrolling platform game where players control Mario, jump over or defeat enemies, collect coins and power ups, and reach the flagpole to clear each level.
 
 For this project, we recreated **World 1-1, World 1-2, and World 1-3**. These three stages provide different gameplay experiences. **World 1-1** acts as an introductory stage that teaches the player basic movement, jumping, block interaction, and enemy encounters. **World 1-2** is an underground level with a larger map, more obstacles, and transition-based exploration. **World 1-3** is a platform-focused stage that requires more precise jumping and timing.
 
@@ -98,13 +98,13 @@ Main architectural responsibilities:
   - `AppAudio.cpp` manages music and sound effects.
   - `AppGoal.cpp` handles the flagpole and castle goal sequence.
   - `AppUi.cpp` builds and refreshes HUD and title/intro text presentation.
-- **`MapManager`** manages stage size, tile placement, collision boxes, moving platforms, theme switching, and map-related queries such as goal position and pipe entry points.
+- **`MapManager`** manages stage size, tile placement, collision boxes, moving platforms, theme switching, and map related queries such as goal position and pipe entry points.
 - **`Mario`** is the player character class. It handles movement, jumping, power states, death, fireball spawn positions, and the goal sequence animation/state changes.
 - The Mario system is also split into focused modules:
   - `Mario.cpp` stores core shared behavior and common data access.
   - `MarioUpdate.cpp` handles movement, physics, and per frame state updates.
   - `MarioAnimation.cpp` manages sprite changes based on movement and state.
-  - `MarioPower.cpp` manages power-state transitions and damage handling.
+  - `MarioPower.cpp` manages power state transitions and damage handling.
   - `MarioGoal.cpp` handles the special goal sequence behavior after reaching the flagpole.
 - **`Enemy`** handles multiple enemy types through a shared class with type based behavior, including Goombas, Koopas, winged Koopas, shell states, and Venus enemies.
 - The enemy system is separated into `Enemy.cpp`, `EnemyUpdate.cpp`, and `EnemyCombat.cpp`, which helps isolate movement/state logic from combat results such as stomping, shell behavior, and defeat handling.
