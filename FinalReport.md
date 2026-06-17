@@ -175,7 +175,7 @@ During the development process, several practical problems appeared.
 |------|------------------------|-------|
 | 1 | Repository visibility changed to public | Yes |
 | 2 | Debug mode feature implemented | Yes |
-| 3 | All memory leak issues resolved | Yes (Designed with smart pointer-based ownership) |
+| 3 | All memory leak issues resolved | Yes (Designed with smart pointer based ownership) |
 | 4 | No typo or missing section in the report | Yes |
 | 5 | Report keeps a basic readable style | Yes |
 
