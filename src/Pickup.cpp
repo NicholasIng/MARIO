@@ -8,8 +8,8 @@
 
 extern std::unique_ptr<MapManager> g_MapManager;
 
-Pickup::Pickup(LootType type, float x, float y, bool useQuestionCoinSprites)
-    : m_Type(type), m_UseQuestionCoinSprites(useQuestionCoinSprites) {
+Pickup::Pickup(LootType type, float x, float y, bool useQuestionCoinSprites, bool enableLaunchHop)
+    : m_Type(type), m_UseQuestionCoinSprites(useQuestionCoinSprites), m_EnableLaunchHop(enableLaunchHop) {
     std::vector<std::string> frames;
     if (type == LootType::RedMushroom) {
         frames = { AssetPaths::Image("Mushroom_red.png") };
@@ -238,9 +238,14 @@ void Pickup::StartLaunchHop() {
         return;
     }
 
+    if (!m_EnableLaunchHop ||
+        (m_Type != LootType::RedMushroom && m_Type != LootType::GreenMushroom)) {
+        return;
+    }
+
     m_LaunchHopActive = true;
     m_HasLanded = false;
-    m_VelocityY = (m_Type == LootType::Star) ? 520.0f : 420.0f;
+    m_VelocityY = 420.0f;
 
     if (g_MapManager) {
         const float tileSize = g_MapManager->GetTileSize();
