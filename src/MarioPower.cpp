@@ -244,19 +244,7 @@ void Mario::TakeEnemyHit() {
     if (m_DebugGodMode || m_IsDead || IsInvulnerable() || m_PowerDownLockTimer > 0.0f ||
         m_TransformType != TransformType::None) return;
 
-    if (m_PowerState == PowerState::Fire) {
-        SetPowerState(PowerState::Small);
-        m_TransformType = TransformType::None;
-        m_TargetPowerState = PowerState::Small;
-        m_TransformTimer = 0.0f;
-        m_TransformShowBigFrame = false;
-        m_PowerDownLockTimer = 0.35f;
-        m_InvulnerabilityTimer = INVULNERABILITY_DURATION;
-        SetVisible(true);
-        return;
-    }
-
-    if (m_PowerState == PowerState::Big) {
+    if (m_PowerState == PowerState::Fire || m_PowerState == PowerState::Big) {
         BeginTransformation(PowerState::Small, TransformType::SmallBigTransition);
         m_PowerDownLockTimer = 0.35f;
         m_InvulnerabilityTimer = INVULNERABILITY_DURATION;

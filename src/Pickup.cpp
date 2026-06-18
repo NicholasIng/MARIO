@@ -129,9 +129,29 @@ void Pickup::Update() {
     }
 
     if (m_VelocityY <= 0.0f) {
+        // Use the mushroom's feet for floor collisions. Using the full sprite
+        // width here lets its outer edge cling to the previous block and snap
+        // back up instead of falling through a one-tile gap.
+        const float footHalfWidth = half.x * 0.35f;
+        int landingLeftGridX = std::max(
+            0,
+            worldToGridX(m_Transform.translation.x - footHalfWidth)
+        );
+        int landingRightGridX = std::min(
+            mapWidth - 1,
+            worldToGridX(m_Transform.translation.x + footHalfWidth)
+        );
+        if (landingLeftGridX > landingRightGridX) {
+            landingLeftGridX = landingRightGridX = std::clamp(
+                worldToGridX(m_Transform.translation.x),
+                0,
+                std::max(0, mapWidth - 1)
+            );
+        }
+
         const int gridY = worldToGridY(candidateY - half.y + eps);
         if (gridY >= 0 && gridY < mapHeight) {
-            for (int gx = leftGridX; gx <= rightGridX; ++gx) {
+            for (int gx = landingLeftGridX; gx <= landingRightGridX; ++gx) {
                 if (m_LaunchHopActive && gridY == m_IgnoredSpawnSupportGridY) {
                     continue;
                 }

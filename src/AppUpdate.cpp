@@ -234,16 +234,11 @@ void App::UpdateGameplay(float dt) {
         glm::vec2 lootPos;
         bool useQuestionCoinSprites = false;
         while (g_MapManager && g_MapManager->PollSpawnEvent(lootType, lootPos, useQuestionCoinSprites)) {
-            const bool isMushroom =
-                lootType == LootType::RedMushroom || lootType == LootType::GreenMushroom;
-            const bool enableLaunchHop =
-                isMushroom && m_World == 1 && m_Level == 2 && g_MapManager->IsUndergroundTheme();
             m_Pickups.push_back(std::make_unique<Pickup>(
                 lootType,
                 lootPos.x,
                 lootPos.y,
-                useQuestionCoinSprites,
-                enableLaunchHop
+                useQuestionCoinSprites
             ));
             PlaySfx(m_Audio.bump.get());
             if (lootType == LootType::Coin) {
